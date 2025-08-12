@@ -1,0 +1,34 @@
+[Unit]
+Description=RF Homing Payload Service
+Documentation=https://github.com/yourusername/pisad
+After=network.target
+
+[Service]
+Type=simple
+User=pisad
+Group=pisad
+WorkingDirectory=/home/pisad/projects/pisad
+# uv will handle Python environment automatically
+Environment="PATH=/home/pisad/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="UV_SYSTEM_PYTHON=1"
+ExecStart=/home/pisad/.cargo/bin/uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rf-homing
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/pisad/projects/pisad/logs /home/pisad/projects/pisad/data /home/pisad/projects/pisad/config /home/pisad/projects/pisad/.uv
+
+# Resource limits
+LimitNOFILE=65536
+CPUWeight=50
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

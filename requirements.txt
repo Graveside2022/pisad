@@ -1,0 +1,35 @@
+# Core dependencies
+fastapi==0.116.1
+uvicorn[standard]==0.34.0
+pydantic==2.10.5
+pydantic-settings==2.7.1
+
+# Scientific computing
+numpy==2.2.1
+scipy==1.15.1
+
+# SDR support
+# Note: SoapySDR Python bindings need to be installed via system package manager
+# sudo apt-get install python3-soapysdr
+
+# Database
+aiosqlite==0.20.0
+
+# Configuration
+pyyaml==6.0.2
+
+# Utilities
+python-multipart==0.0.20
+aiofiles==24.1.0
+
+# Testing
+pytest==8.4.1
+pytest-asyncio==1.1.0
+pytest-cov==6.0.0
+httpx==0.28.1
+
+# Development
+black==24.10.0
+flake8==7.1.1
+mypy==1.13.0
+pre-commit==4.0.1

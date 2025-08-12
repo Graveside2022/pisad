@@ -1,0 +1,222 @@
+[project]
+name = "pisad"
+version = "1.0.0"
+description = "Portable Interferometric Signal Analysis Device - RF homing payload system for emergency services"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "PISAD Team", email = "contact@example.com" }
+]
+keywords = ["sdr", "rf", "signal-processing", "raspberry-pi", "emergency-services"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+]
+
+dependencies = [
+    # Core framework
+    "fastapi==0.116.1",
+    "uvicorn[standard]==0.34.0",
+    "pydantic==2.10.5",
+    "pydantic-settings==2.7.1",
+    
+    # Scientific computing
+    "numpy==2.2.1",
+    "scipy==1.15.1",
+    
+    # Database
+    "aiosqlite==0.20.0",
+    
+    # Configuration
+    "pyyaml==6.0.2",
+    
+    # Utilities
+    "python-multipart==0.0.20",
+    "aiofiles==24.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest==8.4.1",
+    "pytest-asyncio==1.1.0",
+    "pytest-cov==6.0.0",
+    "httpx==0.28.1",
+    
+    # Code quality
+    "black==24.10.0",
+    "ruff==0.8.6",
+    "mypy==1.13.0",
+    "pre-commit==4.0.1",
+    
+    # Type stubs
+    "types-PyYAML==6.0.12.20240917",
+    "types-aiofiles==24.1.0.20241221",
+]
+
+sdr = [
+    # SDR support - requires system packages
+    # Install with: sudo apt-get install python3-soapysdr librtlsdr-dev
+]
+
+monitoring = [
+    # Monitoring and metrics
+    "prometheus-client==0.21.1",
+    "psutil==6.1.1",
+]
+
+[project.scripts]
+pisad = "backend.main:cli"
+pisad-server = "backend.main:run_server"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/pisad"
+Documentation = "https://github.com/yourusername/pisad/docs"
+Repository = "https://github.com/yourusername/pisad"
+Issues = "https://github.com/yourusername/pisad/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/backend"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/config",
+    "/tests",
+    "/docs",
+    "/deployment",
+    "/scripts",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[tool.uv]
+# UV-specific configuration
+dev-dependencies = [
+    "ipython>=8.31.0",
+    "ipdb>=0.13.13",
+    "ruff>=0.8.6",
+]
+
+[tool.uv.sources]
+# Define custom package sources if needed
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=backend",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["src/backend"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py311', 'py312', 'py313']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.uv
+  | build
+  | dist
+  | migrations
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+fix = true
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "SIM",   # flake8-simplify
+    "TID",   # flake8-tidy-imports
+    "RUF",   # Ruff-specific rules
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "B904",  # raise from
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "PLR2004", "ARG"]  # Allow asserts and magic numbers in tests
+"__init__.py" = ["F401"]  # Allow unused imports in __init__ files
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+no_implicit_reexport = true
+namespace_packages = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+
+# Ignore missing imports for packages without type hints
+[[tool.mypy.overrides]]
+module = [
+    "soapysdr",
+    "systemd.*",
+    "uvloop",
+]
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv", ".uv"]
+skips = ["B101"]  # Skip assert_used test
