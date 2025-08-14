@@ -15,10 +15,17 @@ from src.backend.core.app import create_app
 
 
 @pytest.fixture
-def client():
-    """Create test client."""
+def app():
+    """Create test app."""
     app = create_app()
+    # The router already has prefix="/api/analytics" defined
     app.include_router(router)
+    return app
+
+
+@pytest.fixture
+def client(app):
+    """Create test client."""
     return TestClient(app)
 
 
@@ -118,18 +125,61 @@ def setup_mission_data(tmp_path, monkeypatch):
     with open(states_file, "w") as f:
         json.dump(states, f)
 
-    # Patch Path.cwd to return temp directory
-    monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
+    # Patch Path constructor to return temp paths for data/missions
+    import os
+    monkeypatch.chdir(tmp_path)
 
     return mission_id, data_dir
 
 
-def test_get_performance_metrics(client, setup_mission_data):
+def test_get_performance_metrics(app, tmp_path, monkeypatch):
     """Test retrieving performance metrics."""
-    mission_id, _ = setup_mission_data
+    # Create test data in a location the API expects
+    mission_id = uuid4()
+    
+    # Mock os.getcwd to return our temp directory
+    import os
+    monkeypatch.setattr(os, "getcwd", lambda: str(tmp_path))
+    
+    # Create the data structure that the API expects
+    data_dir = tmp_path / "data" / "missions" / str(mission_id)
+    data_dir.mkdir(parents=True)
+    
+    # Create minimal test files
+    telemetry_file = data_dir / "telemetry.csv"
+    telemetry_file.write_text("timestamp,latitude,longitude\n2024-01-01T00:00:00,47.6062,-122.3321\n")
+    
+    detections_file = data_dir / "detections.json"
+    detections_file.write_text('[{"id": "1", "timestamp": "2024-01-01T00:00:00"}]')
+    
+    # Mock the Path constructor to use our tmp directory for data/missions
+    from pathlib import Path as OrigPath
+    import src.backend.api.routes.analytics as analytics_module
+    
+    class MockPath(OrigPath):
+        def __new__(cls, *args, **kwargs):
+            if len(args) == 1 and args[0] == "data/missions":
+                return OrigPath.__new__(cls, tmp_path / "data" / "missions")
+            return OrigPath.__new__(cls, *args, **kwargs)
+    
+    monkeypatch.setattr(analytics_module, "Path", MockPath)
+    
+    # Create client after mocking
+    with TestClient(app) as client:
+        # Debug: check available routes
+        routes = []
+        for route in app.routes:
+            if hasattr(route, 'path'):
+                routes.append(route.path)
+        print(f"Available routes: {[r for r in routes if 'analytics' in r]}")
+        
+        response = client.get(f"/api/analytics/metrics?mission_id={mission_id}")
 
-    response = client.get(f"/api/analytics/metrics?mission_id={mission_id}")
-
+    print(f"Response status: {response.status_code}")
+    if response.status_code != 200:
+        print(f"Response body: {response.text}")
+        import traceback
+        traceback.print_exc()
     assert response.status_code == 200
     data = response.json()
     assert "mission_id" in data
@@ -141,7 +191,7 @@ def test_get_performance_metrics(client, setup_mission_data):
     assert 0 <= data["overall_score"] <= 100
 
 
-def test_get_performance_metrics_with_recommendations(client, setup_mission_data):
+def test_get_performance_metrics_with_recommendations(app, setup_mission_data, monkeypatch):
     """Test retrieving metrics with recommendations."""
     mission_id, _ = setup_mission_data
 
