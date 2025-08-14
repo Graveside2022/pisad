@@ -423,10 +423,14 @@ class RecommendationsEngine:
             patterns_efficiency[pattern_type].append((efficiency, coverage))
 
         # Generate recommendations based on analysis
-        best_pattern = max(
-            patterns_efficiency.items(),
-            key=lambda x: np.mean([e[0] for e in x[1]]) if x[1] else 0,
-        )
+        if patterns_efficiency:
+            best_pattern = max(
+                patterns_efficiency.items(),
+                key=lambda x: np.mean([e[0] for e in x[1]]) if x[1] else 0,
+            )
+        else:
+            # Default to grid pattern if no data
+            best_pattern = ("grid", [(70, 80)])
 
         if best_pattern[0] == "grid":
             recommendations.append(
