@@ -13,6 +13,7 @@ import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
+import numpy as np
 
 # Mark all tests with their appropriate group for parallel execution
 def pytest_collection_modifyitems(config, items):
@@ -42,6 +43,84 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
+
+# MAVLink Mock Fixtures
+@pytest.fixture
+def mock_mavlink_connection():
+    """Create a mock MAVLink connection."""
+    mock = MagicMock()
+    mock.wait_heartbeat = MagicMock()
+    mock.motors_armed_wait = MagicMock()
+    mock.recv_match = MagicMock(return_value=None)
+    mock.mav.heartbeat_send = MagicMock()
+    mock.mav.command_long_send = MagicMock()
+    mock.mav.set_position_target_local_ned_send = MagicMock()
+    return mock
+
+
+@pytest.fixture
+def mock_mavlink_service():
+    """Create a mock MAVLink service with common telemetry."""
+    service = MagicMock()
+    service.connected = True
+    service.armed = False
+    service.mode = "GUIDED"
+    service.battery_percent = 75.0
+    service.get_telemetry = MagicMock(return_value={
+        "position": {"lat": 47.5, "lon": -122.3, "alt": 100.0},
+        "attitude": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+        "velocity": {"vx": 0.0, "vy": 0.0, "vz": 0.0},
+        "battery": {"voltage": 12.6, "current": 5.0, "percentage": 75.0},
+        "gps": {"fix_type": 3, "satellites": 12, "hdop": 1.5},
+        "flight_mode": "GUIDED",
+        "armed": False,
+        "heading": 0.0,
+        "groundspeed": 0.0,
+        "airspeed": 0.0,
+        "climb_rate": 0.0
+    })
+    service.arm = AsyncMock(return_value=True)
+    service.disarm = AsyncMock(return_value=True)
+    service.set_mode = AsyncMock(return_value=True)
+    service.takeoff = AsyncMock(return_value=True)
+    service.land = AsyncMock(return_value=True)
+    service.goto = AsyncMock(return_value=True)
+    service.set_velocity = AsyncMock(return_value=True)
+    return service
+
+
+# SDR Mock Fixtures  
+@pytest.fixture
+def mock_sdr_device():
+    """Create a mock SDR device."""
+    device = MagicMock()
+    device.sample_rate = 2.048e6
+    device.center_freq = 433.92e6
+    device.gain = 40
+    device.read_samples = MagicMock(return_value=np.random.randn(1024) + 1j * np.random.randn(1024))
+    device.close = MagicMock()
+    return device
+
+
+@pytest.fixture
+def mock_sdr_service():
+    """Create a mock SDR service."""
+    service = MagicMock()
+    service.is_running = False
+    service.current_rssi = -75.0
+    service.noise_floor = -95.0
+    service.snr = 20.0
+    service.beacon_detected = False
+    service.get_rssi = MagicMock(return_value=-75.0)
+    service.get_snr = MagicMock(return_value=20.0)
+    service.get_noise_floor = MagicMock(return_value=-95.0)
+    service.start = AsyncMock()
+    service.stop = AsyncMock()
+    service.tune = AsyncMock(return_value=True)
+    service.set_gain = AsyncMock(return_value=True)
+    service.validate_beacon = MagicMock(return_value=True)
+    return service
 
 
 @pytest.fixture(scope="session")

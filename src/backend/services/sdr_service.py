@@ -20,8 +20,8 @@ except ImportError:
     SoapySDR = None
     SOAPY_AVAILABLE = False
 
-from backend.models.schemas import SDRConfig, SDRStatus
-from backend.utils.logging import get_logger
+from src.backend.models.schemas import SDRConfig, SDRStatus
+from src.backend.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

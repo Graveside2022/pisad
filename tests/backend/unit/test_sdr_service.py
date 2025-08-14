@@ -12,13 +12,12 @@ import pytest
 sys.modules["SoapySDR"] = MagicMock()
 
 from src.backend.services.sdr_service import (  # noqa: E402
-    SDRConfig,
     SDRConfigError,
     SDRNotFoundError,
     SDRService,
-    SDRStatus,
     SDRStreamError,
 )
+from src.backend.models.schemas import SDRConfig, SDRStatus
 
 
 @pytest.fixture

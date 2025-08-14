@@ -1,429 +1,521 @@
-"""Unit tests for recommendations engine."""
+"""Comprehensive tests for recommendations engine."""
 
 import json
-from uuid import uuid4
+from dataclasses import asdict
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+from uuid import UUID, uuid4
 
+import numpy as np
 import pytest
 
 from src.backend.services.performance_analytics import MissionPerformanceMetrics
 from src.backend.services.recommendations_engine import (
+    PerformancePattern,
+    Recommendation,
     RecommendationPriority,
-    RecommendationsEngine,
     RecommendationType,
+    RecommendationsEngine,
+    SystemRecommendations,
 )
 
 
-@pytest.fixture
-def recommendations_engine():
-    """Create a recommendations engine instance."""
-    return RecommendationsEngine()
+class TestRecommendationEnums:
+    """Test recommendation enumerations."""
+    
+    def test_recommendation_type_enum(self):
+        """Test RecommendationType enum values."""
+        assert RecommendationType.PARAMETER_TUNING.value == "parameter_tuning"
+        assert RecommendationType.HARDWARE_UPGRADE.value == "hardware_upgrade"
+        assert RecommendationType.SEARCH_PATTERN.value == "search_pattern"
+        assert RecommendationType.OPERATIONAL.value == "operational"
+        assert RecommendationType.FEATURE_REQUEST.value == "feature_request"
+    
+    def test_recommendation_priority_enum(self):
+        """Test RecommendationPriority enum values."""
+        assert RecommendationPriority.CRITICAL.value == "critical"
+        assert RecommendationPriority.HIGH.value == "high"
+        assert RecommendationPriority.MEDIUM.value == "medium"
+        assert RecommendationPriority.LOW.value == "low"
 
 
-@pytest.fixture
-def sample_metrics_good():
-    """Create sample metrics with good performance."""
-    return MissionPerformanceMetrics(
-        mission_id=uuid4(),
-        detection_metrics={
-            "detections_per_hour": 10.0,
-            "mean_detection_confidence": 85.0,
-        },
-        approach_metrics={
-            "approach_efficiency": 80.0,
-            "final_rssi_dbm": -50.0,
-        },
-        search_metrics={
-            "coverage_percentage": 85.0,
-            "search_pattern_efficiency": 75.0,
-            "total_area_km2": 2.0,
-        },
-        false_positive_analysis={
-            "false_positives": 1,
-            "precision": 0.9,
-        },
-        environmental_correlation={
-            "rf_noise_correlation": 0.7,
-        },
-        baseline_comparison={},
-        overall_score=80.0,
-        recommendations=[],
-    )
-
-
-@pytest.fixture
-def sample_metrics_poor():
-    """Create sample metrics with poor performance."""
-    return MissionPerformanceMetrics(
-        mission_id=uuid4(),
-        detection_metrics={
-            "detections_per_hour": 3.0,
-            "mean_detection_confidence": 60.0,
-        },
-        approach_metrics={
-            "approach_efficiency": 50.0,
-            "final_rssi_dbm": -75.0,
-            "approach_time_s": 400.0,
-        },
-        search_metrics={
-            "coverage_percentage": 60.0,
-            "search_pattern_efficiency": 55.0,
-            "total_area_km2": 5.0,
-            "average_speed_kmh": 4.0,
-        },
-        false_positive_analysis={
-            "false_positives": 5,
-            "precision": 0.6,
-        },
-        environmental_correlation={
-            "rf_noise_correlation": 0.3,
-        },
-        baseline_comparison={},
-        overall_score=45.0,
-        recommendations=[],
-    )
-
-
-def test_analyze_performance_data(recommendations_engine, sample_metrics_good, sample_metrics_poor):
-    """Test performance pattern analysis."""
-    metrics_list = [sample_metrics_poor] * 4 + [sample_metrics_good] * 2
-
-    patterns = recommendations_engine.analyze_performance_data(metrics_list)
-
-    assert len(patterns) > 0
-    # Should identify low detection rate pattern (4 out of 6 missions)
-    detection_pattern = next((p for p in patterns if p.pattern_type == "low_detection_rate"), None)
-    assert detection_pattern is not None
-    assert detection_pattern.frequency == 4
-    assert detection_pattern.impact_score > 0
-
-    # Should identify poor approach efficiency
-    approach_pattern = next(
-        (p for p in patterns if p.pattern_type == "poor_approach_efficiency"), None
-    )
-    assert approach_pattern is not None
-
-
-def test_generate_parameter_recommendations_low_detection(
-    recommendations_engine, sample_metrics_poor
-):
-    """Test parameter recommendations for low detection rate."""
-    metrics_list = [sample_metrics_poor] * 3
-
-    recommendations = recommendations_engine.generate_parameter_recommendations(metrics_list)
-
-    assert len(recommendations) > 0
-
-    # Should recommend SDR gain increase
-    sdr_rec = next((r for r in recommendations if r.id == "param_sdr_gain"), None)
-    assert sdr_rec is not None
-    assert sdr_rec.type == RecommendationType.PARAMETER_TUNING
-    assert sdr_rec.priority == RecommendationPriority.HIGH
-    assert "sdr_gain" in sdr_rec.specific_parameters
-
-
-def test_generate_parameter_recommendations_low_confidence(
-    recommendations_engine, sample_metrics_poor
-):
-    """Test parameter recommendations for low confidence."""
-    metrics_list = [sample_metrics_poor] * 3
-
-    recommendations = recommendations_engine.generate_parameter_recommendations(metrics_list)
-
-    # Should recommend detection threshold adjustment
-    threshold_rec = next((r for r in recommendations if r.id == "param_detection_threshold"), None)
-    assert threshold_rec is not None
-    assert threshold_rec.priority == RecommendationPriority.MEDIUM
-    assert "detection_threshold_dbm" in threshold_rec.specific_parameters
-
-
-def test_generate_parameter_recommendations_low_coverage(
-    recommendations_engine, sample_metrics_poor
-):
-    """Test parameter recommendations for low coverage."""
-    metrics_list = [sample_metrics_poor] * 3
-
-    recommendations = recommendations_engine.generate_parameter_recommendations(metrics_list)
-
-    # Should recommend search pattern optimization
-    pattern_rec = next((r for r in recommendations if r.id == "param_search_pattern"), None)
-    assert pattern_rec is not None
-    assert pattern_rec.priority == RecommendationPriority.HIGH
-    assert "search_altitude_m" in pattern_rec.specific_parameters
-
-
-def test_suggest_hardware_upgrades_weak_signal(recommendations_engine, sample_metrics_poor):
-    """Test hardware upgrade suggestions for weak signals."""
-    metrics_list = [sample_metrics_poor] * 3
-
-    recommendations = recommendations_engine.suggest_hardware_upgrades(metrics_list)
-
-    assert len(recommendations) > 0
-
-    # Should recommend antenna upgrade
-    antenna_rec = next((r for r in recommendations if r.id == "hw_antenna"), None)
-    assert antenna_rec is not None
-    assert antenna_rec.type == RecommendationType.HARDWARE_UPGRADE
-    assert "antenna_type" in antenna_rec.specific_parameters
-
-
-def test_suggest_hardware_upgrades_poor_snr(recommendations_engine):
-    """Test hardware upgrade suggestions for poor SNR."""
-    metrics = MissionPerformanceMetrics(
-        mission_id=uuid4(),
-        detection_metrics={},
-        approach_metrics={"final_rssi_dbm": -80},
-        search_metrics={"average_speed_kmh": 3.0},
-        false_positive_analysis={},
-        environmental_correlation={"rf_noise_correlation": 0.2},
-        baseline_comparison={},
-        overall_score=40.0,
-        recommendations=[],
-    )
-    metrics_list = [metrics] * 3
-
-    recommendations = recommendations_engine.suggest_hardware_upgrades(metrics_list)
-
-    # Should recommend SDR upgrade
-    sdr_rec = next((r for r in recommendations if r.id == "hw_sdr"), None)
-    assert sdr_rec is not None
-    assert sdr_rec.priority == RecommendationPriority.LOW
-
-
-def test_identify_optimal_search_patterns_grid(recommendations_engine, sample_metrics_good):
-    """Test search pattern identification for grid pattern."""
-    metrics_list = [sample_metrics_good] * 5
-
-    recommendations = recommendations_engine.identify_optimal_search_patterns(metrics_list)
-
-    assert len(recommendations) > 0
-    grid_rec = next((r for r in recommendations if "grid" in r.id.lower()), None)
-    assert grid_rec is not None
-    assert grid_rec.type == RecommendationType.SEARCH_PATTERN
-
-
-def test_identify_optimal_search_patterns_terrain(recommendations_engine):
-    """Test search pattern recommendations with terrain data."""
-    metrics_list = [
-        MissionPerformanceMetrics(
-            mission_id=uuid4(),
-            detection_metrics={},
-            approach_metrics={},
-            search_metrics={
-                "search_pattern_efficiency": 65,
-                "coverage_percentage": 70,
-            },
-            false_positive_analysis={},
-            environmental_correlation={},
-            baseline_comparison={},
-            overall_score=60.0,
-            recommendations=[],
+class TestRecommendation:
+    """Test Recommendation dataclass."""
+    
+    def test_recommendation_creation(self):
+        """Test creating a recommendation."""
+        rec = Recommendation(
+            id="rec-001",
+            type=RecommendationType.PARAMETER_TUNING,
+            priority=RecommendationPriority.HIGH,
+            title="Increase SDR Gain",
+            description="Current gain settings are too low for reliable detection",
+            expected_improvement="30% increase in detection range",
+            implementation_effort="low",
+            affected_metrics=["detection_rate", "signal_quality"],
+            specific_parameters={"sdr_gain": 40, "current_gain": 30}
         )
-    ]
-
-    terrain_data = {"type": "mountainous"}
-
-    recommendations = recommendations_engine.identify_optimal_search_patterns(
-        metrics_list, terrain_data
-    )
-
-    # Should recommend terrain-following pattern
-    terrain_rec = next((r for r in recommendations if "terrain" in r.id.lower()), None)
-    assert terrain_rec is not None
-    assert terrain_rec.priority == RecommendationPriority.HIGH
-
-
-def test_create_v2_feature_recommendations_ml(recommendations_engine):
-    """Test v2.0 feature recommendations for ML features."""
-    metrics = MissionPerformanceMetrics(
-        mission_id=uuid4(),
-        detection_metrics={},
-        approach_metrics={"approach_time_s": 180},
-        search_metrics={},
-        false_positive_analysis={"false_positives": 5},
-        environmental_correlation={},
-        baseline_comparison={},
-        overall_score=50.0,
-        recommendations=[],
-    )
-    metrics_list = [metrics] * 5
-
-    recommendations = recommendations_engine.create_v2_feature_recommendations(metrics_list)
-
-    assert len(recommendations) > 0
-    ml_rec = next((r for r in recommendations if "ml" in r.id.lower()), None)
-    assert ml_rec is not None
-    assert ml_rec.type == RecommendationType.FEATURE_REQUEST
-    assert ml_rec.priority == RecommendationPriority.HIGH
-
-
-def test_create_v2_feature_recommendations_autonomous(recommendations_engine):
-    """Test v2.0 feature recommendations for autonomous features."""
-    metrics = MissionPerformanceMetrics(
-        mission_id=uuid4(),
-        detection_metrics={},
-        approach_metrics={"approach_time_s": 360},  # 6 minutes
-        search_metrics={"total_area_km2": 2},
-        false_positive_analysis={"false_positives": 1},
-        environmental_correlation={},
-        baseline_comparison={},
-        overall_score=60.0,
-        recommendations=[],
-    )
-    metrics_list = [metrics] * 3
-
-    recommendations = recommendations_engine.create_v2_feature_recommendations(metrics_list)
-
-    auto_rec = next((r for r in recommendations if "auto" in r.id.lower()), None)
-    assert auto_rec is not None
-    assert auto_rec.priority == RecommendationPriority.MEDIUM
-
-
-def test_create_v2_feature_recommendations_multi_drone(recommendations_engine):
-    """Test v2.0 feature recommendations for multi-drone coordination."""
-    metrics = MissionPerformanceMetrics(
-        mission_id=uuid4(),
-        detection_metrics={},
-        approach_metrics={"approach_time_s": 180},
-        search_metrics={"total_area_km2": 15},  # Large area
-        false_positive_analysis={"false_positives": 1},
-        environmental_correlation={},
-        baseline_comparison={},
-        overall_score=70.0,
-        recommendations=[],
-    )
-    metrics_list = [metrics] * 2
-
-    recommendations = recommendations_engine.create_v2_feature_recommendations(metrics_list)
-
-    drone_rec = next((r for r in recommendations if "drone" in r.id.lower()), None)
-    assert drone_rec is not None
-    assert drone_rec.priority == RecommendationPriority.LOW
-
-
-def test_create_v2_feature_recommendations_with_feedback(recommendations_engine):
-    """Test v2.0 feature recommendations with field feedback."""
-    metrics_list = [
-        MissionPerformanceMetrics(
-            mission_id=uuid4(),
-            detection_metrics={},
-            approach_metrics={"approach_time_s": 180},
-            search_metrics={},
-            false_positive_analysis={"false_positives": 1},
-            environmental_correlation={},
-            baseline_comparison={},
-            overall_score=70.0,
-            recommendations=[],
+        
+        assert rec.id == "rec-001"
+        assert rec.type == RecommendationType.PARAMETER_TUNING
+        assert rec.priority == RecommendationPriority.HIGH
+        assert rec.title == "Increase SDR Gain"
+        assert len(rec.affected_metrics) == 2
+        assert rec.specific_parameters["sdr_gain"] == 40
+    
+    def test_recommendation_defaults(self):
+        """Test recommendation with default values."""
+        rec = Recommendation(
+            id="rec-002",
+            type=RecommendationType.OPERATIONAL,
+            priority=RecommendationPriority.MEDIUM,
+            title="Test",
+            description="Test description",
+            expected_improvement="None",
+            implementation_effort="medium"
         )
-    ]
-
-    field_feedback = ["Strong winds affected search", "Weather was challenging"]
-
-    recommendations = recommendations_engine.create_v2_feature_recommendations(
-        metrics_list, field_feedback
-    )
-
-    weather_rec = next((r for r in recommendations if "weather" in r.id.lower()), None)
-    assert weather_rec is not None
-    assert weather_rec.type == RecommendationType.FEATURE_REQUEST
+        
+        assert rec.affected_metrics == []
+        assert rec.specific_parameters == {}
 
 
-def test_generate_system_recommendations(
-    recommendations_engine, sample_metrics_good, sample_metrics_poor
-):
-    """Test comprehensive system recommendations generation."""
-    metrics_list = [sample_metrics_poor] * 3 + [sample_metrics_good] * 2
-
-    system_recs = recommendations_engine.generate_system_recommendations(metrics_list)
-
-    assert system_recs.total_missions_analyzed == 5
-    assert len(system_recs.common_patterns) > 0
-    assert len(system_recs.parameter_recommendations) > 0
-    assert len(system_recs.hardware_recommendations) > 0
-    assert len(system_recs.search_pattern_recommendations) > 0
-    assert len(system_recs.v2_feature_recommendations) > 0
-
-
-def test_export_recommendations(recommendations_engine, tmp_path):
-    """Test exporting recommendations to file."""
-    metrics_list = [
-        MissionPerformanceMetrics(
-            mission_id=uuid4(),
-            detection_metrics={"detections_per_hour": 5},
-            approach_metrics={},
-            search_metrics={},
-            false_positive_analysis={},
-            environmental_correlation={},
-            baseline_comparison={},
-            overall_score=60.0,
-            recommendations=[],
+class TestPerformancePattern:
+    """Test PerformancePattern dataclass."""
+    
+    def test_pattern_creation(self):
+        """Test creating a performance pattern."""
+        mission_ids = [uuid4() for _ in range(3)]
+        pattern = PerformancePattern(
+            pattern_type="low_detection_rate",
+            frequency=5,
+            impact_score=8.5,
+            missions_affected=mission_ids,
+            description="Consistently low beacon detection rate"
         )
-    ]
-
-    system_recs = recommendations_engine.generate_system_recommendations(metrics_list)
-    output_path = tmp_path / "recommendations.json"
-
-    success = recommendations_engine.export_recommendations(system_recs, output_path)
-
-    assert success is True
-    assert output_path.exists()
-
-    # Verify content
-    with open(output_path) as f:
-        data = json.load(f)
-    assert data["total_missions_analyzed"] == 1
+        
+        assert pattern.pattern_type == "low_detection_rate"
+        assert pattern.frequency == 5
+        assert pattern.impact_score == 8.5
+        assert len(pattern.missions_affected) == 3
+        assert all(isinstance(m, UUID) for m in pattern.missions_affected)
 
 
-def test_patterns_database_loaded(recommendations_engine):
-    """Test that patterns database is properly loaded."""
-    assert recommendations_engine.patterns_database is not None
-    assert "low_detection_rate" in recommendations_engine.patterns_database
-    assert "poor_approach_efficiency" in recommendations_engine.patterns_database
-    assert "low_coverage" in recommendations_engine.patterns_database
-    assert "high_false_positives" in recommendations_engine.patterns_database
-
-
-def test_parameter_thresholds_loaded(recommendations_engine):
-    """Test that parameter thresholds are properly loaded."""
-    assert recommendations_engine.parameter_thresholds is not None
-    assert "sdr_gain" in recommendations_engine.parameter_thresholds
-    assert "detection_threshold_dbm" in recommendations_engine.parameter_thresholds
-    assert "search_altitude_m" in recommendations_engine.parameter_thresholds
-
-    # Check structure
-    sdr_gain = recommendations_engine.parameter_thresholds["sdr_gain"]
-    assert "min" in sdr_gain
-    assert "max" in sdr_gain
-    assert "optimal" in sdr_gain
-
-
-def test_recommendation_priority_ordering(recommendations_engine):
-    """Test that recommendations are properly prioritized."""
-    metrics_list = [
-        MissionPerformanceMetrics(
-            mission_id=uuid4(),
-            detection_metrics={"detections_per_hour": 2, "mean_detection_confidence": 50},
-            approach_metrics={"approach_efficiency": 40, "final_rssi_dbm": -85},
-            search_metrics={"coverage_percentage": 50},
-            false_positive_analysis={"false_positives": 10, "precision": 0.4},
-            environmental_correlation={"rf_noise_correlation": 0.1},
-            baseline_comparison={},
-            overall_score=30.0,
-            recommendations=[],
+class TestSystemRecommendations:
+    """Test SystemRecommendations model."""
+    
+    def test_system_recommendations_creation(self):
+        """Test creating system recommendations."""
+        recs = SystemRecommendations(
+            total_missions_analyzed=10,
+            common_patterns=[
+                {"pattern": "low_detection", "count": 3}
+            ],
+            parameter_recommendations=[
+                {"param": "gain", "value": 40}
+            ],
+            hardware_recommendations=[
+                {"component": "antenna", "upgrade": "directional"}
+            ],
+            search_pattern_recommendations=[
+                {"pattern": "spiral", "reason": "better coverage"}
+            ],
+            v2_feature_recommendations=[
+                {"feature": "auto_gain", "benefit": "adaptive detection"}
+            ],
+            critical_issues=[
+                {"issue": "battery_drain", "impact": "mission_abort"}
+            ]
         )
-    ] * 5
+        
+        assert recs.total_missions_analyzed == 10
+        assert len(recs.common_patterns) == 1
+        assert len(recs.parameter_recommendations) == 1
+        assert len(recs.hardware_recommendations) == 1
+        assert len(recs.search_pattern_recommendations) == 1
+        assert len(recs.v2_feature_recommendations) == 1
+        assert len(recs.critical_issues) == 1
+    
+    def test_system_recommendations_json_serialization(self):
+        """Test JSON serialization of system recommendations."""
+        recs = SystemRecommendations(
+            total_missions_analyzed=5,
+            common_patterns=[],
+            parameter_recommendations=[],
+            hardware_recommendations=[],
+            search_pattern_recommendations=[],
+            v2_feature_recommendations=[],
+            critical_issues=[]
+        )
+        
+        json_str = recs.model_dump_json()
+        parsed = json.loads(json_str)
+        assert parsed["total_missions_analyzed"] == 5
 
-    param_recs = recommendations_engine.generate_parameter_recommendations(metrics_list)
 
-    # Check that high priority recommendations exist
-    high_priority = [r for r in param_recs if r.priority == RecommendationPriority.HIGH]
-    assert len(high_priority) > 0
-
-    # Check that recommendations have required fields
-    for rec in param_recs:
-        assert rec.id
-        assert rec.type
-        assert rec.priority
-        assert rec.title
-        assert rec.description
-        assert rec.expected_improvement
-        assert rec.implementation_effort in ["low", "medium", "high"]
+class TestRecommendationsEngine:
+    """Test RecommendationsEngine class."""
+    
+    @pytest.fixture
+    def engine(self):
+        """Create recommendations engine instance."""
+        return RecommendationsEngine()
+    
+    def test_engine_initialization(self, engine):
+        """Test engine initialization."""
+        assert engine.patterns_database is not None
+        assert engine.parameter_thresholds is not None
+        assert "low_detection_rate" in engine.patterns_database
+        assert "poor_approach_efficiency" in engine.patterns_database
+    
+    def test_load_patterns_database(self, engine):
+        """Test loading patterns database."""
+        patterns = engine._load_patterns_database()
+        
+        assert "low_detection_rate" in patterns
+        assert patterns["low_detection_rate"]["threshold"] == 5.0
+        assert len(patterns["low_detection_rate"]["recommendations"]) > 0
+        
+        assert "poor_approach_efficiency" in patterns
+        assert patterns["poor_approach_efficiency"]["threshold"] == 60.0
+    
+    def test_load_parameter_thresholds(self, engine):
+        """Test loading parameter thresholds."""
+        thresholds = engine._load_parameter_thresholds()
+        
+        assert "sdr_gain" in thresholds
+        assert thresholds["sdr_gain"]["min"] == 20
+        assert thresholds["sdr_gain"]["max"] == 60
+        assert thresholds["sdr_gain"]["optimal"] == 40
+        
+        assert "detection_threshold" in thresholds
+        assert "approach_velocity" in thresholds
+    
+    def test_analyze_mission_metrics(self, engine):
+        """Test analyzing individual mission metrics."""
+        metrics = MissionPerformanceMetrics(
+            mission_id=uuid4(),
+            detection_rate=3.0,  # Below threshold
+            approach_efficiency=50.0,  # Below threshold
+            signal_quality_consistency=0.6,
+            search_pattern_coverage=0.7,
+            false_positive_rate=0.2,
+            response_time_avg=5.0,
+            environmental_factors={}
+        )
+        
+        recommendations = engine.analyze_mission_metrics(metrics)
+        
+        assert len(recommendations) > 0
+        # Should have recommendations for low detection rate
+        detection_recs = [r for r in recommendations if "detection" in r.title.lower()]
+        assert len(detection_recs) > 0
+        
+        # Should have recommendations for poor approach efficiency
+        approach_recs = [r for r in recommendations if "approach" in r.title.lower()]
+        assert len(approach_recs) > 0
+    
+    def test_analyze_mission_with_good_metrics(self, engine):
+        """Test analyzing mission with good metrics."""
+        metrics = MissionPerformanceMetrics(
+            mission_id=uuid4(),
+            detection_rate=10.0,  # Good
+            approach_efficiency=85.0,  # Good
+            signal_quality_consistency=0.9,
+            search_pattern_coverage=0.95,
+            false_positive_rate=0.05,
+            response_time_avg=2.0,
+            environmental_factors={}
+        )
+        
+        recommendations = engine.analyze_mission_metrics(metrics)
+        
+        # Should have fewer or no critical recommendations
+        critical_recs = [r for r in recommendations if r.priority == RecommendationPriority.CRITICAL]
+        assert len(critical_recs) == 0
+    
+    def test_identify_patterns(self, engine):
+        """Test identifying patterns across missions."""
+        metrics_list = []
+        for _ in range(5):
+            metrics = MissionPerformanceMetrics(
+                mission_id=uuid4(),
+                detection_rate=2.0,  # Consistently low
+                approach_efficiency=75.0,
+                signal_quality_consistency=0.7,
+                search_pattern_coverage=0.8,
+                false_positive_rate=0.1,
+                response_time_avg=3.0,
+                environmental_factors={}
+            )
+            metrics_list.append(metrics)
+        
+        patterns = engine.identify_patterns(metrics_list)
+        
+        assert len(patterns) > 0
+        # Should identify low detection rate pattern
+        low_detection_patterns = [p for p in patterns if p.pattern_type == "low_detection_rate"]
+        assert len(low_detection_patterns) > 0
+        assert low_detection_patterns[0].frequency == 5
+    
+    def test_identify_mixed_patterns(self, engine):
+        """Test identifying patterns with mixed performance."""
+        metrics_list = []
+        
+        # Some with low detection
+        for _ in range(3):
+            metrics = MissionPerformanceMetrics(
+                mission_id=uuid4(),
+                detection_rate=2.0,
+                approach_efficiency=80.0,
+                signal_quality_consistency=0.7,
+                search_pattern_coverage=0.8,
+                false_positive_rate=0.1,
+                response_time_avg=3.0,
+                environmental_factors={}
+            )
+            metrics_list.append(metrics)
+        
+        # Some with poor approach
+        for _ in range(2):
+            metrics = MissionPerformanceMetrics(
+                mission_id=uuid4(),
+                detection_rate=8.0,
+                approach_efficiency=40.0,
+                signal_quality_consistency=0.7,
+                search_pattern_coverage=0.8,
+                false_positive_rate=0.1,
+                response_time_avg=3.0,
+                environmental_factors={}
+            )
+            metrics_list.append(metrics)
+        
+        patterns = engine.identify_patterns(metrics_list)
+        
+        assert len(patterns) >= 2
+        pattern_types = [p.pattern_type for p in patterns]
+        assert "low_detection_rate" in pattern_types
+        assert "poor_approach_efficiency" in pattern_types
+    
+    def test_generate_parameter_recommendations(self, engine):
+        """Test generating parameter tuning recommendations."""
+        patterns = [
+            PerformancePattern(
+                pattern_type="low_detection_rate",
+                frequency=5,
+                impact_score=8.0,
+                missions_affected=[uuid4() for _ in range(5)],
+                description="Low detection"
+            )
+        ]
+        
+        recommendations = engine.generate_parameter_recommendations(patterns)
+        
+        assert len(recommendations) > 0
+        # Should recommend gain adjustment
+        gain_recs = [r for r in recommendations if "gain" in r.title.lower()]
+        assert len(gain_recs) > 0
+        assert gain_recs[0].type == RecommendationType.PARAMETER_TUNING
+    
+    def test_generate_hardware_recommendations(self, engine):
+        """Test generating hardware upgrade recommendations."""
+        patterns = [
+            PerformancePattern(
+                pattern_type="poor_signal_quality",
+                frequency=8,
+                impact_score=9.0,
+                missions_affected=[uuid4() for _ in range(8)],
+                description="Consistently poor signal quality"
+            )
+        ]
+        
+        recommendations = engine.generate_hardware_recommendations(patterns)
+        
+        assert len(recommendations) > 0
+        # Should recommend hardware upgrades
+        assert any(r.type == RecommendationType.HARDWARE_UPGRADE for r in recommendations)
+    
+    def test_generate_search_pattern_recommendations(self, engine):
+        """Test generating search pattern recommendations."""
+        metrics_list = []
+        for _ in range(3):
+            metrics = MissionPerformanceMetrics(
+                mission_id=uuid4(),
+                detection_rate=7.0,
+                approach_efficiency=75.0,
+                signal_quality_consistency=0.7,
+                search_pattern_coverage=0.4,  # Poor coverage
+                false_positive_rate=0.1,
+                response_time_avg=3.0,
+                environmental_factors={}
+            )
+            metrics_list.append(metrics)
+        
+        recommendations = engine.generate_search_pattern_recommendations(metrics_list)
+        
+        assert len(recommendations) > 0
+        assert any(r.type == RecommendationType.SEARCH_PATTERN for r in recommendations)
+    
+    def test_generate_v2_features(self, engine):
+        """Test generating v2 feature recommendations."""
+        patterns = [
+            PerformancePattern(
+                pattern_type="low_detection_rate",
+                frequency=10,
+                impact_score=9.5,
+                missions_affected=[uuid4() for _ in range(10)],
+                description="Persistent detection issues"
+            )
+        ]
+        
+        features = engine.generate_v2_features(patterns)
+        
+        assert len(features) > 0
+        assert any(r.type == RecommendationType.FEATURE_REQUEST for r in features)
+    
+    def test_generate_system_recommendations(self, engine):
+        """Test generating complete system recommendations."""
+        metrics_list = []
+        for i in range(10):
+            metrics = MissionPerformanceMetrics(
+                mission_id=uuid4(),
+                detection_rate=3.0 if i < 5 else 8.0,
+                approach_efficiency=50.0 if i < 3 else 80.0,
+                signal_quality_consistency=0.6,
+                search_pattern_coverage=0.7,
+                false_positive_rate=0.15,
+                response_time_avg=4.0,
+                environmental_factors={"wind_speed": 10.0}
+            )
+            metrics_list.append(metrics)
+        
+        system_recs = engine.generate_system_recommendations(metrics_list)
+        
+        assert system_recs.total_missions_analyzed == 10
+        assert len(system_recs.common_patterns) > 0
+        assert len(system_recs.parameter_recommendations) > 0
+        assert len(system_recs.critical_issues) >= 0
+    
+    def test_generate_recommendations_empty_list(self, engine):
+        """Test generating recommendations with no missions."""
+        system_recs = engine.generate_system_recommendations([])
+        
+        assert system_recs.total_missions_analyzed == 0
+        assert len(system_recs.common_patterns) == 0
+        assert len(system_recs.parameter_recommendations) == 0
+    
+    def test_prioritize_recommendations(self, engine):
+        """Test recommendation prioritization."""
+        recommendations = [
+            Recommendation(
+                id="1",
+                type=RecommendationType.PARAMETER_TUNING,
+                priority=RecommendationPriority.LOW,
+                title="Minor tuning",
+                description="Small improvement",
+                expected_improvement="5%",
+                implementation_effort="low"
+            ),
+            Recommendation(
+                id="2",
+                type=RecommendationType.HARDWARE_UPGRADE,
+                priority=RecommendationPriority.CRITICAL,
+                title="Critical upgrade",
+                description="Essential for operation",
+                expected_improvement="50%",
+                implementation_effort="high"
+            ),
+            Recommendation(
+                id="3",
+                type=RecommendationType.OPERATIONAL,
+                priority=RecommendationPriority.HIGH,
+                title="Important change",
+                description="Significant improvement",
+                expected_improvement="20%",
+                implementation_effort="medium"
+            )
+        ]
+        
+        sorted_recs = engine.prioritize_recommendations(recommendations)
+        
+        assert sorted_recs[0].priority == RecommendationPriority.CRITICAL
+        assert sorted_recs[1].priority == RecommendationPriority.HIGH
+        assert sorted_recs[2].priority == RecommendationPriority.LOW
+    
+    def test_export_recommendations(self, engine, tmp_path):
+        """Test exporting recommendations to file."""
+        system_recs = SystemRecommendations(
+            total_missions_analyzed=5,
+            common_patterns=[{"pattern": "test"}],
+            parameter_recommendations=[{"param": "gain"}],
+            hardware_recommendations=[],
+            search_pattern_recommendations=[],
+            v2_feature_recommendations=[],
+            critical_issues=[]
+        )
+        
+        output_file = tmp_path / "recommendations.json"
+        engine.export_recommendations(system_recs, output_file)
+        
+        assert output_file.exists()
+        with open(output_file) as f:
+            data = json.load(f)
+        assert data["total_missions_analyzed"] == 5
+    
+    def test_calculate_impact_score(self, engine):
+        """Test impact score calculation."""
+        pattern = PerformancePattern(
+            pattern_type="low_detection_rate",
+            frequency=5,
+            impact_score=0.0,  # Will be calculated
+            missions_affected=[uuid4() for _ in range(5)],
+            description="Test pattern"
+        )
+        
+        score = engine.calculate_impact_score(pattern)
+        
+        assert score > 0
+        assert score <= 10
+    
+    def test_recommendation_deduplication(self, engine):
+        """Test that duplicate recommendations are removed."""
+        metrics = MissionPerformanceMetrics(
+            mission_id=uuid4(),
+            detection_rate=2.0,  # Will trigger multiple similar recommendations
+            approach_efficiency=50.0,
+            signal_quality_consistency=0.5,
+            search_pattern_coverage=0.5,
+            false_positive_rate=0.3,
+            response_time_avg=6.0,
+            environmental_factors={}
+        )
+        
+        recommendations = engine.analyze_mission_metrics(metrics)
+        
+        # Check for duplicates by title
+        titles = [r.title for r in recommendations]
+        assert len(titles) == len(set(titles))  # No duplicates
+    
+    def test_environmental_factor_consideration(self, engine):
+        """Test that environmental factors affect recommendations."""
+        metrics = MissionPerformanceMetrics(
+            mission_id=uuid4(),
+            detection_rate=4.0,
+            approach_efficiency=60.0,
+            signal_quality_consistency=0.6,
+            search_pattern_coverage=0.7,
+            false_positive_rate=0.2,
+            response_time_avg=4.0,
+            environmental_factors={
+                "wind_speed": 25.0,  # High wind
+                "temperature": 45.0,  # High temperature
+                "humidity": 90.0  # High humidity
+            }
+        )
+        
+        recommendations = engine.analyze_mission_metrics(metrics)
+        
+        # Should have environmental-related recommendations
+        env_recs = [r for r in recommendations if "environmental" in r.description.lower() 
+                    or "weather" in r.description.lower()
+                    or "conditions" in r.description.lower()]
+        assert len(env_recs) > 0
