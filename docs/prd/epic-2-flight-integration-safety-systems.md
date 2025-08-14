@@ -9,6 +9,7 @@
 **so that** the payload can receive telemetry and send velocity commands when authorized.
 
 **Acceptance Criteria:**
+
 1. MAVLink 2.0 connection established over serial (/dev/ttyACM0 or /dev/ttyAMA0)
 2. Heartbeat messages exchanged at 1Hz with connection monitoring
 3. Flight telemetry received and parsed (position, altitude, battery, mode, GPS status)
@@ -24,6 +25,7 @@
 **so that** the payload never compromises flight safety or operator control.
 
 **Acceptance Criteria:**
+
 1. Mode monitor detects flight mode changes within 100ms and stops velocity commands if not GUIDED
 2. Operator activation required via web UI "Enable Homing" button before any velocity commands sent
 3. Automatic homing disable after 10 seconds of signal loss (<6 dB SNR)
@@ -39,6 +41,7 @@
 **so that** I maintain situational awareness and positive control.
 
 **Acceptance Criteria:**
+
 1. Large, prominent "Enable/Disable Homing" toggle button with clear state indication
 2. Visual confirmation required before enabling homing (popup or slide-to-confirm)
 3. Current homing state displayed prominently with color coding (gray=disabled, green=enabled, red=active)
@@ -54,6 +57,7 @@
 **so that** I have unified situational awareness without switching interfaces.
 
 **Acceptance Criteria:**
+
 1. RSSI value streamed to GCS via NAMED_VALUE_FLOAT at 2Hz
 2. Homing state sent via STATUSTEXT on any state change
 3. Detection events sent as STATUSTEXT with signal strength and confidence
@@ -69,6 +73,7 @@
 **so that** I can validate all safety systems before flight testing.
 
 **Acceptance Criteria:**
+
 1. Bench test procedure validates all safety interlocks with simulated signals
 2. Ground vehicle test plan documents RF validation methodology
 3. Safety checklist created for pre-flight payload verification

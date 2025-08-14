@@ -9,6 +9,7 @@
 **so that** it efficiently covers the designated search area while monitoring for signals.
 
 **Acceptance Criteria:**
+
 1. Expanding square pattern generator creates waypoints based on configured spacing (50-100m)
 2. Search velocity configurable between 5-10 m/s via web UI
 3. Search area boundaries definable via corner coordinates or center+radius
@@ -24,6 +25,7 @@
 **so that** it can autonomously locate the beacon source.
 
 **Acceptance Criteria:**
+
 1. Gradient climbing algorithm computes optimal heading based on RSSI history
 2. Forward velocity scaled based on signal strength change rate (stronger=faster)
 3. Yaw rate commands keep drone pointed toward gradient direction
@@ -39,6 +41,7 @@
 **so that** the system behaves predictably and is maintainable.
 
 **Acceptance Criteria:**
+
 1. State machine implements: IDLE, SEARCHING, DETECTING, HOMING, HOLDING states
 2. State transitions logged with trigger conditions and timestamps
 3. Each state has defined entry/exit actions and allowed transitions
@@ -54,6 +57,7 @@
 **so that** we can prove operational readiness and identify limitations.
 
 **Acceptance Criteria:**
+
 1. Test beacon transmitter configured and validated at multiple power levels
 2. Open field test achieves beacon detection at >500m range
 3. Successful approach to within 50m of beacon in 5 consecutive tests
@@ -69,6 +73,7 @@
 **so that** I can assess system effectiveness and plan improvements.
 
 **Acceptance Criteria:**
+
 1. Mission replay capability using logged telemetry and signal data
 2. Performance dashboard shows key metrics: detection rate, approach accuracy, search efficiency
 3. Export capability for flight logs in CSV/JSON format

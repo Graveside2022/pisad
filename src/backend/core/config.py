@@ -11,22 +11,26 @@ from typing import Any
 
 import yaml
 
+from src.backend.services.config_service import ConfigService
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class AppConfig:
     """Application configuration."""
+
     APP_NAME: str = "PISAD"
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "development"
     APP_HOST: str = "0.0.0.0"
-    APP_PORT: int = 8000
+    APP_PORT: int = 8080
 
 
 @dataclass
 class SDRConfig:
     """SDR configuration."""
+
     SDR_FREQUENCY: int = 433920000
     SDR_SAMPLE_RATE: int = 2048000
     SDR_GAIN: int = 30
@@ -38,6 +42,7 @@ class SDRConfig:
 @dataclass
 class SignalConfig:
     """Signal processing configuration."""
+
     SIGNAL_RSSI_THRESHOLD: float = -70.0
     SIGNAL_AVERAGING_WINDOW: int = 10
     SIGNAL_MIN_DURATION_MS: int = 100
@@ -47,6 +52,7 @@ class SignalConfig:
 @dataclass
 class InterferometryConfig:
     """Interferometry configuration."""
+
     INTERFEROMETRY_ENABLED: bool = False
     INTERFEROMETRY_BASELINE_MM: int = 200
     INTERFEROMETRY_CALIBRATION_FILE: str = "config/calibration.yaml"
@@ -55,6 +61,7 @@ class InterferometryConfig:
 @dataclass
 class DatabaseConfig:
     """Database configuration."""
+
     DB_PATH: str = "data/pisad.db"
     DB_CONNECTION_POOL_SIZE: int = 5
     DB_ENABLE_WAL: bool = True
@@ -63,6 +70,7 @@ class DatabaseConfig:
 @dataclass
 class LoggingConfig:
     """Logging configuration."""
+
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_FILE_PATH: str = "logs/pisad.log"
@@ -76,6 +84,7 @@ class LoggingConfig:
 @dataclass
 class WebSocketConfig:
     """WebSocket configuration."""
+
     WS_RSSI_UPDATE_INTERVAL_MS: int = 100
     WS_HEARTBEAT_INTERVAL_S: int = 30
     WS_MAX_CONNECTIONS: int = 10
@@ -84,6 +93,7 @@ class WebSocketConfig:
 @dataclass
 class SafetyConfig:
     """Safety configuration."""
+
     SAFETY_VELOCITY_MAX_MPS: float = 2.0
     SAFETY_INTERLOCK_ENABLED: bool = False
     SAFETY_EMERGENCY_STOP_GPIO: int = 23
@@ -92,6 +102,7 @@ class SafetyConfig:
 @dataclass
 class PerformanceConfig:
     """Performance configuration."""
+
     PERF_WORKER_THREADS: int = 4
     PERF_ENABLE_PROFILING: bool = False
     PERF_CACHE_SIZE_MB: int = 100
@@ -100,6 +111,7 @@ class PerformanceConfig:
 @dataclass
 class APIConfig:
     """API configuration."""
+
     API_RATE_LIMIT_ENABLED: bool = False
     API_RATE_LIMIT_REQUESTS: int = 100
     API_CORS_ENABLED: bool = True
@@ -111,14 +123,45 @@ class APIConfig:
 @dataclass
 class MonitoringConfig:
     """System monitoring configuration."""
+
     MONITORING_ENABLED: bool = False
     MONITORING_PORT: int = 9090
     MONITORING_INTERVAL_S: int = 60
 
 
 @dataclass
+class TelemetryConfig:
+    """MAVLink telemetry configuration."""
+
+    TELEMETRY_RSSI_RATE_HZ: float = 2.0
+    TELEMETRY_HEALTH_INTERVAL_SECONDS: int = 10
+    TELEMETRY_DETECTION_THROTTLE_MS: int = 500
+    TELEMETRY_STATUSTEXT_SEVERITY: str = "INFO"
+    TELEMETRY_MAX_BANDWIDTH_KBPS: float = 10.0
+
+
+@dataclass
+class HomingConfig:
+    """Homing algorithm configuration."""
+
+    HOMING_FORWARD_VELOCITY_MAX: float = 5.0
+    HOMING_YAW_RATE_MAX: float = 0.5
+    HOMING_APPROACH_VELOCITY: float = 1.0
+    HOMING_SIGNAL_LOSS_TIMEOUT: float = 5.0
+    HOMING_ALGORITHM_MODE: str = "GRADIENT"
+    HOMING_GRADIENT_WINDOW_SIZE: int = 10
+    HOMING_GRADIENT_MIN_SNR: float = 10.0
+    HOMING_SAMPLING_TURN_RADIUS: float = 10.0
+    HOMING_SAMPLING_DURATION: float = 5.0
+    HOMING_APPROACH_THRESHOLD: float = -50.0
+    HOMING_PLATEAU_VARIANCE: float = 2.0
+    HOMING_VELOCITY_SCALE_FACTOR: float = 0.1
+
+
+@dataclass
 class DevelopmentConfig:
     """Development settings."""
+
     DEV_HOT_RELOAD: bool = True
     DEV_DEBUG_MODE: bool = False
     DEV_MOCK_SDR: bool = False
@@ -127,6 +170,7 @@ class DevelopmentConfig:
 @dataclass
 class Config:
     """Main configuration container."""
+
     app: AppConfig = field(default_factory=AppConfig)
     sdr: SDRConfig = field(default_factory=SDRConfig)
     signal: SignalConfig = field(default_factory=SignalConfig)
@@ -138,6 +182,8 @@ class Config:
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
     api: APIConfig = field(default_factory=APIConfig)
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
+    telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
+    homing: HomingConfig = field(default_factory=HomingConfig)
     development: DevelopmentConfig = field(default_factory=DevelopmentConfig)
 
     def to_dict(self) -> dict[str, Any]:
@@ -154,6 +200,8 @@ class Config:
             "performance": self.performance.__dict__,
             "api": self.api.__dict__,
             "monitoring": self.monitoring.__dict__,
+            "telemetry": self.telemetry.__dict__,
+            "homing": self.homing.__dict__,
             "development": self.development.__dict__,
         }
 
@@ -201,7 +249,43 @@ class ConfigLoader:
         # Override with environment variables
         self._apply_env_overrides()
 
+        # Load default configuration profile if available
+        self._load_default_profile()
+
         return self.config
+
+    def _load_default_profile(self) -> None:
+        """Load the default configuration profile and apply its settings."""
+        try:
+            config_service = ConfigService()
+            default_profile = config_service.get_default_profile()
+
+            if default_profile:
+                logger.info(f"Loading default profile: {default_profile.name}")
+
+                # Apply SDR configuration
+                if default_profile.sdrConfig:
+                    self.config.sdr.SDR_FREQUENCY = int(default_profile.sdrConfig.frequency)
+                    self.config.sdr.SDR_SAMPLE_RATE = int(default_profile.sdrConfig.sampleRate)
+                    if isinstance(default_profile.sdrConfig.gain, int | float):
+                        self.config.sdr.SDR_GAIN = int(default_profile.sdrConfig.gain)
+
+                # Apply signal configuration
+                if default_profile.signalConfig:
+                    self.config.signal.SIGNAL_RSSI_THRESHOLD = (
+                        default_profile.signalConfig.triggerThreshold
+                    )
+
+                # Apply safety/homing configuration
+                if default_profile.homingConfig:
+                    self.config.safety.SAFETY_VELOCITY_MAX_MPS = (
+                        default_profile.homingConfig.forwardVelocityMax
+                    )
+
+                logger.info(f"Applied settings from default profile: {default_profile.name}")
+
+        except Exception as e:
+            logger.warning(f"Could not load default profile: {e}")
 
     def _apply_yaml_config(self, yaml_config: dict[str, Any]) -> None:
         """Apply configuration from YAML dictionary."""
@@ -233,6 +317,10 @@ class ConfigLoader:
                 setattr(self.config.api, key, value)
             elif key.startswith("MONITORING_"):
                 setattr(self.config.monitoring, key, value)
+            elif key.startswith("TELEMETRY_"):
+                setattr(self.config.telemetry, key, value)
+            elif key.startswith("HOMING_"):
+                setattr(self.config.homing, key, value)
             elif key.startswith("DEV_"):
                 setattr(self.config.development, key, value)
 
@@ -246,7 +334,7 @@ class ConfigLoader:
                 continue
 
             # Remove prefix to get config key
-            config_key = env_key[len(env_prefix):]
+            config_key = env_key[len(env_prefix) :]
 
             # Determine which config section this belongs to
             if config_key.startswith("APP_"):
@@ -271,6 +359,10 @@ class ConfigLoader:
                 self._set_config_value(self.config.api, config_key, env_value)
             elif config_key.startswith("MONITORING_"):
                 self._set_config_value(self.config.monitoring, config_key, env_value)
+            elif config_key.startswith("TELEMETRY_"):
+                self._set_config_value(self.config.telemetry, config_key, env_value)
+            elif config_key.startswith("HOMING_"):
+                self._set_config_value(self.config.homing, config_key, env_value)
             elif config_key.startswith("DEV_"):
                 self._set_config_value(self.config.development, config_key, env_value)
 
@@ -294,7 +386,7 @@ class ConfigLoader:
         converted_value: Any
         if isinstance(current_value, bool):
             # Convert string to boolean
-            converted_value = value.lower() in ('true', '1', 'yes', 'on')
+            converted_value = value.lower() in ("true", "1", "yes", "on")
         elif isinstance(current_value, int):
             try:
                 converted_value = int(value)
@@ -309,7 +401,7 @@ class ConfigLoader:
                 return
         elif isinstance(current_value, list):
             # Parse comma-separated list
-            converted_value = [v.strip() for v in value.split(',')]
+            converted_value = [v.strip() for v in value.split(",")]
         else:
             # Keep as string
             converted_value = value

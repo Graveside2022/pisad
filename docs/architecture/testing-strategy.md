@@ -1,6 +1,7 @@
 # Testing Strategy
 
 ## Testing Pyramid
+
 ```
           E2E Tests
          /        \
@@ -12,6 +13,7 @@
 ## Test Organization
 
 ### Frontend Tests
+
 ```
 tests/frontend/
 ├── components/
@@ -25,6 +27,7 @@ tests/frontend/
 ```
 
 ### Backend Tests
+
 ```
 tests/backend/
 ├── unit/
@@ -39,6 +42,7 @@ tests/backend/
 ```
 
 ### E2E Tests
+
 ```
 tests/e2e/
 ├── homing_activation.spec.ts
@@ -49,6 +53,7 @@ tests/e2e/
 ## Test Examples
 
 ### Frontend Component Test
+
 ```typescript
 // SignalMeter.test.tsx
 import { render, screen } from '@testing-library/react';
@@ -59,7 +64,7 @@ describe('SignalMeter', () => {
     render(<SignalMeter rssi={-75} noiseFloor={-95} snr={20} />);
     expect(screen.getByText('-75.0 dBm')).toBeInTheDocument();
   });
-  
+
   it('shows success color for high SNR', () => {
     const { container } = render(
       <SignalMeter rssi={-60} noiseFloor={-95} snr={35} />
@@ -70,4 +75,7 @@ describe('SignalMeter', () => {
 ```
 
 ### Backend API Test
+
 ```python
+
+```

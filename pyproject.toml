@@ -5,73 +5,87 @@ description = "Portable Interferometric Signal Analysis Device - RF homing paylo
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [
-    { name = "PISAD Team", email = "contact@example.com" }
+authors = [{ name = "PISAD Team", email = "contact@example.com" }]
+keywords = [
+  "sdr",
+  "rf",
+  "signal-processing",
+  "raspberry-pi",
+  "emergency-services",
 ]
-keywords = ["sdr", "rf", "signal-processing", "raspberry-pi", "emergency-services"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Scientific/Engineering",
-    "Topic :: System :: Hardware :: Hardware Drivers",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Topic :: System :: Hardware :: Hardware Drivers",
 ]
 
 dependencies = [
-    # Core framework
-    "fastapi==0.116.1",
-    "uvicorn[standard]==0.34.0",
-    "pydantic==2.10.5",
-    "pydantic-settings==2.7.1",
-    
-    # Scientific computing
-    "numpy==2.2.1",
-    "scipy==1.15.1",
-    
-    # Database
-    "aiosqlite==0.20.0",
-    
-    # Configuration
-    "pyyaml==6.0.2",
-    
-    # Utilities
-    "python-multipart==0.0.20",
-    "aiofiles==24.1.0",
+  # Core framework
+  "fastapi==0.116.1",
+  "uvicorn[standard]==0.35.0",
+  "pydantic==2.10.5",
+  "pydantic-settings==2.10.1",
+  # Scientific computing
+  "numpy==2.2.1",
+  "scipy==1.15.1",
+  # Database
+  "sqlalchemy>=2.0.0",
+  "aiosqlite==0.20.0",
+  # Configuration
+  "pyyaml==6.0.2",
+  # Utilities
+  "python-multipart==0.0.20",
+  "aiofiles==24.1.0",
+  "pytest>=8.4.1",
+  "pytest-asyncio>=1.1.0",
+  "pytest-xdist>=3.7.0",
+  "pytest-timeout>=2.3.1",
+  "websockets>=15.0.1",
+  "psutil>=6.1.1",
+  "pymavlink>=2.4.49",
+  "matplotlib==3.10.5",
+  "httpx==0.28.1",
+  "reportlab>=4.4.3",
+  "fastapi-mcp>=0.4.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    # Testing
-    "pytest==8.4.1",
-    "pytest-asyncio==1.1.0",
-    "pytest-cov==6.0.0",
-    "httpx==0.28.1",
-    
-    # Code quality
-    "black==24.10.0",
-    "ruff==0.8.6",
-    "mypy==1.13.0",
-    "pre-commit==4.0.1",
-    
-    # Type stubs
-    "types-PyYAML==6.0.12.20240917",
-    "types-aiofiles==24.1.0.20241221",
+  # Testing
+  "pytest==8.4.1",
+  "pytest-asyncio==1.1.0",
+  "pytest-cov==6.0.0",
+  "pytest-xdist==3.7.0",
+  "pytest-timeout==2.3.1",
+  "httpx==0.28.1",
+
+  # Code quality
+  "black==24.10.0",
+  "ruff==0.8.6",
+  "mypy==1.13.0",
+  "pre-commit==4.0.1",
+
+  # Type stubs
+  "types-PyYAML==6.0.12.20240917",
+  "types-aiofiles==24.1.0.20241221",
 ]
 
 sdr = [
-    # SDR support - requires system packages
-    # Install with: sudo apt-get install python3-soapysdr librtlsdr-dev
+  # SDR support - requires system packages
+  # Install with: sudo apt-get install python3-soapysdr librtlsdr-dev
 ]
 
 monitoring = [
-    # Monitoring and metrics
-    "prometheus-client==0.21.1",
-    "psutil==6.1.1",
+  # Monitoring and metrics
+  "prometheus-client==0.21.1",
+  "psutil==6.1.1",
 ]
 
 [project.scripts]
@@ -93,23 +107,37 @@ packages = ["src/backend"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/src",
-    "/config",
-    "/tests",
-    "/docs",
-    "/deployment",
-    "/scripts",
-    "README.md",
-    "LICENSE",
-    "pyproject.toml",
+  "/src",
+  "/config",
+  "/tests",
+  "/docs",
+  "/deployment",
+  "/scripts",
+  "README.md",
+  "LICENSE",
+  "pyproject.toml",
 ]
 
 [tool.uv]
 # UV-specific configuration
 dev-dependencies = [
-    "ipython>=8.31.0",
-    "ipdb>=0.13.13",
-    "ruff>=0.8.6",
+  "ipython>=8.31.0",
+  "ipdb>=0.13.13",
+  "ruff>=0.8.6",
+  "types-pyyaml>=6.0.12.20240917",
+  "httpx>=0.28.1",
+  "pytest>=8.4.1",
+  "pytest-asyncio>=1.1.0",
+  "pytest-xdist>=3.7.0",
+  "pytest-cov>=6.0.0",
+  "black>=24.10.0",
+  "flake8>=7.3.0",
+  "mypy>=1.13.0",
+  "pytest-mock>=3.14.1",
+  "hypothesis>=6.138.0",
+  "pytest-benchmark>=5.1.0",
+  "factory-boy>=3.3.3",
+  "responses>=0.25.8",
 ]
 
 [tool.uv.sources]
@@ -118,38 +146,69 @@ dev-dependencies = [
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = [
-    "-ra",
-    "--strict-markers",
-    "--strict-config",
-    "--cov=backend",
-    "--cov-report=term-missing",
-    "--cov-report=html",
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--cov=src.backend",
+  "--cov-report=term-missing",
+  "--cov-report=html",
+  "--cov-report=xml",
+  "--cov-report=json",
+  "--cov-fail-under=60",
+  "-n", "auto",
+  "--dist", "loadgroup",
+  "--maxfail", "5",
+  "--timeout=10",
+  "--timeout-method=thread",
+  "-v",
 ]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "fast: marks tests as fast (quick unit tests)",
+  "critical: marks tests as critical functionality",
+  "integration: marks tests as integration tests",
+  "unit: marks tests as unit tests",
+  "sitl: marks tests as SITL tests",
+  "smoke: marks tests for smoke test suite",
+]
+timeout = 10
+timeout_method = "thread"
+timeout_func_only = true
 
 [tool.coverage.run]
 source = ["src/backend"]
-omit = [
-    "*/tests/*",
-    "*/__init__.py",
-    "*/migrations/*",
-]
+omit = ["*/tests/*", "*/__init__.py", "*/migrations/*"]
+parallel = true
+branch = true
 
 [tool.coverage.report]
 exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "def __str__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
+  "pragma: no cover",
+  "def __repr__",
+  "def __str__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "class .*\\bProtocol\\):",
+  "@(abc\\.)?abstractmethod",
 ]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.json]
+output = "coverage.json"
 
 [tool.black]
 line-length = 100
@@ -173,26 +232,30 @@ fix = true
 
 [tool.ruff.lint]
 select = [
-    "E",     # pycodestyle errors
-    "W",     # pycodestyle warnings
-    "F",     # pyflakes
-    "I",     # isort
-    "B",     # flake8-bugbear
-    "C4",    # flake8-comprehensions
-    "UP",    # pyupgrade
-    "SIM",   # flake8-simplify
-    "TID",   # flake8-tidy-imports
-    "RUF",   # Ruff-specific rules
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # isort
+  "B",   # flake8-bugbear
+  "C4",  # flake8-comprehensions
+  "UP",  # pyupgrade
+  "SIM", # flake8-simplify
+  "TID", # flake8-tidy-imports
+  "RUF", # Ruff-specific rules
 ]
 ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
-    "B904",  # raise from
+  "E501", # line too long (handled by black)
+  "B008", # do not perform function calls in argument defaults
+  "B904", # raise from
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "PLR2004", "ARG"]  # Allow asserts and magic numbers in tests
-"__init__.py" = ["F401"]  # Allow unused imports in __init__ files
+"tests/*" = [
+  "S101",
+  "PLR2004",
+  "ARG",
+] # Allow asserts and magic numbers in tests
+"__init__.py" = ["F401"] # Allow unused imports in __init__ files
 
 [tool.ruff.lint.isort]
 known-first-party = ["backend"]
@@ -210,13 +273,9 @@ pretty = true
 
 # Ignore missing imports for packages without type hints
 [[tool.mypy.overrides]]
-module = [
-    "soapysdr",
-    "systemd.*",
-    "uvloop",
-]
+module = ["soapysdr", "systemd.*", "uvloop"]
 ignore_missing_imports = true
 
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv", ".uv"]
-skips = ["B101"]  # Skip assert_used test
+skips = ["B101"]                                 # Skip assert_used test

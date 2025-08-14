@@ -3,6 +3,7 @@
 ## Service Architecture
 
 ### Service Organization
+
 ```
 src/
 ├── core/
@@ -35,4 +36,7 @@ src/
 ```
 
 ### Service Template
+
 ```python
+
+```

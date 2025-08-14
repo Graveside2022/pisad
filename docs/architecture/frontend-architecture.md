@@ -3,6 +3,7 @@
 ## Component Architecture
 
 ### Component Organization
+
 ```
 src/
 ├── components/
@@ -36,6 +37,7 @@ src/
 ```
 
 ### Component Template
+
 ```typescript
 // Example: SignalMeter.tsx
 import React, { memo } from 'react';
@@ -49,21 +51,21 @@ interface SignalMeterProps {
   size?: 'small' | 'medium' | 'large';
 }
 
-export const SignalMeter = memo<SignalMeterProps>(({ 
-  rssi, 
-  noiseFloor, 
-  snr, 
-  size = 'medium' 
+export const SignalMeter = memo<SignalMeterProps>(({
+  rssi,
+  noiseFloor,
+  snr,
+  size = 'medium'
 }) => {
   const signalPercent = Math.max(0, Math.min(100, (rssi + 100) * 2));
   const color = snr > 12 ? 'success' : snr > 6 ? 'warning' : 'error';
-  
+
   return (
-    <Box sx={{ 
-      p: 2, 
-      border: 1, 
+    <Box sx={{
+      p: 2,
+      border: 1,
       borderColor: `${color}.main`,
-      borderRadius: 1 
+      borderRadius: 1
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <SignalCellularAlt color={color} />
@@ -71,9 +73,9 @@ export const SignalMeter = memo<SignalMeterProps>(({
           {rssi.toFixed(1)} dBm
         </Typography>
       </Box>
-      <LinearProgress 
-        variant="determinate" 
-        value={signalPercent} 
+      <LinearProgress
+        variant="determinate"
+        value={signalPercent}
         color={color}
         sx={{ mt: 1, height: 8 }}
       />
@@ -88,6 +90,7 @@ export const SignalMeter = memo<SignalMeterProps>(({
 ## State Management Architecture
 
 ### State Structure
+
 ```typescript
 // Global application state
 interface AppState {
@@ -105,7 +108,7 @@ interface AppState {
   ui: {
     homingConfirmation: boolean;
     alertQueue: Alert[];
-    connectionStatus: 'connected' | 'connecting' | 'disconnected';
+    connectionStatus: "connected" | "connecting" | "disconnected";
   };
 }
 
@@ -117,6 +120,7 @@ export const AppContext = React.createContext<{
 ```
 
 ### State Management Patterns
+
 - Use React Context for global state (system status, active profile)
 - Use local component state for UI-only concerns (form inputs, modals)
 - Use useReducer for complex state updates (homing activation flow)
@@ -126,6 +130,7 @@ export const AppContext = React.createContext<{
 ## Routing Architecture
 
 ### Route Organization
+
 ```
 /                    # Dashboard (default)
 /homing             # Homing control panel
@@ -137,6 +142,7 @@ export const AppContext = React.createContext<{
 ```
 
 ### Protected Route Pattern
+
 ```typescript
 // No authentication needed - all routes accessible locally
 // But enforce safety checks for certain operations
@@ -145,11 +151,11 @@ import { useSystemState } from '../hooks/useSystemState';
 
 export const SafetyRoute: React.FC = () => {
   const { isConnected, isSafeMode } = useSystemState();
-  
+
   if (!isConnected) {
     return <Navigate to="/" replace />;
   }
-  
+
   return (
     <>
       {isSafeMode && (
@@ -166,51 +172,53 @@ export const SafetyRoute: React.FC = () => {
 ## Frontend Services Layer
 
 ### API Client Setup
+
 ```typescript
 // services/api.ts
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8080/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
   timeout: 5000,
   headers: {
-    'Content-Type': 'application/json',
-  }
+    "Content-Type": "application/json",
+  },
 });
 
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.code === 'ECONNABORTED') {
-      console.error('Request timeout');
+  (response) => response,
+  (error) => {
+    if (error.code === "ECONNABORTED") {
+      console.error("Request timeout");
     }
     return Promise.reject(error);
-  }
+  },
 );
 ```
 
 ### Service Example
+
 ```typescript
 // services/config.service.ts
-import { apiClient } from './api';
-import { ConfigProfile } from '../types';
+import { apiClient } from "./api";
+import { ConfigProfile } from "../types";
 
 export const configService = {
   async getProfiles(): Promise<ConfigProfile[]> {
-    const { data } = await apiClient.get('/config/profiles');
+    const { data } = await apiClient.get("/config/profiles");
     return data;
   },
-  
+
   async activateProfile(id: string): Promise<void> {
     await apiClient.post(`/config/profiles/${id}/activate`);
   },
-  
+
   async saveProfile(profile: Partial<ConfigProfile>): Promise<ConfigProfile> {
-    const { data } = await apiClient.post('/config/profiles', profile);
+    const { data } = await apiClient.post("/config/profiles", profile);
     return data;
-  }
+  },
 };
 ```

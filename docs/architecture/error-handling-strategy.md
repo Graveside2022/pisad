@@ -1,13 +1,14 @@
 # Error Handling Strategy
 
 ## Error Flow
+
 ```mermaid
 sequenceDiagram
     participant UI
     participant API
     participant Service
     participant Safety
-    
+
     UI->>API: Request homing activation
     API->>Safety: Check interlocks
     Safety-->>API: Interlock failed
@@ -19,6 +20,7 @@ sequenceDiagram
 ```
 
 ## Error Response Format
+
 ```typescript
 interface ApiError {
   error: {
@@ -32,31 +34,35 @@ interface ApiError {
 ```
 
 ## Frontend Error Handling
+
 ```typescript
 // hooks/useApiError.ts
 export const useApiError = () => {
   const { dispatch } = useContext(AppContext);
-  
+
   const handleError = (error: AxiosError<ApiError>) => {
-    const message = error.response?.data?.error?.message 
-      || 'An unexpected error occurred';
-      
+    const message =
+      error.response?.data?.error?.message || "An unexpected error occurred";
+
     dispatch({
-      type: 'ADD_ALERT',
+      type: "ADD_ALERT",
       payload: {
-        severity: 'error',
+        severity: "error",
         message,
-        autoHide: true
-      }
+        autoHide: true,
+      },
     });
-    
+
     // Log for debugging
-    console.error('[API Error]', error.response?.data);
+    console.error("[API Error]", error.response?.data);
   };
-  
+
   return { handleError };
 };
 ```
 
 ## Backend Error Handling
+
 ```python
+
+```

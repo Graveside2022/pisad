@@ -3,7 +3,7 @@
 ## Goals
 
 - Demonstrate technical feasibility of autonomous RF beacon detection and homing in controlled field tests
-- Achieve stable autonomous flight with seamless SEARCH/HOMING mode transitions  
+- Achieve stable autonomous flight with seamless SEARCH/HOMING mode transitions
 - Validate system operation in both GPS-assisted and GPS-denied environments
 - Reduce search area coverage time by 70% versus ground-based SAR methods
 - Create modular, maintainable codebase as foundation for production system
@@ -17,6 +17,6 @@ The RF-Homing SAR Drone addresses a critical gap in current search and rescue op
 
 ## Change Log
 
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-08-12 | 1.0 | Initial PRD creation from Project Brief | John (PM Agent) |
+| Date       | Version | Description                             | Author          |
+| ---------- | ------- | --------------------------------------- | --------------- |
+| 2025-08-12 | 1.0     | Initial PRD creation from Project Brief | John (PM Agent) |

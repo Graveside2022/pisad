@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 # Context variable for correlation ID
-correlation_id: ContextVar[str | None] = ContextVar('correlation_id', default=None)
+correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 
 
 class CorrelationIdFilter(logging.Filter):
@@ -20,7 +20,7 @@ class CorrelationIdFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Add correlation ID to the log record."""
-        record.correlation_id = correlation_id.get() or 'no-correlation-id'
+        record.correlation_id = correlation_id.get() or "no-correlation-id"
         return True
 
 
@@ -30,7 +30,7 @@ class StructuredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format log record with correlation ID."""
         # Add correlation ID to the message if present
-        if hasattr(record, 'correlation_id') and record.correlation_id != 'no-correlation-id':
+        if hasattr(record, "correlation_id") and record.correlation_id != "no-correlation-id":
             original_msg = record.getMessage()
             record.msg = f"[{record.correlation_id}] {original_msg}"
             record.args = ()  # Clear args to prevent re-formatting
@@ -46,7 +46,7 @@ def setup_logging(
     log_file_backup_count: int = 5,
     enable_console: bool = True,
     enable_file: bool = True,
-    enable_journal: bool = True
+    enable_journal: bool = True,
 ) -> None:
     """
     Set up logging configuration with multiple handlers.
@@ -88,9 +88,7 @@ def setup_logging(
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         file_handler = logging.handlers.RotatingFileHandler(
-            log_file_path,
-            maxBytes=log_file_max_bytes,
-            backupCount=log_file_backup_count
+            log_file_path, maxBytes=log_file_max_bytes, backupCount=log_file_backup_count
         )
         file_handler.setFormatter(formatter)
         file_handler.addFilter(correlation_filter)
@@ -100,13 +98,14 @@ def setup_logging(
     if enable_journal:
         try:
             from systemd.journal import JournalHandler
-            journal_handler = JournalHandler(SYSLOG_IDENTIFIER='rf-homing')
+
+            journal_handler = JournalHandler(SYSLOG_IDENTIFIER="rf-homing")
             journal_handler.setFormatter(formatter)
             journal_handler.addFilter(correlation_filter)
             root_logger.addHandler(journal_handler)
         except ImportError:
             # systemd-python not installed or not on Linux
-            if sys.platform.startswith('linux'):
+            if sys.platform.startswith("linux"):
                 logging.warning("systemd-python not installed, journal logging disabled")
 
     logging.info(f"Logging configured with level: {log_level}")
@@ -247,6 +246,7 @@ class PerformanceLogger:
             operation: Name of the operation
         """
         import time
+
         self.timers[operation] = time.perf_counter()
 
     def end_timer(self, operation: str) -> float:
@@ -260,6 +260,7 @@ class PerformanceLogger:
             Duration in seconds
         """
         import time
+
         if operation not in self.timers:
             self.logger.warning(f"Timer for operation '{operation}' was not started")
             return 0.0
@@ -271,7 +272,7 @@ class PerformanceLogger:
             self.logger,
             "Operation completed",
             operation=operation,
-            duration_ms=f"{duration * 1000:.2f}"
+            duration_ms=f"{duration * 1000:.2f}",
         )
 
         return duration

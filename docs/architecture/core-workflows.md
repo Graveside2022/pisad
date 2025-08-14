@@ -14,13 +14,13 @@ sequenceDiagram
     participant HC as Homing Controller
     participant MAV as MAVLink Service
     participant FC as Flight Controller
-    
+
     Note over SDR,SP: Continuous signal monitoring (10Hz)
     SDR->>SP: IQ samples stream
     SP->>SP: Compute RSSI
     SP->>WS: RSSI update
     WS->>UI: Update display
-    
+
     alt Signal Detected (SNR > 12dB)
         SP->>SM: Signal detected event
         SM->>SM: Transition to DETECTING
@@ -28,12 +28,12 @@ sequenceDiagram
         API->>WS: State update
         WS->>UI: Show detection alert
         UI->>UI: Enable homing button
-        
+
         Op->>UI: Click Enable Homing
         UI->>UI: Show confirmation slider
         Op->>UI: Slide to confirm
         UI->>API: POST /system/homing {enabled: true}
-        
+
         API->>SM: Request HOMING state
         SM->>SM: Check safety interlocks
         alt All interlocks pass
@@ -45,7 +45,7 @@ sequenceDiagram
             HC->>MAV: Send velocity command
             MAV->>FC: SET_POSITION_TARGET_LOCAL_NED
             FC->>FC: Execute movement
-            
+
             loop While signal maintained
                 SP->>HC: Updated gradient
                 HC->>MAV: Adjusted velocity
@@ -57,7 +57,7 @@ sequenceDiagram
             UI->>Op: Show blocked reason
         end
     end
-    
+
     alt Signal Lost > 10s
         SP->>SM: Signal lost timeout
         SM->>HC: Disable homing
@@ -80,28 +80,28 @@ sequenceDiagram
     participant Core as Core Service
     participant SDR as SDR Service
     participant SP as Signal Processor
-    
+
     Op->>UI: Select profile
     UI->>API: GET /config/profiles
     API->>DB: Query profiles
     DB->>API: Return profiles
     API->>UI: Profile list
     UI->>Op: Display profiles
-    
+
     Op->>UI: Choose "LoRa Beacon"
     UI->>API: POST /config/profiles/{id}/activate
     API->>DB: Load profile details
     DB->>API: Profile config
-    
+
     API->>Core: Apply configuration
     Core->>SDR: Update SDR settings
     SDR->>SDR: Reconfigure hardware
     SDR->>Core: Confirmation
-    
+
     Core->>SP: Update processing params
     SP->>SP: Reset filters
     SP->>Core: Confirmation
-    
+
     Core->>API: Profile activated
     API->>UI: Success response
     UI->>Op: Show active profile

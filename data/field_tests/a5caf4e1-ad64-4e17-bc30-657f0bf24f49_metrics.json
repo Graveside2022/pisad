@@ -1,0 +1,20 @@
+{
+  "test_id": "a5caf4e1-ad64-4e17-bc30-657f0bf24f49",
+  "beacon_power_dbm": 10,
+  "detection_range_m": 0.0,
+  "approach_accuracy_m": 0.0,
+  "time_to_locate_s": 0.0,
+  "transition_latency_ms": 0.0,
+  "environmental_conditions": {
+    "wind_speed_mps": 5.0,
+    "temperature_c": 20.0,
+    "humidity_percent": 60.0
+  },
+  "safety_events": [],
+  "success": false,
+  "max_rssi_dbm": -120.0,
+  "min_rssi_dbm": 0.0,
+  "avg_rssi_dbm": -60.0,
+  "signal_loss_count": 0,
+  "state_transitions": []
+}

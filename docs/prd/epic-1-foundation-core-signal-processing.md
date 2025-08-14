@@ -9,6 +9,7 @@
 **so that** I can build, test, and deploy the RF-homing payload software consistently.
 
 **Acceptance Criteria:**
+
 1. Git repository initialized with .gitignore for Python projects and README.md with project overview
 2. Python 3.10+ virtual environment configured with requirements.txt including: asyncio, numpy, scipy, SoapySDR, FastAPI/Flask, pytest
 3. Basic project structure created: /src, /tests, /config, /docs, /web/static, /web/templates
@@ -24,6 +25,7 @@
 **so that** I can capture RF signals regardless of using HackRF or USRP devices.
 
 **Acceptance Criteria:**
+
 1. SoapySDR wrapper class implemented with device enumeration and selection
 2. SDR initialization with configurable sample rate (2 Msps default), center frequency (2.437 GHz default), and gain settings
 3. Continuous IQ sample streaming implemented using async generator pattern
@@ -39,6 +41,7 @@
 **so that** I can detect and measure RF beacon signal strength.
 
 **Acceptance Criteria:**
+
 1. FFT-based RSSI computation implemented processing 1024-sample blocks
 2. EWMA filter implemented with configurable alpha parameter (default 0.3)
 3. Noise floor estimation using 10th percentile method over 1-second window
@@ -54,6 +57,7 @@
 **so that** I can observe payload operation without additional software installation.
 
 **Acceptance Criteria:**
+
 1. FastAPI/Flask web server starts automatically on boot at port 8080
 2. Main dashboard displays current RSSI value updated via WebSocket at 10Hz minimum
 3. Time-series graph shows RSSI history for last 60 seconds
@@ -69,6 +73,7 @@
 **so that** I can quickly adapt to different beacon types and environments.
 
 **Acceptance Criteria:**
+
 1. Configuration profiles stored as YAML files in /config/profiles/
 2. Web UI provides "Save Profile" and "Load Profile" functionality
 3. Configurable parameters include: frequency, sample rate, gain, thresholds, filter settings

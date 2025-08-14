@@ -5,6 +5,7 @@ This guide provides step-by-step instructions for setting up the PISAD (Portable
 ## System Requirements
 
 ### Hardware
+
 - Raspberry Pi 5 (4GB or 8GB RAM recommended)
 - RTL-SDR USB dongles (1 or 2 for interferometry)
 - MicroSD card (32GB minimum, 64GB recommended)
@@ -12,6 +13,7 @@ This guide provides step-by-step instructions for setting up the PISAD (Portable
 - Ethernet cable or WiFi connection
 
 ### Software
+
 - Raspberry Pi OS Lite (64-bit) or Full
 - Python 3.11+ (managed by uv)
 - Git
@@ -96,9 +98,11 @@ uv run --dev uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 The application uses YAML configuration files located in the `config/` directory.
 
 #### Default Configuration
+
 The default configuration is provided in `config/default.yaml`. This file contains all available settings with sensible defaults.
 
 #### Custom Configuration
+
 To create a custom configuration:
 
 ```bash
@@ -110,12 +114,14 @@ nano config/custom.yaml
 ```
 
 Key configuration sections:
+
 - **SDR Settings**: Frequency, sample rate, gain
 - **Signal Processing**: RSSI thresholds, averaging windows
 - **Safety**: Velocity limits, interlock settings
 - **Logging**: Log levels, file paths, rotation settings
 
 #### Environment Variables
+
 Configuration can be overridden using environment variables with the `PISAD_` prefix:
 
 ```bash
@@ -269,6 +275,162 @@ uv run ipython
 uv run python -m ipdb src/backend/main.py
 ```
 
+## ArduPilot SITL Setup (For MAVLink Testing)
+
+ArduPilot SITL (Software In The Loop) allows testing MAVLink communication without physical hardware. This is essential for developing and testing drone integration features.
+
+### Quick Start
+
+The project includes a helper script for SITL setup:
+
+```bash
+# Quick start - installs, builds, and starts SITL
+python3 scripts/sitl_setup.py quick
+
+# Or run individual commands:
+python3 scripts/sitl_setup.py install  # Clone and install ArduPilot
+python3 scripts/sitl_setup.py build    # Build SITL for copter
+python3 scripts/sitl_setup.py start    # Start SITL simulation
+python3 scripts/sitl_setup.py test     # Test MAVLink connection
+python3 scripts/sitl_setup.py stop     # Stop SITL
+```
+
+### Manual SITL Installation
+
+If you prefer manual installation:
+
+#### 1. Install Prerequisites
+
+```bash
+# Install required packages
+sudo apt install -y git python3-pip python3-dev python3-numpy
+sudo apt install -y python3-wxgtk4.0 python3-matplotlib python3-lxml
+sudo apt install -y python3-pygame python3-opencv python3-yaml
+
+# Install MAVProxy (optional but recommended for debugging)
+pip3 install MAVProxy
+```
+
+#### 2. Clone ArduPilot
+
+```bash
+# Clone ArduPilot repository
+cd ~
+git clone https://github.com/ArduPilot/ardupilot.git
+cd ardupilot
+
+# Update submodules
+git submodule update --init --recursive
+```
+
+#### 3. Install ArduPilot Prerequisites
+
+```bash
+# Run the prerequisites installation script
+cd ~/ardupilot
+Tools/environment_install/install-prereqs-ubuntu.sh -y
+
+# Reload your shell configuration
+. ~/.profile
+```
+
+#### 4. Build SITL
+
+```bash
+# Configure and build for SITL
+cd ~/ardupilot
+./waf configure --board sitl
+./waf copter  # Build for copter (or plane, rover, sub)
+```
+
+#### 5. Run SITL
+
+```bash
+# Start SITL with TCP output for PISAD
+cd ~/ardupilot/ArduCopter
+sim_vehicle.py -v ArduCopter -L -35.363261,149.165230,584,90 \
+    --out tcp:127.0.0.1:5760 \
+    --out tcp:127.0.0.1:14550 \
+    --console --map
+```
+
+### Connecting PISAD to SITL
+
+Configure PISAD to connect to SITL by setting the MAVLink device path:
+
+```python
+# In your configuration or code:
+mavlink_service = MAVLinkService(
+    device_path="tcp:127.0.0.1:5760",  # SITL TCP connection
+    baud_rate=115200  # Ignored for TCP
+)
+```
+
+Or set via environment variable:
+
+```bash
+export PISAD_MAVLINK_DEVICE="tcp:127.0.0.1:5760"
+```
+
+### SITL Connection Modes
+
+The MAVLink service supports both hardware and SITL connections:
+
+- **Hardware (Serial)**: `/dev/ttyACM0` or `/dev/ttyAMA0`
+- **SITL (TCP)**: `tcp:127.0.0.1:5760`
+- **UDP**: `udp:127.0.0.1:14550` (for MAVProxy bridging)
+
+### Testing MAVLink Connection
+
+```bash
+# Test with pymavlink directly
+python3 -c "
+from pymavlink import mavutil
+conn = mavutil.mavlink_connection('tcp:127.0.0.1:5760')
+msg = conn.wait_heartbeat(timeout=5)
+print(f'Connected to system {msg.get_srcSystem()}' if msg else 'No heartbeat')
+"
+
+# Or use the SITL setup script
+python3 scripts/sitl_setup.py test
+```
+
+### SITL Commands
+
+Common MAVProxy commands for testing (when connected to SITL):
+
+```bash
+# Connect MAVProxy to SITL
+mavproxy.py --master tcp:127.0.0.1:5760 --out udp:127.0.0.1:14551
+
+# In MAVProxy console:
+arm throttle        # Arm the vehicle
+mode guided         # Switch to guided mode
+takeoff 10          # Takeoff to 10 meters
+land                # Land the vehicle
+disarm              # Disarm motors
+```
+
+### Troubleshooting SITL
+
+#### SITL Won't Start
+
+- Check if port 5760 is already in use: `lsof -i :5760`
+- Kill existing SITL processes: `pkill -f sim_vehicle.py`
+- Check ArduPilot build: `cd ~/ardupilot && ./waf copter`
+
+#### No Heartbeat from SITL
+
+- Verify SITL is running: `ps aux | grep sim_vehicle`
+- Check network connectivity: `nc -zv 127.0.0.1 5760`
+- Review SITL console output for errors
+
+#### MAVLink Connection Issues
+
+- Enable debug logging in MAVLink service
+- Check firewall settings: `sudo ufw status`
+- Verify pymavlink installation: `pip3 show pymavlink`
+
 ## Troubleshooting
 
 ### RTL-SDR Not Detected
@@ -316,6 +478,7 @@ sudo journalctl -u rf-homing.service -n 50
 ```
 
 Common issues:
+
 - Wrong file paths in service file
 - Missing Python dependencies
 - Permission issues with log/config directories
@@ -325,11 +488,13 @@ Common issues:
 ### Raspberry Pi 5 Optimizations
 
 1. **CPU Governor**: Set to performance mode
+
    ```bash
    echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
    ```
 
 2. **GPU Memory Split**: Reduce GPU memory for headless operation
+
    ```bash
    # Add to /boot/config.txt
    gpu_mem=16
@@ -344,6 +509,7 @@ Common issues:
 ### SDR Optimizations
 
 1. **USB Buffer Size**: Increase for better performance
+
    ```bash
    # Add to /etc/modprobe.d/rtlsdr.conf
    options rtl2832 buffers=16 buffer_size=262144
@@ -359,6 +525,7 @@ Common issues:
    - Generate secure key: `openssl rand -hex 32`
 
 2. **Firewall**: Configure for production
+
    ```bash
    sudo ufw allow 22/tcp  # SSH
    sudo ufw allow 8000/tcp  # API
@@ -381,6 +548,7 @@ Common issues:
 ## Support
 
 For issues or questions:
+
 - Check the [GitHub Issues](https://github.com/yourusername/pisad/issues)
 - Review logs in `/home/pisad/projects/pisad/logs/`
 - Enable debug mode: `export PISAD_LOG_LEVEL=DEBUG`

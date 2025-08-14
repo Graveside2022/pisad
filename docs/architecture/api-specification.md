@@ -22,7 +22,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SystemState'
+                $ref: "#/components/schemas/SystemState"
 
   /system/homing:
     post:
@@ -55,8 +55,8 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ConfigProfile'
-    
+                  $ref: "#/components/schemas/ConfigProfile"
+
     post:
       summary: Create new profile
       requestBody:
@@ -64,7 +64,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConfigProfile'
+              $ref: "#/components/schemas/ConfigProfile"
       responses:
         201:
           description: Profile created
@@ -83,7 +83,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConfigProfile'
+              $ref: "#/components/schemas/ConfigProfile"
       responses:
         200:
           description: Profile updated
@@ -123,7 +123,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SignalDetection'
+                  $ref: "#/components/schemas/SignalDetection"
 
   /missions:
     get:
@@ -131,7 +131,7 @@ paths:
       responses:
         200:
           description: List of missions
-    
+
     post:
       summary: Start new mission
       requestBody:
@@ -200,14 +200,14 @@ components:
 ```typescript
 // WebSocket message types for real-time communication
 interface WSMessage {
-  type: 'rssi' | 'state' | 'detection' | 'telemetry' | 'error';
+  type: "rssi" | "state" | "detection" | "telemetry" | "error";
   timestamp: string;
   data: any;
 }
 
 // RSSI update (10Hz)
 interface RSSIUpdate {
-  type: 'rssi';
+  type: "rssi";
   data: {
     rssi: number;
     noiseFloor: number;
@@ -218,19 +218,19 @@ interface RSSIUpdate {
 
 // State change notification
 interface StateUpdate {
-  type: 'state';
+  type: "state";
   data: SystemState;
 }
 
 // Detection event
 interface DetectionEvent {
-  type: 'detection';
+  type: "detection";
   data: SignalDetection;
 }
 
 // Telemetry update (2Hz)
 interface TelemetryUpdate {
-  type: 'telemetry';
+  type: "telemetry";
   data: {
     position: { lat: number; lon: number; alt: number };
     battery: number;

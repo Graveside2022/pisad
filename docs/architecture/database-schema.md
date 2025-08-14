@@ -53,7 +53,7 @@ CREATE INDEX idx_rssi_detection ON rssi_readings(detection_id);
 CREATE INDEX idx_rssi_timestamp ON rssi_readings(timestamp);
 
 -- Triggers for updated_at
-CREATE TRIGGER update_profile_timestamp 
+CREATE TRIGGER update_profile_timestamp
 AFTER UPDATE ON config_profiles
 BEGIN
     UPDATE config_profiles SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;

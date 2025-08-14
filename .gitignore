@@ -190,3 +190,12 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+# Claude Code IDE generated directories
+.clode/
+.claude-snapshots/
+.claude-checkpoints/
+.worktrees/
+
+# Embedded repositories (should be submodules)
+bmad-method/
+clode-studio/

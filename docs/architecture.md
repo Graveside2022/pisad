@@ -7,24 +7,29 @@ This document outlines the complete fullstack architecture for RF-Homing SAR Dro
 This unified approach combines what would traditionally be separate backend and frontend architecture documents, streamlining the development process for modern fullstack applications where these concerns are increasingly intertwined.
 
 ### Starter Template or Existing Project
+
 N/A - Greenfield project
 
 ### Change Log
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-08-12 | 1.0 | Initial architecture document creation | Winston (Architect) |
+
+| Date       | Version | Description                            | Author              |
+| ---------- | ------- | -------------------------------------- | ------------------- |
+| 2025-08-12 | 1.0     | Initial architecture document creation | Winston (Architect) |
 
 ## High Level Architecture
 
 ### Technical Summary
+
 The RF-Homing SAR Drone system implements a modular monolith architecture deployed on Raspberry Pi 5, combining a Python AsyncIO backend for real-time SDR signal processing and MAVLink communication with a React/TypeScript frontend for operator control. The backend runs as a systemd service providing continuous RF sensing and safety-critical flight control interfaces, while the frontend delivers real-time signal visualization and homing activation controls via WebSocket. All components run locally on the Pi 5 without external dependencies, ensuring operation in disconnected field environments while achieving the PRD goal of 70% search time reduction through autonomous RF beacon detection and gradient-based homing.
 
 ### Platform and Infrastructure Choice
+
 **Platform:** Self-hosted Raspberry Pi 5 (Edge Computing)
 **Key Services:** Local Python services (FastAPI, AsyncIO, SoapySDR), Local web server, SQLite for persistence
 **Deployment Host and Regions:** Single Raspberry Pi 5 unit mounted on drone, no cloud regions
 
 ### Repository Structure
+
 **Structure:** Monorepo
 **Monorepo Tool:** Python workspace with shared packages
 **Package Organization:** Unified Python backend with embedded static frontend, shared TypeScript types
@@ -36,13 +41,13 @@ graph TB
     subgraph "Operator Interface"
         Browser[Web Browser<br/>Desktop/Tablet]
     end
-    
+
     subgraph "Raspberry Pi 5"
         subgraph "Frontend"
             React[React SPA<br/>MUI Components]
             WS_Client[WebSocket Client]
         end
-        
+
         subgraph "Backend Services"
             FastAPI[FastAPI Server<br/>Port 8080]
             WS_Server[WebSocket Server]
@@ -51,22 +56,22 @@ graph TB
             MAVLink[MAVLink Manager]
             State_Machine[State Machine<br/>AsyncIO]
         end
-        
+
         subgraph "Data Layer"
             SQLite[(SQLite DB<br/>Logs/Profiles)]
             Config[YAML Configs]
         end
     end
-    
+
     subgraph "Hardware Interfaces"
         SDR_HW[HackRF/USRP<br/>USB SDR]
         FC[Flight Controller<br/>Serial MAVLink]
     end
-    
+
     subgraph "External Systems"
         GCS[Mission Planner<br/>QGroundControl]
     end
-    
+
     Browser <-->|HTTP/WS| React
     React <--> WS_Client
     WS_Client <-->|Binary Protocol| WS_Server
@@ -83,6 +88,7 @@ graph TB
 ```
 
 ### Architectural Patterns
+
 - **Modular Monolith:** Single Python process with distinct service modules - _Rationale:_ Ensures deterministic timing for safety-critical operations
 - **Event-Driven AsyncIO:** Non-blocking async operations throughout - _Rationale:_ Handles concurrent SDR sampling, MAVLink communication, and UI updates
 - **WebSocket Real-time Updates:** Binary protocol for RSSI streaming - _Rationale:_ Achieves 10Hz update rate with minimal overhead
@@ -95,39 +101,41 @@ graph TB
 
 ### Technology Stack Table
 
-| Category | Technology | Version | Purpose | Rationale |
-|----------|------------|---------|----------|-----------|
-| Python Package Manager | uv | Latest | Fast Python package and project management | 10-100x faster than pip, handles Python versions, modern dependency resolution |
-| Python Runner | uvx | Latest | Run Python apps in isolated environments | Zero-config execution of Python tools and scripts |
-| Frontend Language | TypeScript | 5.9.2 | Type-safe frontend development | Prevents runtime errors in safety-critical UI |
-| Frontend Framework | React | 18.3.1 | UI component framework | Proven reliability, extensive ecosystem |
-| UI Component Library | MUI (Material-UI) | 7.3.1 | Pre-built components | Professional emergency services aesthetic, accessibility |
-| State Management | React Context + useReducer | Built-in | Local state management | Minimal overhead for Pi 5, no Redux complexity |
-| Backend Language | Python | 3.11-3.13 | Backend services and signal processing | AsyncIO support, extensive SDR libraries, managed by uv |
-| Backend Framework | FastAPI | 0.116.1 | REST API and WebSocket server | High performance async, automatic OpenAPI docs |
-| API Style | REST + WebSocket | HTTP/1.1 + WS | API communication | REST for commands, WebSocket for real-time data |
-| Database | SQLite | 3.50.4 | Local data persistence | Zero-configuration, file-based for Pi SD card |
-| Cache | In-Memory (Python dict) | N/A | Caching RSSI data | Minimal overhead, no Redis needed |
-| File Storage | Local Filesystem | ext4 | Config and log storage | Direct SD card access |
-| Authentication | API Key (local) | N/A | Simple auth for local network | No external auth needed for field ops |
-| Frontend Testing | Jest + React Testing Library | 30.0.5 / 16.3.0 | Component and unit testing | Standard React testing stack |
-| Backend Testing | pytest + pytest-asyncio | 8.4.1 / 1.1.0 | Async Python testing | Handles AsyncIO testing |
-| Backend Linting | Ruff | 0.8.6 | Fast Python linter and formatter | 10-100x faster than flake8/black, drop-in replacement |
-| E2E Testing | Playwright | 1.54.2 | End-to-end testing | Works headless on Pi |
-| Build Tool | Vite | 7.1.1 | Frontend bundling | Faster than Webpack on Pi 5 |
-| Bundler | esbuild (via Vite) | 0.25.8 | JavaScript bundling | Optimized for ARM processors |
-| IaC Tool | Ansible | 11.8.0 | Pi deployment automation | Idempotent configuration management |
-| CI/CD | GitHub Actions | N/A | Automated testing and deployment | Free for open source |
-| Monitoring | Custom logging + Prometheus | 3.5.0 LTS | Metrics and logging | Lightweight, local metrics |
-| Logging | Python logging + systemd | Built-in | Structured logging | Integrated with systemd journal |
-| CSS Framework | MUI sx prop | 7.3.1 | Styling via sx prop | 95% MUI, 5% custom CSS for performance |
+| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
+| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| Python Package Manager | uv                           | Latest          | Fast Python package and project management | 10-100x faster than pip, handles Python versions, modern dependency resolution |
+| Python Runner          | uvx                          | Latest          | Run Python apps in isolated environments   | Zero-config execution of Python tools and scripts                              |
+| Frontend Language      | TypeScript                   | 5.9.2           | Type-safe frontend development             | Prevents runtime errors in safety-critical UI                                  |
+| Frontend Framework     | React                        | 18.3.1          | UI component framework                     | Proven reliability, extensive ecosystem                                        |
+| UI Component Library   | MUI (Material-UI)            | 7.3.1           | Pre-built components                       | Professional emergency services aesthetic, accessibility                       |
+| State Management       | React Context + useReducer   | Built-in        | Local state management                     | Minimal overhead for Pi 5, no Redux complexity                                 |
+| Backend Language       | Python                       | 3.11-3.13       | Backend services and signal processing     | AsyncIO support, extensive SDR libraries, managed by uv                        |
+| Backend Framework      | FastAPI                      | 0.116.1         | REST API and WebSocket server              | High performance async, automatic OpenAPI docs                                 |
+| API Style              | REST + WebSocket             | HTTP/1.1 + WS   | API communication                          | REST for commands, WebSocket for real-time data                                |
+| Database               | SQLite                       | 3.50.4          | Local data persistence                     | Zero-configuration, file-based for Pi SD card                                  |
+| Cache                  | In-Memory (Python dict)      | N/A             | Caching RSSI data                          | Minimal overhead, no Redis needed                                              |
+| File Storage           | Local Filesystem             | ext4            | Config and log storage                     | Direct SD card access                                                          |
+| Authentication         | API Key (local)              | N/A             | Simple auth for local network              | No external auth needed for field ops                                          |
+| Frontend Testing       | Jest + React Testing Library | 30.0.5 / 16.3.0 | Component and unit testing                 | Standard React testing stack                                                   |
+| Backend Testing        | pytest + pytest-asyncio      | 8.4.1 / 1.1.0   | Async Python testing                       | Handles AsyncIO testing                                                        |
+| Backend Linting        | Ruff                         | 0.8.6           | Fast Python linter and formatter           | 10-100x faster than flake8/black, drop-in replacement                          |
+| E2E Testing            | Playwright                   | 1.54.2          | End-to-end testing                         | Works headless on Pi                                                           |
+| Build Tool             | Vite                         | 7.1.1           | Frontend bundling                          | Faster than Webpack on Pi 5                                                    |
+| Bundler                | esbuild (via Vite)           | 0.25.8          | JavaScript bundling                        | Optimized for ARM processors                                                   |
+| IaC Tool               | Ansible                      | 11.8.0          | Pi deployment automation                   | Idempotent configuration management                                            |
+| CI/CD                  | GitHub Actions               | N/A             | Automated testing and deployment           | Free for open source                                                           |
+| Monitoring             | Custom logging + Prometheus  | 3.5.0 LTS       | Metrics and logging                        | Lightweight, local metrics                                                     |
+| Logging                | Python logging + systemd     | Built-in        | Structured logging                         | Integrated with systemd journal                                                |
+| CSS Framework          | MUI sx prop                  | 7.3.1           | Styling via sx prop                        | 95% MUI, 5% custom CSS for performance                                         |
 
 ## Data Models
 
 ### SignalDetection
+
 **Purpose:** Records RF signal detection events with metadata for analysis and replay
 
 **Key Attributes:**
+
 - id: UUID - Unique identifier for detection event
 - timestamp: datetime - UTC timestamp of detection
 - frequency: float - Center frequency in Hz
@@ -138,6 +146,7 @@ graph TB
 - state: string - System state during detection (SEARCHING, DETECTING, HOMING)
 
 #### TypeScript Interface
+
 ```typescript
 interface SignalDetection {
   id: string;
@@ -151,24 +160,28 @@ interface SignalDetection {
     lon: number;
     alt: number;
   };
-  state: 'IDLE' | 'SEARCHING' | 'DETECTING' | 'HOMING' | 'HOLDING';
+  state: "IDLE" | "SEARCHING" | "DETECTING" | "HOMING" | "HOLDING";
 }
 ```
 
 #### Relationships
+
 - Has many RSSIReadings (time series data)
 - Belongs to one Mission
 
 ### RSSIReading
+
 **Purpose:** Time-series RSSI data for real-time visualization and gradient analysis
 
 **Key Attributes:**
+
 - timestamp: datetime - Microsecond precision timestamp
 - rssi: float - Signal strength in dBm
 - noise_floor: float - Estimated noise floor in dBm
 - detection_id: UUID - Associated detection event (nullable)
 
 #### TypeScript Interface
+
 ```typescript
 interface RSSIReading {
   timestamp: string; // ISO 8601 with microseconds
@@ -179,13 +192,16 @@ interface RSSIReading {
 ```
 
 #### Relationships
+
 - Belongs to SignalDetection (optional)
 - Used for real-time streaming (not always persisted)
 
 ### ConfigProfile
+
 **Purpose:** Stores SDR and system configuration profiles for different beacon types
 
 **Key Attributes:**
+
 - id: UUID - Profile identifier
 - name: string - Profile name (e.g., "WiFi Beacon", "LoRa Tracker")
 - sdr_config: JSON - SDR settings (frequency, sample_rate, gain)
@@ -196,6 +212,7 @@ interface RSSIReading {
 - updated_at: datetime - Last modification time
 
 #### TypeScript Interface
+
 ```typescript
 interface ConfigProfile {
   id: string;
@@ -225,13 +242,16 @@ interface ConfigProfile {
 ```
 
 #### Relationships
+
 - Used by multiple Missions
 - Can be cloned/modified
 
 ### SystemState
+
 **Purpose:** Real-time system state for UI synchronization and safety monitoring
 
 **Key Attributes:**
+
 - current_state: enum - State machine state
 - homing_enabled: boolean - Homing activation status
 - flight_mode: string - Current flight controller mode
@@ -242,15 +262,16 @@ interface ConfigProfile {
 - safety_interlocks: JSON - Status of all safety checks
 
 #### TypeScript Interface
+
 ```typescript
 interface SystemState {
-  currentState: 'IDLE' | 'SEARCHING' | 'DETECTING' | 'HOMING' | 'HOLDING';
+  currentState: "IDLE" | "SEARCHING" | "DETECTING" | "HOMING" | "HOLDING";
   homingEnabled: boolean;
   flightMode: string;
   batteryPercent: number;
-  gpsStatus: 'NO_FIX' | '2D_FIX' | '3D_FIX' | 'RTK';
+  gpsStatus: "NO_FIX" | "2D_FIX" | "3D_FIX" | "RTK";
   mavlinkConnected: boolean;
-  sdrStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+  sdrStatus: "CONNECTED" | "DISCONNECTED" | "ERROR";
   safetyInterlocks: {
     modeCheck: boolean;
     batteryCheck: boolean;
@@ -262,13 +283,16 @@ interface SystemState {
 ```
 
 #### Relationships
+
 - Singleton in-memory state
 - Broadcast via WebSocket
 
 ### Mission
+
 **Purpose:** Groups related flights and detections for analysis and reporting
 
 **Key Attributes:**
+
 - id: UUID - Mission identifier
 - name: string - Mission name
 - start_time: datetime - Mission start
@@ -279,6 +303,7 @@ interface SystemState {
 - notes: text - Operator notes
 
 #### TypeScript Interface
+
 ```typescript
 interface Mission {
   id: string;
@@ -293,6 +318,7 @@ interface Mission {
 ```
 
 #### Relationships
+
 - Has many SignalDetections
 - Uses one ConfigProfile
 
@@ -320,7 +346,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SystemState'
+                $ref: "#/components/schemas/SystemState"
 
   /system/homing:
     post:
@@ -353,8 +379,8 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ConfigProfile'
-    
+                  $ref: "#/components/schemas/ConfigProfile"
+
     post:
       summary: Create new profile
       requestBody:
@@ -362,7 +388,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConfigProfile'
+              $ref: "#/components/schemas/ConfigProfile"
       responses:
         201:
           description: Profile created
@@ -381,7 +407,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConfigProfile'
+              $ref: "#/components/schemas/ConfigProfile"
       responses:
         200:
           description: Profile updated
@@ -421,7 +447,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SignalDetection'
+                  $ref: "#/components/schemas/SignalDetection"
 
   /missions:
     get:
@@ -429,7 +455,7 @@ paths:
       responses:
         200:
           description: List of missions
-    
+
     post:
       summary: Start new mission
       requestBody:
@@ -498,14 +524,14 @@ components:
 ```typescript
 // WebSocket message types for real-time communication
 interface WSMessage {
-  type: 'rssi' | 'state' | 'detection' | 'telemetry' | 'error';
+  type: "rssi" | "state" | "detection" | "telemetry" | "error";
   timestamp: string;
   data: any;
 }
 
 // RSSI update (10Hz)
 interface RSSIUpdate {
-  type: 'rssi';
+  type: "rssi";
   data: {
     rssi: number;
     noiseFloor: number;
@@ -516,19 +542,19 @@ interface RSSIUpdate {
 
 // State change notification
 interface StateUpdate {
-  type: 'state';
+  type: "state";
   data: SystemState;
 }
 
 // Detection event
 interface DetectionEvent {
-  type: 'detection';
+  type: "detection";
   data: SignalDetection;
 }
 
 // Telemetry update (2Hz)
 interface TelemetryUpdate {
-  type: 'telemetry';
+  type: "telemetry";
   data: {
     position: { lat: number; lon: number; alt: number };
     battery: number;
@@ -541,9 +567,11 @@ interface TelemetryUpdate {
 ## Components
 
 ### Core Service
+
 **Responsibility:** Main application orchestrator managing lifecycle of all services and handling graceful shutdown
 
 **Key Interfaces:**
+
 - Service registration and dependency injection
 - Graceful shutdown coordination
 - Configuration loading and validation
@@ -554,9 +582,11 @@ interface TelemetryUpdate {
 **Technology Stack:** Python AsyncIO with dependency injection pattern
 
 ### SDR Service
+
 **Responsibility:** Hardware abstraction layer for SDR devices, managing device lifecycle and IQ sample streaming
 
 **Key Interfaces:**
+
 - `initialize(config: SDRConfig)` - Device initialization
 - `stream_iq() -> AsyncGenerator` - IQ sample streaming
 - `set_frequency(freq: float)` - Frequency tuning
@@ -567,9 +597,11 @@ interface TelemetryUpdate {
 **Technology Stack:** Python SoapySDR bindings with async wrapper
 
 ### Signal Processing Service
+
 **Responsibility:** Real-time RSSI computation, noise floor estimation, and signal detection logic
 
 **Key Interfaces:**
+
 - `process_iq(samples: np.array) -> RSSIReading` - RSSI calculation
 - `update_noise_floor(readings: List[float])` - Noise estimation
 - `detect_signal(rssi: float) -> DetectionEvent` - Detection logic
@@ -580,9 +612,11 @@ interface TelemetryUpdate {
 **Technology Stack:** NumPy/SciPy with optimized FFT operations
 
 ### MAVLink Service
+
 **Responsibility:** Bidirectional communication with flight controller, command sending, and telemetry reception
 
 **Key Interfaces:**
+
 - `connect(port: str, baud: int)` - Serial connection
 - `send_velocity_command(vx: float, yaw_rate: float)` - Movement commands
 - `get_telemetry() -> FlightTelemetry` - Current telemetry
@@ -593,9 +627,11 @@ interface TelemetryUpdate {
 **Technology Stack:** pymavlink with AsyncIO serial wrapper
 
 ### State Machine Service
+
 **Responsibility:** Manages operational states (IDLE, SEARCHING, HOMING) with safety-enforced transitions
 
 **Key Interfaces:**
+
 - `transition_to(state: State) -> bool` - Request state change
 - `get_current_state() -> State` - Current state query
 - `register_guard(guard: SafetyGuard)` - Add safety check
@@ -606,9 +642,11 @@ interface TelemetryUpdate {
 **Technology Stack:** Python state machine with async guards
 
 ### Homing Controller
+
 **Responsibility:** Implements gradient climbing algorithm and generates velocity commands for beacon approach
 
 **Key Interfaces:**
+
 - `enable_homing(confirmation: str) -> bool` - Activate homing
 - `compute_velocity(gradient: Vector) -> VelocityCommand` - Gradient to velocity
 - `execute_sampling_maneuver()` - S-turn for gradient sampling
@@ -619,9 +657,11 @@ interface TelemetryUpdate {
 **Technology Stack:** Python control algorithms with NumPy
 
 ### Web API Service
+
 **Responsibility:** FastAPI server providing REST endpoints and WebSocket connections for frontend
 
 **Key Interfaces:**
+
 - REST endpoints as defined in API specification
 - WebSocket connection management
 - Static file serving for React app
@@ -632,9 +672,11 @@ interface TelemetryUpdate {
 **Technology Stack:** FastAPI with Uvicorn ASGI server
 
 ### Frontend Dashboard Component
+
 **Responsibility:** Main operational view with real-time RSSI display and system status
 
 **Key Interfaces:**
+
 - WebSocket subscription for real-time updates
 - Homing activation control
 - Safety status display
@@ -645,9 +687,11 @@ interface TelemetryUpdate {
 **Technology Stack:** React with MUI components, recharts for graphs
 
 ### Frontend Configuration Component
+
 **Responsibility:** SDR and profile configuration management interface
 
 **Key Interfaces:**
+
 - Profile CRUD operations
 - Real-time parameter adjustment
 - Profile activation
@@ -668,7 +712,7 @@ graph LR
         WSClient[WebSocket<br/>Client]
         APIClient[API<br/>Client]
     end
-    
+
     subgraph "Backend Services"
         WebAPI[Web API<br/>Service]
         Core[Core<br/>Service]
@@ -678,33 +722,33 @@ graph LR
         State[State Machine<br/>Service]
         HomingCtrl[Homing<br/>Controller]
     end
-    
+
     subgraph "Data Layer"
         DB[(SQLite)]
         Cache[Memory<br/>Cache]
     end
-    
+
     Dashboard --> WSClient
     Dashboard --> APIClient
     Config --> APIClient
     Homing --> APIClient
     Homing --> WSClient
-    
+
     WSClient -.->|WS| WebAPI
     APIClient -.->|REST| WebAPI
-    
+
     WebAPI --> Core
     Core --> SDR
     Core --> Signal
     Core --> MAVLink
     Core --> State
     Core --> HomingCtrl
-    
+
     Signal --> SDR
     HomingCtrl --> State
     HomingCtrl --> MAVLink
     State --> MAVLink
-    
+
     WebAPI --> DB
     WebAPI --> Cache
     Signal --> Cache
@@ -730,13 +774,13 @@ sequenceDiagram
     participant HC as Homing Controller
     participant MAV as MAVLink Service
     participant FC as Flight Controller
-    
+
     Note over SDR,SP: Continuous signal monitoring (10Hz)
     SDR->>SP: IQ samples stream
     SP->>SP: Compute RSSI
     SP->>WS: RSSI update
     WS->>UI: Update display
-    
+
     alt Signal Detected (SNR > 12dB)
         SP->>SM: Signal detected event
         SM->>SM: Transition to DETECTING
@@ -744,12 +788,12 @@ sequenceDiagram
         API->>WS: State update
         WS->>UI: Show detection alert
         UI->>UI: Enable homing button
-        
+
         Op->>UI: Click Enable Homing
         UI->>UI: Show confirmation slider
         Op->>UI: Slide to confirm
         UI->>API: POST /system/homing {enabled: true}
-        
+
         API->>SM: Request HOMING state
         SM->>SM: Check safety interlocks
         alt All interlocks pass
@@ -761,7 +805,7 @@ sequenceDiagram
             HC->>MAV: Send velocity command
             MAV->>FC: SET_POSITION_TARGET_LOCAL_NED
             FC->>FC: Execute movement
-            
+
             loop While signal maintained
                 SP->>HC: Updated gradient
                 HC->>MAV: Adjusted velocity
@@ -773,7 +817,7 @@ sequenceDiagram
             UI->>Op: Show blocked reason
         end
     end
-    
+
     alt Signal Lost > 10s
         SP->>SM: Signal lost timeout
         SM->>HC: Disable homing
@@ -796,28 +840,28 @@ sequenceDiagram
     participant Core as Core Service
     participant SDR as SDR Service
     participant SP as Signal Processor
-    
+
     Op->>UI: Select profile
     UI->>API: GET /config/profiles
     API->>DB: Query profiles
     DB->>API: Return profiles
     API->>UI: Profile list
     UI->>Op: Display profiles
-    
+
     Op->>UI: Choose "LoRa Beacon"
     UI->>API: POST /config/profiles/{id}/activate
     API->>DB: Load profile details
     DB->>API: Profile config
-    
+
     API->>Core: Apply configuration
     Core->>SDR: Update SDR settings
     SDR->>SDR: Reconfigure hardware
     SDR->>Core: Confirmation
-    
+
     Core->>SP: Update processing params
     SP->>SP: Reset filters
     SP->>Core: Confirmation
-    
+
     Core->>API: Profile activated
     API->>UI: Success response
     UI->>Op: Show active profile
@@ -878,7 +922,7 @@ CREATE INDEX idx_rssi_detection ON rssi_readings(detection_id);
 CREATE INDEX idx_rssi_timestamp ON rssi_readings(timestamp);
 
 -- Triggers for updated_at
-CREATE TRIGGER update_profile_timestamp 
+CREATE TRIGGER update_profile_timestamp
 AFTER UPDATE ON config_profiles
 BEGIN
     UPDATE config_profiles SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
@@ -890,6 +934,7 @@ END;
 ### Component Architecture
 
 #### Component Organization
+
 ```
 src/
 ├── components/
@@ -923,6 +968,7 @@ src/
 ```
 
 #### Component Template
+
 ```typescript
 // Example: SignalMeter.tsx
 import React, { memo } from 'react';
@@ -936,21 +982,21 @@ interface SignalMeterProps {
   size?: 'small' | 'medium' | 'large';
 }
 
-export const SignalMeter = memo<SignalMeterProps>(({ 
-  rssi, 
-  noiseFloor, 
-  snr, 
-  size = 'medium' 
+export const SignalMeter = memo<SignalMeterProps>(({
+  rssi,
+  noiseFloor,
+  snr,
+  size = 'medium'
 }) => {
   const signalPercent = Math.max(0, Math.min(100, (rssi + 100) * 2));
   const color = snr > 12 ? 'success' : snr > 6 ? 'warning' : 'error';
-  
+
   return (
-    <Box sx={{ 
-      p: 2, 
-      border: 1, 
+    <Box sx={{
+      p: 2,
+      border: 1,
       borderColor: `${color}.main`,
-      borderRadius: 1 
+      borderRadius: 1
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <SignalCellularAlt color={color} />
@@ -958,9 +1004,9 @@ export const SignalMeter = memo<SignalMeterProps>(({
           {rssi.toFixed(1)} dBm
         </Typography>
       </Box>
-      <LinearProgress 
-        variant="determinate" 
-        value={signalPercent} 
+      <LinearProgress
+        variant="determinate"
+        value={signalPercent}
         color={color}
         sx={{ mt: 1, height: 8 }}
       />
@@ -975,6 +1021,7 @@ export const SignalMeter = memo<SignalMeterProps>(({
 ### State Management Architecture
 
 #### State Structure
+
 ```typescript
 // Global application state
 interface AppState {
@@ -992,7 +1039,7 @@ interface AppState {
   ui: {
     homingConfirmation: boolean;
     alertQueue: Alert[];
-    connectionStatus: 'connected' | 'connecting' | 'disconnected';
+    connectionStatus: "connected" | "connecting" | "disconnected";
   };
 }
 
@@ -1004,6 +1051,7 @@ export const AppContext = React.createContext<{
 ```
 
 #### State Management Patterns
+
 - Use React Context for global state (system status, active profile)
 - Use local component state for UI-only concerns (form inputs, modals)
 - Use useReducer for complex state updates (homing activation flow)
@@ -1013,6 +1061,7 @@ export const AppContext = React.createContext<{
 ### Routing Architecture
 
 #### Route Organization
+
 ```
 /                    # Dashboard (default)
 /homing             # Homing control panel
@@ -1024,6 +1073,7 @@ export const AppContext = React.createContext<{
 ```
 
 #### Protected Route Pattern
+
 ```typescript
 // No authentication needed - all routes accessible locally
 // But enforce safety checks for certain operations
@@ -1032,11 +1082,11 @@ import { useSystemState } from '../hooks/useSystemState';
 
 export const SafetyRoute: React.FC = () => {
   const { isConnected, isSafeMode } = useSystemState();
-  
+
   if (!isConnected) {
     return <Navigate to="/" replace />;
   }
-  
+
   return (
     <>
       {isSafeMode && (
@@ -1053,52 +1103,54 @@ export const SafetyRoute: React.FC = () => {
 ### Frontend Services Layer
 
 #### API Client Setup
+
 ```typescript
 // services/api.ts
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8080/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
   timeout: 5000,
   headers: {
-    'Content-Type': 'application/json',
-  }
+    "Content-Type": "application/json",
+  },
 });
 
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.code === 'ECONNABORTED') {
-      console.error('Request timeout');
+  (response) => response,
+  (error) => {
+    if (error.code === "ECONNABORTED") {
+      console.error("Request timeout");
     }
     return Promise.reject(error);
-  }
+  },
 );
 ```
 
 #### Service Example
+
 ```typescript
 // services/config.service.ts
-import { apiClient } from './api';
-import { ConfigProfile } from '../types';
+import { apiClient } from "./api";
+import { ConfigProfile } from "../types";
 
 export const configService = {
   async getProfiles(): Promise<ConfigProfile[]> {
-    const { data } = await apiClient.get('/config/profiles');
+    const { data } = await apiClient.get("/config/profiles");
     return data;
   },
-  
+
   async activateProfile(id: string): Promise<void> {
     await apiClient.post(`/config/profiles/${id}/activate`);
   },
-  
+
   async saveProfile(profile: Partial<ConfigProfile>): Promise<ConfigProfile> {
-    const { data } = await apiClient.post('/config/profiles', profile);
+    const { data } = await apiClient.post("/config/profiles", profile);
     return data;
-  }
+  },
 };
 ```
 
@@ -1107,6 +1159,7 @@ export const configService = {
 ### Service Architecture
 
 #### Service Organization
+
 ```
 src/
 ├── core/
@@ -1139,6 +1192,7 @@ src/
 ```
 
 #### Service Template
+
 ```python
 # services/sdr_service.py
 import asyncio
@@ -1152,48 +1206,48 @@ class SDRConfig:
     frequency: float = 2.437e9
     sample_rate: float = 2e6
     gain: float = 30.0
-    
+
 class SDRService:
     def __init__(self, config: SDRConfig):
         self.config = config
         self.device: Optional[SoapySDR.Device] = None
         self.stream = None
         self._running = False
-        
+
     async def initialize(self) -> bool:
         """Initialize SDR hardware"""
         try:
             # Find and create device
             args = dict(driver="hackrf")
             self.device = SoapySDR.Device(args)
-            
+
             # Configure device
             self.device.setSampleRate(SoapySDR.SOAPY_SDR_RX, 0, self.config.sample_rate)
             self.device.setFrequency(SoapySDR.SOAPY_SDR_RX, 0, self.config.frequency)
             self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, self.config.gain)
-            
+
             # Setup stream
             self.stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
             self.device.activateStream(self.stream)
             self._running = True
-            
+
             return True
         except Exception as e:
             logger.error(f"SDR initialization failed: {e}")
             return False
-            
+
     async def stream_iq(self) -> AsyncGenerator[np.ndarray, None]:
         """Stream IQ samples asynchronously"""
         buffer = np.zeros(1024, dtype=np.complex64)
-        
+
         while self._running:
             # Non-blocking read with asyncio
             await asyncio.sleep(0)  # Yield control
-            
+
             status = self.device.readStream(self.stream, [buffer], len(buffer))
             if status.ret > 0:
                 yield buffer[:status.ret].copy()
-                
+
     async def shutdown(self):
         """Clean shutdown"""
         self._running = False
@@ -1205,6 +1259,7 @@ class SDRService:
 ### Database Architecture
 
 #### Schema Design
+
 ```python
 # models/database.py
 from sqlalchemy import create_engine, Column, String, Float, JSON, Boolean, DateTime
@@ -1217,7 +1272,7 @@ Base = declarative_base()
 
 class ConfigProfile(Base):
     __tablename__ = 'config_profiles'
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False, unique=True)
     sdr_config = Column(JSON, nullable=False)
@@ -1229,7 +1284,7 @@ class ConfigProfile(Base):
 
 class SignalDetection(Base):
     __tablename__ = 'signal_detections'
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     mission_id = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
@@ -1247,6 +1302,7 @@ Base.metadata.create_all(bind=engine)
 ```
 
 #### Data Access Layer
+
 ```python
 # services/repository.py
 from typing import List, Optional
@@ -1256,26 +1312,26 @@ from models.database import ConfigProfile, SignalDetection
 class ConfigRepository:
     def __init__(self, db: Session):
         self.db = db
-        
+
     async def get_profiles(self) -> List[ConfigProfile]:
         return self.db.query(ConfigProfile).all()
-        
+
     async def get_profile(self, profile_id: str) -> Optional[ConfigProfile]:
         return self.db.query(ConfigProfile).filter(
             ConfigProfile.id == profile_id
         ).first()
-        
+
     async def create_profile(self, profile_data: dict) -> ConfigProfile:
         profile = ConfigProfile(**profile_data)
         self.db.add(profile)
         self.db.commit()
         self.db.refresh(profile)
         return profile
-        
+
     async def activate_profile(self, profile_id: str) -> bool:
         # Deactivate all profiles
         self.db.query(ConfigProfile).update({'is_default': False})
-        
+
         # Activate selected profile
         profile = await self.get_profile(profile_id)
         if profile:
@@ -1288,26 +1344,27 @@ class ConfigRepository:
 ### Authentication and Authorization
 
 #### Auth Flow
+
 ```mermaid
 sequenceDiagram
     participant Browser
     participant Frontend
     participant API
     participant Core
-    
+
     Note over Browser,Core: Local network only - no external auth
-    
+
     Browser->>Frontend: Access UI
     Frontend->>API: Check connection
     API->>Frontend: System status
     Frontend->>Browser: Display dashboard
-    
+
     Browser->>Frontend: Request homing activation
     Frontend->>Frontend: Show confirmation UI
     Browser->>Frontend: Confirm action
     Frontend->>API: POST /system/homing
     API->>Core: Validate safety interlocks
-    
+
     alt Safety checks pass
         Core->>API: Authorized
         API->>Frontend: Success
@@ -1320,6 +1377,7 @@ sequenceDiagram
 ```
 
 #### Middleware/Guards
+
 ```python
 # api/middleware.py
 from fastapi import HTTPException, Depends
@@ -1327,11 +1385,11 @@ from typing import Optional
 
 class SafetyInterlock:
     """Middleware to enforce safety checks on critical operations"""
-    
+
     def __init__(self, state_machine, mavlink_service):
         self.state_machine = state_machine
         self.mavlink = mavlink_service
-        
+
     async def check_homing_allowed(self) -> dict:
         """Verify all conditions for homing activation"""
         checks = {
@@ -1340,27 +1398,27 @@ class SafetyInterlock:
             'signal_check': False,
             'geofence_check': False
         }
-        
+
         # Check flight mode is GUIDED
         telemetry = await self.mavlink.get_telemetry()
         checks['mode_check'] = telemetry.flight_mode == 'GUIDED'
-        
+
         # Check battery > 20%
         checks['battery_check'] = telemetry.battery_percent > 20
-        
+
         # Check signal is detected
         state = self.state_machine.current_state
         checks['signal_check'] = state in ['DETECTING', 'HOMING']
-        
+
         # Check within geofence (simplified)
         checks['geofence_check'] = True  # Would check actual bounds
-        
+
         all_pass = all(checks.values())
         return {
             'allowed': all_pass,
             'checks': checks
         }
-        
+
 # Usage in routes
 @router.post("/system/homing")
 async def enable_homing(
@@ -1482,6 +1540,7 @@ rf-homing-sar-drone/
 ### Local Development Setup
 
 #### Prerequisites
+
 ```bash
 # System requirements
 # Raspberry Pi OS 64-bit (Bookworm) or Ubuntu 22.04 LTS
@@ -1510,6 +1569,7 @@ sudo apt-get install -y \
 ```
 
 #### Initial Setup
+
 ```bash
 # Clone repository
 git clone https://github.com/your-org/rf-homing-sar-drone.git
@@ -1536,6 +1596,7 @@ cp .env.example .env
 ```
 
 #### Development Commands
+
 ```bash
 # Start all services
 uv run ./scripts/dev.sh
@@ -1570,6 +1631,7 @@ uv run mypy src/
 ### Environment Configuration
 
 #### Required Environment Variables
+
 ```bash
 # Frontend (.env.local)
 VITE_API_URL=http://localhost:8080
@@ -1604,17 +1666,20 @@ DATABASE_PATH=./rf_homing.db
 ### Deployment Strategy
 
 **Frontend Deployment:**
+
 - **Platform:** Static files served by FastAPI
 - **Build Command:** `npm run build`
 - **Output Directory:** `dist/`
 - **CDN/Edge:** N/A (local only)
 
 **Backend Deployment:**
+
 - **Platform:** Systemd service on Raspberry Pi
 - **Build Command:** `pip install -r requirements.txt`
 - **Deployment Method:** Ansible playbook
 
 ### CI/CD Pipeline
+
 ```yaml
 # .github/workflows/ci.yaml
 name: CI Pipeline
@@ -1632,7 +1697,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
       - name: Install dependencies
@@ -1648,7 +1713,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: "20"
       - name: Install and test
         run: |
           cd src/frontend
@@ -1672,27 +1737,31 @@ jobs:
 ```
 
 ### Environments
-| Environment | Frontend URL | Backend URL | Purpose |
-|-------------|--------------|-------------|---------|
-| Development | http://localhost:5173 | http://localhost:8080 | Local development |
-| Testing | http://pi.local | http://pi.local:8080 | Pi testing |
-| Production | http://192.168.1.100 | http://192.168.1.100:8080 | Field deployment |
+
+| Environment | Frontend URL          | Backend URL               | Purpose           |
+| ----------- | --------------------- | ------------------------- | ----------------- |
+| Development | http://localhost:5173 | http://localhost:8080     | Local development |
+| Testing     | http://pi.local       | http://pi.local:8080      | Pi testing        |
+| Production  | http://192.168.1.100  | http://192.168.1.100:8080 | Field deployment  |
 
 ## Security and Performance
 
 ### Security Requirements
 
 **Frontend Security:**
+
 - CSP Headers: `default-src 'self'; ws-src 'self' ws://localhost:*`
 - XSS Prevention: React automatic escaping, input sanitization
 - Secure Storage: No sensitive data in localStorage, session only
 
 **Backend Security:**
+
 - Input Validation: Pydantic schemas for all inputs
 - Rate Limiting: 100 requests/minute per IP
 - CORS Policy: Allow only localhost and configured IPs
 
 **Authentication Security:**
+
 - Token Storage: N/A (local network only)
 - Session Management: WebSocket session timeout after 30 min idle
 - Password Policy: N/A (no user accounts)
@@ -1700,11 +1769,13 @@ jobs:
 ### Performance Optimization
 
 **Frontend Performance:**
+
 - Bundle Size Target: < 500KB gzipped
 - Loading Strategy: Code splitting by route
 - Caching Strategy: Service worker for static assets
 
 **Backend Performance:**
+
 - Response Time Target: < 50ms for API calls
 - Database Optimization: Indexes on timestamp fields
 - Caching Strategy: In-memory cache for RSSI data (10 sec TTL)
@@ -1712,6 +1783,7 @@ jobs:
 ## Testing Strategy
 
 ### Testing Pyramid
+
 ```
           E2E Tests
          /        \
@@ -1723,6 +1795,7 @@ jobs:
 ### Test Organization
 
 #### Frontend Tests
+
 ```
 tests/frontend/
 ├── components/
@@ -1736,6 +1809,7 @@ tests/frontend/
 ```
 
 #### Backend Tests
+
 ```
 tests/backend/
 ├── unit/
@@ -1750,6 +1824,7 @@ tests/backend/
 ```
 
 #### E2E Tests
+
 ```
 tests/e2e/
 ├── homing_activation.spec.ts
@@ -1760,6 +1835,7 @@ tests/e2e/
 ### Test Examples
 
 #### Frontend Component Test
+
 ```typescript
 // SignalMeter.test.tsx
 import { render, screen } from '@testing-library/react';
@@ -1770,7 +1846,7 @@ describe('SignalMeter', () => {
     render(<SignalMeter rssi={-75} noiseFloor={-95} snr={20} />);
     expect(screen.getByText('-75.0 dBm')).toBeInTheDocument();
   });
-  
+
   it('shows success color for high SNR', () => {
     const { container } = render(
       <SignalMeter rssi={-60} noiseFloor={-95} snr={35} />
@@ -1781,6 +1857,7 @@ describe('SignalMeter', () => {
 ```
 
 #### Backend API Test
+
 ```python
 # test_api_routes.py
 import pytest
@@ -1808,33 +1885,36 @@ async def test_homing_activation_blocked():
 ```
 
 #### E2E Test
+
 ```typescript
 // homing_activation.spec.ts
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test('homing activation flow', async ({ page }) => {
-  await page.goto('http://localhost:5173');
-  
+test("homing activation flow", async ({ page }) => {
+  await page.goto("http://localhost:5173");
+
   // Wait for signal detection
   await page.waitForSelector('[data-testid="signal-detected"]');
-  
+
   // Click enable homing
   await page.click('[data-testid="enable-homing-btn"]');
-  
+
   // Confirm activation
-  await page.locator('[data-testid="confirm-slider"]').dragTo(
-    page.locator('[data-testid="slider-end"]')
-  );
-  
+  await page
+    .locator('[data-testid="confirm-slider"]')
+    .dragTo(page.locator('[data-testid="slider-end"]'));
+
   // Verify homing active
-  await expect(page.locator('[data-testid="homing-status"]'))
-    .toHaveText('HOMING ACTIVE');
+  await expect(page.locator('[data-testid="homing-status"]')).toHaveText(
+    "HOMING ACTIVE",
+  );
 });
 ```
 
 ## Coding Standards
 
 ### Critical Fullstack Rules
+
 - **Type Sharing:** Always define shared types in shared/types.ts and import
 - **API Calls:** Never make direct HTTP calls - use the service layer
 - **Environment Variables:** Access only through config objects, never process.env directly
@@ -1845,25 +1925,27 @@ test('homing activation flow', async ({ page }) => {
 - **Logging:** Use structured logging with correlation IDs for request tracking
 
 ### Naming Conventions
-| Element | Frontend | Backend | Example |
-|---------|----------|---------|---------|
-| Components | PascalCase | - | `SignalMeter.tsx` |
-| Hooks | camelCase with 'use' | - | `useSystemState.ts` |
-| API Routes | - | kebab-case | `/api/system-status` |
-| Database Tables | - | snake_case | `signal_detections` |
-| Config Keys | - | UPPER_SNAKE | `SDR_FREQUENCY` |
-| WebSocket Events | camelCase | snake_case | `rssiUpdate` / `rssi_update` |
+
+| Element          | Frontend             | Backend     | Example                      |
+| ---------------- | -------------------- | ----------- | ---------------------------- |
+| Components       | PascalCase           | -           | `SignalMeter.tsx`            |
+| Hooks            | camelCase with 'use' | -           | `useSystemState.ts`          |
+| API Routes       | -                    | kebab-case  | `/api/system-status`         |
+| Database Tables  | -                    | snake_case  | `signal_detections`          |
+| Config Keys      | -                    | UPPER_SNAKE | `SDR_FREQUENCY`              |
+| WebSocket Events | camelCase            | snake_case  | `rssiUpdate` / `rssi_update` |
 
 ## Error Handling Strategy
 
 ### Error Flow
+
 ```mermaid
 sequenceDiagram
     participant UI
     participant API
     participant Service
     participant Safety
-    
+
     UI->>API: Request homing activation
     API->>Safety: Check interlocks
     Safety-->>API: Interlock failed
@@ -1875,6 +1957,7 @@ sequenceDiagram
 ```
 
 ### Error Response Format
+
 ```typescript
 interface ApiError {
   error: {
@@ -1888,33 +1971,35 @@ interface ApiError {
 ```
 
 ### Frontend Error Handling
+
 ```typescript
 // hooks/useApiError.ts
 export const useApiError = () => {
   const { dispatch } = useContext(AppContext);
-  
+
   const handleError = (error: AxiosError<ApiError>) => {
-    const message = error.response?.data?.error?.message 
-      || 'An unexpected error occurred';
-      
+    const message =
+      error.response?.data?.error?.message || "An unexpected error occurred";
+
     dispatch({
-      type: 'ADD_ALERT',
+      type: "ADD_ALERT",
       payload: {
-        severity: 'error',
+        severity: "error",
         message,
-        autoHide: true
-      }
+        autoHide: true,
+      },
     });
-    
+
     // Log for debugging
-    console.error('[API Error]', error.response?.data);
+    console.error("[API Error]", error.response?.data);
   };
-  
+
   return { handleError };
 };
 ```
 
 ### Backend Error Handling
+
 ```python
 # api/middleware.py
 from fastapi import Request, HTTPException
@@ -1925,7 +2010,7 @@ from datetime import datetime
 
 async def error_handler(request: Request, exc: Exception):
     request_id = str(uuid.uuid4())
-    
+
     if isinstance(exc, HTTPException):
         return JSONResponse(
             status_code=exc.status_code,
@@ -1938,10 +2023,10 @@ async def error_handler(request: Request, exc: Exception):
                 }
             }
         )
-    
+
     # Log unexpected errors
     logger.error(f"Request {request_id}: {traceback.format_exc()}")
-    
+
     return JSONResponse(
         status_code=500,
         content={
@@ -1958,19 +2043,23 @@ async def error_handler(request: Request, exc: Exception):
 ## Monitoring and Observability
 
 ### Monitoring Stack
+
 - **Frontend Monitoring:** Browser console logs + local performance API
 - **Backend Monitoring:** Prometheus metrics endpoint
 - **Error Tracking:** Local log aggregation with systemd journal
 - **Performance Monitoring:** Custom metrics via Prometheus
 
 ### Key Metrics
+
 **Frontend Metrics:**
+
 - Core Web Vitals (FCP, LCP, CLS)
 - JavaScript errors count
 - API response times (p50, p95, p99)
 - WebSocket connection drops
 
 **Backend Metrics:**
+
 - Request rate (req/s)
 - Error rate (4xx, 5xx)
 - Response time (p50, p95, p99)
@@ -1982,6 +2071,7 @@ async def error_handler(request: Request, exc: Exception):
 ## Checklist Results Report
 
 The architecture document is now complete with all updated package versions from the framework.txt file. The key updates include:
+
 - TypeScript 5.9.2
 - React 18.3.1
 - MUI 7.3.1

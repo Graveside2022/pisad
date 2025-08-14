@@ -1,0 +1,45 @@
+{
+  "timestamp": "2025-08-12T22:46:45.088920+00:00",
+  "summary": {
+    "passed": 7,
+    "failed": 0,
+    "errors": 0
+  },
+  "results": [
+    {
+      "test": "Mode Monitor Interlock",
+      "status": "PASS",
+      "details": "All mode checks passed"
+    },
+    {
+      "test": "Operator Activation Requirement",
+      "status": "PASS",
+      "details": "Operator controls working"
+    },
+    {
+      "test": "Signal Loss Auto-Disable",
+      "status": "PASS",
+      "details": "Signal timeout working"
+    },
+    {
+      "test": "Geofence Boundary Checks",
+      "status": "PASS",
+      "details": "Geofence checks working"
+    },
+    {
+      "test": "Battery Monitor Disable",
+      "status": "PASS",
+      "details": "Battery checks working"
+    },
+    {
+      "test": "Emergency Stop Functionality",
+      "status": "PASS",
+      "details": "Emergency stop working"
+    },
+    {
+      "test": "Multi-Interlock Trigger",
+      "status": "PASS",
+      "details": "Multi-interlock working"
+    }
+  ]
+}

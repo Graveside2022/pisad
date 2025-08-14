@@ -1,9 +1,11 @@
 # Data Models
 
 ## SignalDetection
+
 **Purpose:** Records RF signal detection events with metadata for analysis and replay
 
 **Key Attributes:**
+
 - id: UUID - Unique identifier for detection event
 - timestamp: datetime - UTC timestamp of detection
 - frequency: float - Center frequency in Hz
@@ -14,6 +16,7 @@
 - state: string - System state during detection (SEARCHING, DETECTING, HOMING)
 
 ### TypeScript Interface
+
 ```typescript
 interface SignalDetection {
   id: string;
@@ -27,24 +30,28 @@ interface SignalDetection {
     lon: number;
     alt: number;
   };
-  state: 'IDLE' | 'SEARCHING' | 'DETECTING' | 'HOMING' | 'HOLDING';
+  state: "IDLE" | "SEARCHING" | "DETECTING" | "HOMING" | "HOLDING";
 }
 ```
 
 ### Relationships
+
 - Has many RSSIReadings (time series data)
 - Belongs to one Mission
 
 ## RSSIReading
+
 **Purpose:** Time-series RSSI data for real-time visualization and gradient analysis
 
 **Key Attributes:**
+
 - timestamp: datetime - Microsecond precision timestamp
 - rssi: float - Signal strength in dBm
 - noise_floor: float - Estimated noise floor in dBm
 - detection_id: UUID - Associated detection event (nullable)
 
 ### TypeScript Interface
+
 ```typescript
 interface RSSIReading {
   timestamp: string; // ISO 8601 with microseconds
@@ -55,13 +62,16 @@ interface RSSIReading {
 ```
 
 ### Relationships
+
 - Belongs to SignalDetection (optional)
 - Used for real-time streaming (not always persisted)
 
 ## ConfigProfile
+
 **Purpose:** Stores SDR and system configuration profiles for different beacon types
 
 **Key Attributes:**
+
 - id: UUID - Profile identifier
 - name: string - Profile name (e.g., "WiFi Beacon", "LoRa Tracker")
 - sdr_config: JSON - SDR settings (frequency, sample_rate, gain)
@@ -72,6 +82,7 @@ interface RSSIReading {
 - updated_at: datetime - Last modification time
 
 ### TypeScript Interface
+
 ```typescript
 interface ConfigProfile {
   id: string;
@@ -101,13 +112,16 @@ interface ConfigProfile {
 ```
 
 ### Relationships
+
 - Used by multiple Missions
 - Can be cloned/modified
 
 ## SystemState
+
 **Purpose:** Real-time system state for UI synchronization and safety monitoring
 
 **Key Attributes:**
+
 - current_state: enum - State machine state
 - homing_enabled: boolean - Homing activation status
 - flight_mode: string - Current flight controller mode
@@ -118,15 +132,16 @@ interface ConfigProfile {
 - safety_interlocks: JSON - Status of all safety checks
 
 ### TypeScript Interface
+
 ```typescript
 interface SystemState {
-  currentState: 'IDLE' | 'SEARCHING' | 'DETECTING' | 'HOMING' | 'HOLDING';
+  currentState: "IDLE" | "SEARCHING" | "DETECTING" | "HOMING" | "HOLDING";
   homingEnabled: boolean;
   flightMode: string;
   batteryPercent: number;
-  gpsStatus: 'NO_FIX' | '2D_FIX' | '3D_FIX' | 'RTK';
+  gpsStatus: "NO_FIX" | "2D_FIX" | "3D_FIX" | "RTK";
   mavlinkConnected: boolean;
-  sdrStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+  sdrStatus: "CONNECTED" | "DISCONNECTED" | "ERROR";
   safetyInterlocks: {
     modeCheck: boolean;
     batteryCheck: boolean;
@@ -138,13 +153,16 @@ interface SystemState {
 ```
 
 ### Relationships
+
 - Singleton in-memory state
 - Broadcast via WebSocket
 
 ## Mission
+
 **Purpose:** Groups related flights and detections for analysis and reporting
 
 **Key Attributes:**
+
 - id: UUID - Mission identifier
 - name: string - Mission name
 - start_time: datetime - Mission start
@@ -155,6 +173,7 @@ interface SystemState {
 - notes: text - Operator notes
 
 ### TypeScript Interface
+
 ```typescript
 interface Mission {
   id: string;
@@ -169,5 +188,6 @@ interface Mission {
 ```
 
 ### Relationships
+
 - Has many SignalDetections
 - Uses one ConfigProfile

@@ -5,9 +5,11 @@ This document outlines the complete fullstack architecture for RF-Homing SAR Dro
 This unified approach combines what would traditionally be separate backend and frontend architecture documents, streamlining the development process for modern fullstack applications where these concerns are increasingly intertwined.
 
 ## Starter Template or Existing Project
+
 N/A - Greenfield project
 
 ## Change Log
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-08-12 | 1.0 | Initial architecture document creation | Winston (Architect) |
+
+| Date       | Version | Description                            | Author              |
+| ---------- | ------- | -------------------------------------- | ------------------- |
+| 2025-08-12 | 1.0     | Initial architecture document creation | Winston (Architect) |

@@ -1,10 +1,13 @@
 # Technical Assumptions
 
 ## Repository Structure: Monorepo
+
 Single repository containing all components (flight control configs, SDR processing, web UI, documentation) to simplify version control and ensure synchronized updates across the tightly-coupled payload system.
 
 ## Service Architecture
+
 **Modular monolith** with clear separation between:
+
 - **Core Services** (always running on boot):
   - SDR sensing daemon (Python asyncio service)
   - Signal processing pipeline (NumPy/SciPy)
@@ -17,7 +20,9 @@ Single repository containing all components (flight control configs, SDR process
 - All services communicate via async message passing within single Python process for deterministic timing
 
 ## Testing Requirements
+
 **Comprehensive testing pyramid** essential for safety-critical system:
+
 - **Unit tests** for signal processing algorithms, state machines, safety interlocks
 - **Integration tests** for MAVLink communication, SDR hardware interface
 - **Hardware-in-loop (HIL)** testing with real SDR and simulated flight controller
@@ -25,10 +30,16 @@ Single repository containing all components (flight control configs, SDR process
 - **Manual test utilities** for signal injection, RSSI simulation, state forcing
 
 ## Additional Technical Assumptions and Requests
+
 - **Python 3.10+** as primary language for rapid prototyping and extensive library support
 - **AsyncIO architecture** throughout for concurrent SDR sampling and flight control
 - **SoapySDR** for hardware abstraction supporting both USRP and HackRF
-- **FastAPI or Flask** for lightweight web server hosting payload UI
+- **FastAPI (v0.116.1)** for high-performance async web server hosting payload UI
+- **Uvicorn (v0.35.0)** as ASGI server for FastAPI with WebSocket support
+- **HTTPX (v0.28.1)** for async HTTP client capabilities in backend services
+- **Pydantic Settings (v2.10.1)** for type-safe configuration management
+- **Matplotlib (v3.10.5)** for signal visualization and RSSI plotting
+- **ReportLab (v4.4.3)** for generating PDF field test reports
 - **WebSocket** for real-time UI updates without polling
 - **Docker containerization** optional but recommended for reproducible builds
 - **Git with semantic versioning** for all code and configuration

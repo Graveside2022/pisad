@@ -5,7 +5,7 @@
 ### Goals
 
 - Demonstrate technical feasibility of autonomous RF beacon detection and homing in controlled field tests
-- Achieve stable autonomous flight with seamless SEARCH/HOMING mode transitions  
+- Achieve stable autonomous flight with seamless SEARCH/HOMING mode transitions
 - Validate system operation in both GPS-assisted and GPS-denied environments
 - Reduce search area coverage time by 70% versus ground-based SAR methods
 - Create modular, maintainable codebase as foundation for production system
@@ -19,9 +19,9 @@ The RF-Homing SAR Drone addresses a critical gap in current search and rescue op
 
 ### Change Log
 
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-08-12 | 1.0 | Initial PRD creation from Project Brief | John (PM Agent) |
+| Date       | Version | Description                             | Author          |
+| ---------- | ------- | --------------------------------------- | --------------- |
+| 2025-08-12 | 1.0     | Initial PRD creation from Project Brief | John (PM Agent) |
 
 ## Requirements
 
@@ -64,9 +64,11 @@ The RF-Homing SAR Drone addresses a critical gap in current search and rescue op
 ## User Interface Design Goals
 
 ### Overall UX Vision
+
 A focused web-based payload control interface hosted on the Raspberry Pi 5, accessible via browser at the companion computer's IP address. This interface specifically controls the RF homing payload (SDR operations, signal processing, homing behaviors) while deliberately NOT duplicating primary flight control functions that remain in Mission Planner/QGC. The UI emphasizes real-time signal intelligence and payload-specific controls with clear separation of concerns between platform and payload operations.
 
 ### Key Interaction Paradigms
+
 - **Payload-centric controls** for RF detection parameters, frequency selection, and homing behavior tuning
 - **Real-time signal visualization** with RSSI graphs, waterfall displays, and confidence metrics
 - **State synchronization** showing current homing state without duplicating flight mode controls
@@ -74,6 +76,7 @@ A focused web-based payload control interface hosted on the Raspberry Pi 5, acce
 - **Clear visual boundary** between payload controls (editable) and platform status (read-only)
 
 ### Core Screens and Views
+
 - **Payload Dashboard** - Main view with RSSI graph, signal strength meter, current frequency, detection state
 - **Signal Configuration** - SDR settings, center frequency, bandwidth, gain controls, noise floor calibration
 - **Homing Parameters** - Trigger/drop thresholds, gradient climbing settings, search pattern dimensions
@@ -81,12 +84,15 @@ A focused web-based payload control interface hosted on the Raspberry Pi 5, acce
 - **System Health** - SDR status, CPU/memory usage, MAVLink connection health, processing latency
 
 ### Accessibility: WCAG AA
+
 Ensuring compliance for emergency response personnel who may have visual or motor impairments, including high-contrast mode, keyboard navigation, and screen reader support for all critical functions.
 
 ### Branding
+
 Clean, professional interface aligned with emergency services aesthetic - high contrast, clear typography, avoiding decorative elements. Color palette focused on operational clarity: blues for normal operation, amber for warnings, red for critical alerts.
 
 ### Target Device and Platforms: Web Responsive
+
 Primary: Desktop/laptop browser accessing Pi5 web server (1920x1080 minimum)
 Secondary: Tablet browser for field operations (iPad/Surface Pro)
 Emergency: Mobile phone browser for status monitoring only
@@ -94,10 +100,13 @@ Emergency: Mobile phone browser for status monitoring only
 ## Technical Assumptions
 
 ### Repository Structure: Monorepo
+
 Single repository containing all components (flight control configs, SDR processing, web UI, documentation) to simplify version control and ensure synchronized updates across the tightly-coupled payload system.
 
 ### Service Architecture
+
 **Modular monolith** with clear separation between:
+
 - **Core Services** (always running on boot):
   - SDR sensing daemon (Python asyncio service)
   - Signal processing pipeline (NumPy/SciPy)
@@ -110,7 +119,9 @@ Single repository containing all components (flight control configs, SDR process
 - All services communicate via async message passing within single Python process for deterministic timing
 
 ### Testing Requirements
+
 **Comprehensive testing pyramid** essential for safety-critical system:
+
 - **Unit tests** for signal processing algorithms, state machines, safety interlocks
 - **Integration tests** for MAVLink communication, SDR hardware interface
 - **Hardware-in-loop (HIL)** testing with real SDR and simulated flight controller
@@ -118,6 +129,7 @@ Single repository containing all components (flight control configs, SDR process
 - **Manual test utilities** for signal injection, RSSI simulation, state forcing
 
 ### Additional Technical Assumptions and Requests
+
 - **Python 3.10+** as primary language for rapid prototyping and extensive library support
 - **AsyncIO architecture** throughout for concurrent SDR sampling and flight control
 - **SoapySDR** for hardware abstraction supporting both USRP and HackRF
@@ -151,6 +163,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I can build, test, and deploy the RF-homing payload software consistently.
 
 **Acceptance Criteria:**
+
 1. Git repository initialized with .gitignore for Python projects and README.md with project overview
 2. Python 3.10+ virtual environment configured with requirements.txt including: asyncio, numpy, scipy, SoapySDR, FastAPI/Flask, pytest
 3. Basic project structure created: /src, /tests, /config, /docs, /web/static, /web/templates
@@ -166,6 +179,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I can capture RF signals regardless of using HackRF or USRP devices.
 
 **Acceptance Criteria:**
+
 1. SoapySDR wrapper class implemented with device enumeration and selection
 2. SDR initialization with configurable sample rate (2 Msps default), center frequency (2.437 GHz default), and gain settings
 3. Continuous IQ sample streaming implemented using async generator pattern
@@ -181,6 +195,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I can detect and measure RF beacon signal strength.
 
 **Acceptance Criteria:**
+
 1. FFT-based RSSI computation implemented processing 1024-sample blocks
 2. EWMA filter implemented with configurable alpha parameter (default 0.3)
 3. Noise floor estimation using 10th percentile method over 1-second window
@@ -196,6 +211,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I can observe payload operation without additional software installation.
 
 **Acceptance Criteria:**
+
 1. FastAPI/Flask web server starts automatically on boot at port 8080
 2. Main dashboard displays current RSSI value updated via WebSocket at 10Hz minimum
 3. Time-series graph shows RSSI history for last 60 seconds
@@ -211,6 +227,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I can quickly adapt to different beacon types and environments.
 
 **Acceptance Criteria:**
+
 1. Configuration profiles stored as YAML files in /config/profiles/
 2. Web UI provides "Save Profile" and "Load Profile" functionality
 3. Configurable parameters include: frequency, sample rate, gain, thresholds, filter settings
@@ -230,6 +247,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** the payload can receive telemetry and send velocity commands when authorized.
 
 **Acceptance Criteria:**
+
 1. MAVLink 2.0 connection established over serial (/dev/ttyACM0 or /dev/ttyAMA0)
 2. Heartbeat messages exchanged at 1Hz with connection monitoring
 3. Flight telemetry received and parsed (position, altitude, battery, mode, GPS status)
@@ -245,6 +263,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** the payload never compromises flight safety or operator control.
 
 **Acceptance Criteria:**
+
 1. Mode monitor detects flight mode changes within 100ms and stops velocity commands if not GUIDED
 2. Operator activation required via web UI "Enable Homing" button before any velocity commands sent
 3. Automatic homing disable after 10 seconds of signal loss (<6 dB SNR)
@@ -260,6 +279,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I maintain situational awareness and positive control.
 
 **Acceptance Criteria:**
+
 1. Large, prominent "Enable/Disable Homing" toggle button with clear state indication
 2. Visual confirmation required before enabling homing (popup or slide-to-confirm)
 3. Current homing state displayed prominently with color coding (gray=disabled, green=enabled, red=active)
@@ -275,6 +295,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I have unified situational awareness without switching interfaces.
 
 **Acceptance Criteria:**
+
 1. RSSI value streamed to GCS via NAMED_VALUE_FLOAT at 2Hz
 2. Homing state sent via STATUSTEXT on any state change
 3. Detection events sent as STATUSTEXT with signal strength and confidence
@@ -290,6 +311,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I can validate all safety systems before flight testing.
 
 **Acceptance Criteria:**
+
 1. Bench test procedure validates all safety interlocks with simulated signals
 2. Ground vehicle test plan documents RF validation methodology
 3. Safety checklist created for pre-flight payload verification
@@ -309,6 +331,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** it efficiently covers the designated search area while monitoring for signals.
 
 **Acceptance Criteria:**
+
 1. Expanding square pattern generator creates waypoints based on configured spacing (50-100m)
 2. Search velocity configurable between 5-10 m/s via web UI
 3. Search area boundaries definable via corner coordinates or center+radius
@@ -324,6 +347,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** it can autonomously locate the beacon source.
 
 **Acceptance Criteria:**
+
 1. Gradient climbing algorithm computes optimal heading based on RSSI history
 2. Forward velocity scaled based on signal strength change rate (stronger=faster)
 3. Yaw rate commands keep drone pointed toward gradient direction
@@ -339,6 +363,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** the system behaves predictably and is maintainable.
 
 **Acceptance Criteria:**
+
 1. State machine implements: IDLE, SEARCHING, DETECTING, HOMING, HOLDING states
 2. State transitions logged with trigger conditions and timestamps
 3. Each state has defined entry/exit actions and allowed transitions
@@ -354,6 +379,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** we can prove operational readiness and identify limitations.
 
 **Acceptance Criteria:**
+
 1. Test beacon transmitter configured and validated at multiple power levels
 2. Open field test achieves beacon detection at >500m range
 3. Successful approach to within 50m of beacon in 5 consecutive tests
@@ -369,6 +395,7 @@ Single repository containing all components (flight control configs, SDR process
 **so that** I can assess system effectiveness and plan improvements.
 
 **Acceptance Criteria:**
+
 1. Mission replay capability using logged telemetry and signal data
 2. Performance dashboard shows key metrics: detection rate, approach accuracy, search efficiency
 3. Export capability for flight logs in CSV/JSON format
@@ -387,19 +414,20 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Category Assessment
 
-| Category | Status | Notes |
-|----------|--------|-------|
-| Problem Definition & Context | PASS (95%) | Clear problem statement with quantified 70% time reduction target |
-| MVP Scope Definition | PASS (92%) | Well-bounded with explicit exclusions (multi-beacon, DOA, etc.) |
-| User Experience Requirements | PASS (90%) | Payload UI clearly separated from GCS functions |
-| Functional Requirements | PASS (96%) | 17 FRs with safety-first approach and operator control |
-| Non-Functional Requirements | PASS (94%) | 13 NFRs with specific performance metrics |
-| Epic & Story Structure | PASS (98%) | 3 epics, 15 stories with comprehensive acceptance criteria |
-| Technical Guidance | PASS (91%) | Clear Python/AsyncIO architecture with modular design |
-| Cross-Functional Requirements | PARTIAL (75%) | Data models implied but not explicit |
-| Clarity & Communication | PASS (93%) | Consistent terminology and clear structure |
+| Category                      | Status        | Notes                                                             |
+| ----------------------------- | ------------- | ----------------------------------------------------------------- |
+| Problem Definition & Context  | PASS (95%)    | Clear problem statement with quantified 70% time reduction target |
+| MVP Scope Definition          | PASS (92%)    | Well-bounded with explicit exclusions (multi-beacon, DOA, etc.)   |
+| User Experience Requirements  | PASS (90%)    | Payload UI clearly separated from GCS functions                   |
+| Functional Requirements       | PASS (96%)    | 17 FRs with safety-first approach and operator control            |
+| Non-Functional Requirements   | PASS (94%)    | 13 NFRs with specific performance metrics                         |
+| Epic & Story Structure        | PASS (98%)    | 3 epics, 15 stories with comprehensive acceptance criteria        |
+| Technical Guidance            | PASS (91%)    | Clear Python/AsyncIO architecture with modular design             |
+| Cross-Functional Requirements | PARTIAL (75%) | Data models implied but not explicit                              |
+| Clarity & Communication       | PASS (93%)    | Consistent terminology and clear structure                        |
 
 ### Key Strengths
+
 - Safety-first design with multiple interlock mechanisms
 - Clear separation between payload and platform control
 - Well-structured epic progression from foundation to validation
@@ -407,12 +435,14 @@ Single repository containing all components (flight control configs, SDR process
 - Explicit operator activation requirement preventing autonomous surprises
 
 ### Minor Gaps Identified
+
 - Data entity relationships not explicitly modeled
 - GCS version compatibility not specified
 - Deployment pipeline details minimal
 - Configuration versioning strategy not defined
 
 ### Recommendation
+
 The PRD is ready for architecture phase. Minor gaps can be addressed during technical design.
 
 ## Next Steps
