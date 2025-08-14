@@ -131,39 +131,43 @@ graph TB
 ### Additional Dependencies
 
 #### MAVLink/Drone Control Stack
-| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
-| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
-| Ground Station         | MAVProxy                     | 1.8.74          | MAVLink ground control station             | Industry standard, Python-based, integrates with mission planners              |
-| Drone SDK              | DroneKit                     | 2.9.2           | High-level drone control API               | Simplifies MAVLink commands, vehicle abstraction                               |
-| MAVLink Library        | pymavlink                    | 2.4.49          | MAVLink protocol implementation            | Core protocol library, included with MAVProxy                                  |
-| Computer Vision        | OpenCV (headless)            | 4.12.0          | Image processing for visual markers        | Headless version for server deployment                                         |
-| Serial Communication   | PySerial                     | 3.5             | Serial port communication                  | Required for MAVLink over serial/USB                                           |
-| Companion Libraries    | future                       | 1.0.0           | Python 2/3 compatibility                   | Required by DroneKit for legacy support (Note: Python 3.13+ compatibility issue with collections.MutableMapping) |
 
-#### SDR (Software Defined Radio) Stack  
-| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
-| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
-| SDR Hardware Support   | HackRF Host Tools            | git-c5d63b97    | HackRF One SDR control                     | Built from source for latest features and ARM64 optimization                   |
-| SDR Library            | libhackrf                    | 0.9             | HackRF library interface                   | Core library for HackRF hardware access                                        |
-| Python SDR Interface   | pyrtlsdr                     | 0.3.0           | RTL-SDR Python bindings                    | Support for RTL-SDR dongles as alternative hardware                            |
-| Signal Processing      | NumPy                        | 2.2.1           | Numerical computing                        | Core array operations for signal processing                                    |
-| Scientific Computing   | SciPy                        | 1.15.1          | Advanced signal processing                 | FFT, filters, signal analysis algorithms                                       |
+| Category             | Technology        | Version | Purpose                             | Rationale                                                                                                        |
+| -------------------- | ----------------- | ------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Ground Station       | MAVProxy          | 1.8.74  | MAVLink ground control station      | Industry standard, Python-based, integrates with mission planners                                                |
+| Drone SDK            | DroneKit          | 2.9.2   | High-level drone control API        | Simplifies MAVLink commands, vehicle abstraction                                                                 |
+| MAVLink Library      | pymavlink         | 2.4.49  | MAVLink protocol implementation     | Core protocol library, included with MAVProxy                                                                    |
+| Computer Vision      | OpenCV (headless) | 4.12.0  | Image processing for visual markers | Headless version for server deployment                                                                           |
+| Serial Communication | PySerial          | 3.5     | Serial port communication           | Required for MAVLink over serial/USB                                                                             |
+| Companion Libraries  | future            | 1.0.0   | Python 2/3 compatibility            | Required by DroneKit for legacy support (Note: Python 3.13+ compatibility issue with collections.MutableMapping) |
+
+#### SDR (Software Defined Radio) Stack
+
+| Category             | Technology        | Version      | Purpose                    | Rationale                                                    |
+| -------------------- | ----------------- | ------------ | -------------------------- | ------------------------------------------------------------ |
+| SDR Hardware Support | HackRF Host Tools | git-c5d63b97 | HackRF One SDR control     | Built from source for latest features and ARM64 optimization |
+| SDR Library          | libhackrf         | 0.9          | HackRF library interface   | Core library for HackRF hardware access                      |
+| Python SDR Interface | pyrtlsdr          | 0.3.0        | RTL-SDR Python bindings    | Support for RTL-SDR dongles as alternative hardware          |
+| Signal Processing    | NumPy             | 2.2.1        | Numerical computing        | Core array operations for signal processing                  |
+| Scientific Computing | SciPy             | 1.15.1       | Advanced signal processing | FFT, filters, signal analysis algorithms                     |
 
 #### System GUI Dependencies (Installed via apt)
-| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
-| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
-| GUI Framework          | wxPython                     | 4.2.0           | MAVProxy GUI support                       | Required for MAVProxy map and console windows                                  |
-| Plotting Library       | Matplotlib                   | 3.10.5          | Real-time signal visualization             | Used by MAVProxy for graphs and system GUI                                     |
-| OpenCV GUI Support     | python3-opencv               | System          | OpenCV with GUI support                    | System package for full OpenCV functionality                                   |
+
+| Category           | Technology     | Version | Purpose                        | Rationale                                     |
+| ------------------ | -------------- | ------- | ------------------------------ | --------------------------------------------- |
+| GUI Framework      | wxPython       | 4.2.0   | MAVProxy GUI support           | Required for MAVProxy map and console windows |
+| Plotting Library   | Matplotlib     | 3.10.5  | Real-time signal visualization | Used by MAVProxy for graphs and system GUI    |
+| OpenCV GUI Support | python3-opencv | System  | OpenCV with GUI support        | System package for full OpenCV functionality  |
 
 #### Build Dependencies
-| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
-| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
-| C++ Compiler           | g++                          | 12.2.0          | Compile native extensions                  | Required for building HackRF and Python packages                               |
-| Build System           | CMake                        | 3.25.1          | Cross-platform build configuration         | Required for HackRF compilation                                                |
-| USB Library            | libusb-1.0-0-dev             | 1.0.26          | USB device communication                   | Required for SDR hardware communication                                        |
-| FFT Library            | libfftw3-dev                 | 3.3.10          | Fast Fourier Transform                     | Optimized FFT for signal processing                                            |
-| Package Config         | pkg-config                   | 1.8.1           | Library configuration                      | Manages compiler flags for libraries                                           |
+
+| Category       | Technology       | Version | Purpose                            | Rationale                                        |
+| -------------- | ---------------- | ------- | ---------------------------------- | ------------------------------------------------ |
+| C++ Compiler   | g++              | 12.2.0  | Compile native extensions          | Required for building HackRF and Python packages |
+| Build System   | CMake            | 3.25.1  | Cross-platform build configuration | Required for HackRF compilation                  |
+| USB Library    | libusb-1.0-0-dev | 1.0.26  | USB device communication           | Required for SDR hardware communication          |
+| FFT Library    | libfftw3-dev     | 3.3.10  | Fast Fourier Transform             | Optimized FFT for signal processing              |
+| Package Config | pkg-config       | 1.8.1   | Library configuration              | Manages compiler flags for libraries             |
 
 ## Data Models
 
@@ -1832,10 +1836,11 @@ jobs:
 ### Complete Test File Inventory
 
 #### Backend Unit Tests (35 files in `tests/backend/unit/`)
+
 ```
 tests/backend/unit/
 ├── test_api_analytics.py              # Analytics API endpoint tests
-├── test_api_state.py                  # State API endpoint tests  
+├── test_api_state.py                  # State API endpoint tests
 ├── test_config.py                     # Configuration system tests
 ├── test_config_service.py             # Configuration service tests
 ├── test_database_models.py            # Database model tests
@@ -1872,6 +1877,7 @@ tests/backend/unit/
 ```
 
 #### Backend Integration Tests (19 files in `tests/backend/integration/`)
+
 ```
 tests/backend/integration/
 ├── test_analytics_api.py              # Analytics API integration
@@ -1895,6 +1901,7 @@ tests/backend/integration/
 ```
 
 #### SITL Tests (7 files in `tests/backend/sitl_disabled/`)
+
 ```
 tests/backend/sitl_disabled/
 ├── test_ardupilot_sitl_integration.py # ArduPilot SITL integration
@@ -1907,6 +1914,7 @@ tests/backend/sitl_disabled/
 ```
 
 #### Frontend Tests
+
 ```
 tests/frontend/
 ├── components/
@@ -1920,6 +1928,7 @@ tests/frontend/
 ```
 
 #### E2E Tests
+
 ```
 tests/e2e/
 ├── homing_activation.spec.ts
@@ -1930,9 +1939,10 @@ tests/e2e/
 ### Test Coverage Summary
 
 #### Current Test Statistics (as of 2025-08-14)
+
 - **Total Unit Tests:** 740 tests across 35 files
 - **Total Integration Tests:** 171 tests across 19 files
-- **Total SITL Tests:** 36 tests across 7 files  
+- **Total SITL Tests:** 36 tests across 7 files
 - **Pass Rate:** 718/740 unit tests passing (97.0%)
 - **Backend Coverage:** ~52% (when tests run without timeout)
 - **Target Coverage:** 60% minimum
@@ -1940,23 +1950,27 @@ tests/e2e/
 #### Key Test Files by Component
 
 **Core Services:**
+
 - Signal Processing: `test_signal_processor.py` (47 tests)
 - MAVLink Service: `test_mavlink_service.py` (53 tests)
 - SDR Service: `test_sdr_service.py` (18 tests)
 - State Machine: `test_state_machine_enhanced.py` (32 tests)
 
 **Homing System:**
+
 - Algorithm: `test_homing_algorithm_comprehensive.py` (22 tests)
 - Controller: `test_homing_controller_comprehensive.py` (21 tests)
 - Debug Mode: `test_homing_debug_mode.py` (6 tests)
 - Performance: `test_homing_performance.py` (7 tests)
 
 **API Endpoints:**
+
 - State API: `test_api_state.py` (44 tests)
 - Analytics API: `test_api_analytics.py` (16 tests)
 - Telemetry API: `test_telemetry_api.py` (15 tests)
 
 **Safety & Field Testing:**
+
 - Safety System: `test_safety.py` (28 tests)
 - Safety Utils: `test_utils_safety.py` (51 tests)
 - Field Test Service: `test_field_test_service.py` (48 tests)

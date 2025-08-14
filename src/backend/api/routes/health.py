@@ -2,7 +2,6 @@
 Health check endpoints for all system services.
 """
 
-import logging
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -11,16 +10,16 @@ import psutil
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.backend.core.dependencies import (
-    get_sdr_service,
     get_mavlink_service,
-    get_state_machine,
-    get_signal_processor,
+    get_sdr_service,
     get_service_manager,
+    get_signal_processor,
+    get_state_machine,
 )
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.sdr_service import SDRService
-from src.backend.services.state_machine import StateMachine
 from src.backend.services.signal_processor import SignalProcessor
+from src.backend.services.state_machine import StateMachine
 from src.backend.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -32,7 +31,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 async def health_check() -> dict[str, Any]:
     """
     Overall system health check.
-    
+
     Returns:
         Aggregated health status of all services.
     """
@@ -40,12 +39,12 @@ async def health_check() -> dict[str, Any]:
         # Get service manager health
         service_manager = get_service_manager()
         manager_health = await service_manager.get_service_health()
-        
+
         # Add system metrics
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage("/")
-        
+
         # Get temperature if available (Raspberry Pi)
         temperature = None
         try:
@@ -53,14 +52,14 @@ async def health_check() -> dict[str, Any]:
                 temperature = float(f.read()) / 1000.0
         except (FileNotFoundError, PermissionError):
             pass
-        
+
         # Check if system resources are stressed
         if cpu_percent > 90 or memory.percent > 90:
             manager_health["status"] = "degraded"
-        
+
         if temperature and temperature > 80:
             manager_health["status"] = "degraded"
-        
+
         return {
             "status": manager_health["status"],
             "timestamp": datetime.now(UTC).isoformat(),
@@ -81,18 +80,16 @@ async def health_check() -> dict[str, Any]:
 
 
 @router.get("/sdr")
-async def sdr_health_check(
-    sdr_service: SDRService = Depends(get_sdr_service)
-) -> dict[str, Any]:
+async def sdr_health_check(sdr_service: SDRService = Depends(get_sdr_service)) -> dict[str, Any]:
     """
     SDR service health check.
-    
+
     Returns:
         Detailed SDR service status.
     """
     try:
         status = sdr_service.get_status()
-        
+
         # Determine health level
         health = "healthy"
         if status.status == "DISCONNECTED":
@@ -101,7 +98,7 @@ async def sdr_health_check(
             health = "critical"
         elif status.buffer_overflows > 0:
             health = "degraded"
-        
+
         return {
             "health": health,
             "status": status.status,
@@ -128,27 +125,27 @@ async def sdr_health_check(
 
 @router.get("/mavlink")
 async def mavlink_health_check(
-    mavlink_service: MAVLinkService = Depends(get_mavlink_service)
+    mavlink_service: MAVLinkService = Depends(get_mavlink_service),
 ) -> dict[str, Any]:
     """
     MAVLink service health check.
-    
+
     Returns:
         Detailed MAVLink service status.
     """
     try:
         is_connected = mavlink_service.is_connected()
         telemetry = mavlink_service.get_telemetry()
-        
+
         # Determine health level
         health = "healthy" if is_connected else "unhealthy"
-        
+
         # Check for stale heartbeat
         if is_connected:
             time_since_heartbeat = time.time() - mavlink_service.last_heartbeat_received
             if time_since_heartbeat > mavlink_service.heartbeat_timeout:
                 health = "degraded"
-        
+
         return {
             "health": health,
             "connected": is_connected,
@@ -174,11 +171,11 @@ async def mavlink_health_check(
 
 @router.get("/state")
 async def state_machine_health_check(
-    state_machine: StateMachine = Depends(get_state_machine)
+    state_machine: StateMachine = Depends(get_state_machine),
 ) -> dict[str, Any]:
     """
     State machine health check.
-    
+
     Returns:
         Detailed state machine status.
     """
@@ -186,14 +183,14 @@ async def state_machine_health_check(
         current_state = state_machine.get_current_state()
         statistics = state_machine.get_statistics()
         telemetry_metrics = state_machine.get_telemetry_metrics()
-        
+
         # Determine health level
         health = "healthy"
         if not state_machine._is_running:
             health = "unhealthy"
         elif statistics.get("state_duration_seconds", 0) > 300:  # Stuck in state > 5 min
             health = "degraded"
-        
+
         return {
             "health": health,
             "is_running": state_machine._is_running,
@@ -213,25 +210,25 @@ async def state_machine_health_check(
 
 @router.get("/signal")
 async def signal_processor_health_check(
-    signal_processor: SignalProcessor = Depends(get_signal_processor)
+    signal_processor: SignalProcessor = Depends(get_signal_processor),
 ) -> dict[str, Any]:
     """
     Signal processor health check.
-    
+
     Returns:
         Detailed signal processor status.
     """
     try:
         # Get signal processor metrics
         metrics = signal_processor.get_metrics()
-        
+
         # Determine health level
         health = "healthy"
         if not signal_processor.is_processing:
             health = "unhealthy"
         elif metrics.get("processing_errors", 0) > 10:
             health = "degraded"
-        
+
         return {
             "health": health,
             "is_processing": signal_processor.is_processing,
@@ -250,4 +247,3 @@ async def signal_processor_health_check(
     except Exception as e:
         logger.error(f"Signal processor health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-

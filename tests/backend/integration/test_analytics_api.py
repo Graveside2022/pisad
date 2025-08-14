@@ -126,7 +126,6 @@ def setup_mission_data(tmp_path, monkeypatch):
         json.dump(states, f)
 
     # Patch Path constructor to return temp paths for data/missions
-    import os
     monkeypatch.chdir(tmp_path)
 
     return mission_id, data_dir
@@ -136,49 +135,54 @@ def test_get_performance_metrics(app, tmp_path, monkeypatch):
     """Test retrieving performance metrics."""
     # Create test data in a location the API expects
     mission_id = uuid4()
-    
+
     # Mock os.getcwd to return our temp directory
     import os
+
     monkeypatch.setattr(os, "getcwd", lambda: str(tmp_path))
-    
+
     # Create the data structure that the API expects
     data_dir = tmp_path / "data" / "missions" / str(mission_id)
     data_dir.mkdir(parents=True)
-    
+
     # Create minimal test files
     telemetry_file = data_dir / "telemetry.csv"
-    telemetry_file.write_text("timestamp,latitude,longitude\n2024-01-01T00:00:00,47.6062,-122.3321\n")
-    
+    telemetry_file.write_text(
+        "timestamp,latitude,longitude\n2024-01-01T00:00:00,47.6062,-122.3321\n"
+    )
+
     detections_file = data_dir / "detections.json"
     detections_file.write_text('[{"id": "1", "timestamp": "2024-01-01T00:00:00"}]')
-    
+
     # Mock the Path constructor to use our tmp directory for data/missions
     from pathlib import Path as OrigPath
+
     import src.backend.api.routes.analytics as analytics_module
-    
+
     class MockPath(OrigPath):
         def __new__(cls, *args, **kwargs):
             if len(args) == 1 and args[0] == "data/missions":
                 return OrigPath.__new__(cls, tmp_path / "data" / "missions")
             return OrigPath.__new__(cls, *args, **kwargs)
-    
+
     monkeypatch.setattr(analytics_module, "Path", MockPath)
-    
+
     # Create client after mocking
     with TestClient(app) as client:
         # Debug: check available routes
         routes = []
         for route in app.routes:
-            if hasattr(route, 'path'):
+            if hasattr(route, "path"):
                 routes.append(route.path)
         print(f"Available routes: {[r for r in routes if 'analytics' in r]}")
-        
+
         response = client.get(f"/api/analytics/metrics?mission_id={mission_id}")
 
     print(f"Response status: {response.status_code}")
     if response.status_code != 200:
         print(f"Response body: {response.text}")
         import traceback
+
         traceback.print_exc()
     assert response.status_code == 200
     data = response.json()

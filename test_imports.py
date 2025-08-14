@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Test all installed dependencies for PISAD project"""
 
-import sys
 import importlib
-from pathlib import Path
+
 
 def test_import(module_name, description=""):
     """Test if a module can be imported"""
     try:
         module = importlib.import_module(module_name)
-        version = getattr(module, '__version__', 'unknown')
+        version = getattr(module, "__version__", "unknown")
         print(f"✓ {module_name:30} {version:15} {description}")
         return True
     except ImportError as e:
@@ -18,6 +17,7 @@ def test_import(module_name, description=""):
     except Exception as e:
         print(f"✗ {module_name:30} ERROR: {e}")
         return False
+
 
 print("=" * 70)
 print("PISAD Dependencies Test")
@@ -35,7 +35,7 @@ test_import("dronekit", "DroneKit API")
 test_import("pymavlink", "MAVLink protocol")
 test_import("MAVProxy", "MAVProxy ground station")
 
-# SDR dependencies  
+# SDR dependencies
 print("\n--- SDR Dependencies ---")
 test_import("pyrtlsdr", "RTL-SDR support")
 

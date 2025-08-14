@@ -30,13 +30,16 @@ async with service as sdr:
 Initialize the SDR hardware with the specified configuration.
 
 **Parameters:**
+
 - `config` (SDRConfig, optional): SDR configuration. If not provided, uses default configuration.
 
 **Raises:**
+
 - `SDRNotFoundError`: No SDR devices found
 - `SDRConfigError`: Invalid configuration parameters
 
 **Example:**
+
 ```python
 config = SDRConfig(
     frequency=433.92e6,  # 433.92 MHz
@@ -54,12 +57,15 @@ await service.initialize(config)
 Stream IQ samples from the SDR device.
 
 **Returns:**
+
 - AsyncIterator yielding numpy arrays of complex64 samples
 
 **Raises:**
+
 - `SDRStreamError`: Stream error or device disconnection
 
 **Example:**
+
 ```python
 async for samples in service.stream_iq():
     # Process IQ samples
@@ -72,6 +78,7 @@ async for samples in service.stream_iq():
 Perform comprehensive SDR calibration routine.
 
 **Returns:**
+
 - Dictionary containing calibration results:
   - `frequency_accuracy`: Frequency error measurements and PPM correction
   - `noise_floor`: Noise floor measurements
@@ -80,13 +87,14 @@ Perform comprehensive SDR calibration routine.
   - `recommendations`: List of recommended adjustments
 
 **Example:**
+
 ```python
 results = await service.calibrate()
 
 if results["status"] == "complete":
     print(f"Noise floor: {results['noise_floor']['noise_floor_dbm']} dBm")
     print(f"Recommended PPM: {results['frequency_accuracy']['recommended_ppm_correction']}")
-    
+
     for recommendation in results["recommendations"]:
         print(f"- {recommendation}")
 ```
@@ -96,12 +104,15 @@ if results["status"] == "complete":
 Set the center frequency.
 
 **Parameters:**
+
 - `frequency` (float): Center frequency in Hz
 
 **Raises:**
+
 - `SDRConfigError`: Frequency out of supported range
 
 **Example:**
+
 ```python
 service.set_frequency(868e6)  # Set to 868 MHz
 ```
@@ -111,6 +122,7 @@ service.set_frequency(868e6)  # Set to 868 MHz
 Get current SDR status and metrics.
 
 **Returns:**
+
 - `SDRStatus` object containing:
   - `status`: Connection status (CONNECTED, DISCONNECTED, ERROR, etc.)
   - `device_name`: Device label
@@ -122,6 +134,7 @@ Get current SDR status and metrics.
   - `last_error`: Last error message
 
 **Example:**
+
 ```python
 status = service.get_status()
 print(f"Device: {status.device_name}")
@@ -134,9 +147,11 @@ print(f"Temperature: {status.temperature}°C")
 Update SDR configuration at runtime.
 
 **Parameters:**
+
 - `config` (SDRConfig): New configuration
 
 **Example:**
+
 ```python
 new_config = SDRConfig(
     frequency=915e6,
@@ -151,6 +166,7 @@ await service.update_config(new_config)
 Shutdown the SDR service and cleanup resources.
 
 **Example:**
+
 ```python
 await service.shutdown()
 ```
@@ -162,9 +178,11 @@ await service.shutdown()
 Enumerate available SDR devices.
 
 **Returns:**
+
 - List of device dictionaries containing driver and label information
 
 **Example:**
+
 ```python
 devices = SDRService.enumerate_devices()
 for device in devices:
@@ -193,6 +211,7 @@ config = SDRConfig(
 ```
 
 **Fields:**
+
 - `frequency` (float): Center frequency in Hz (default: 2.437 GHz)
 - `sampleRate` (float): Sample rate in samples/sec (default: 2 Msps)
 - `gain` (float | str): Gain in dB or "AUTO" for AGC (default: "AUTO")
@@ -224,6 +243,7 @@ status = SDRStatus(
 ```
 
 **Fields:**
+
 - `status` (str): Connection status
 - `device_name` (str): Device label
 - `driver` (str): Driver name
@@ -306,19 +326,19 @@ async def main():
     # Initialize SDR
     service = SDRService()
     config = SDRConfig(frequency=433.92e6, sampleRate=2.4e6)
-    
+
     await service.initialize(config)
-    
+
     # Stream samples
     sample_count = 0
     async for samples in service.stream_iq():
         # Process samples
         print(f"Received {len(samples)} samples")
-        
+
         sample_count += len(samples)
         if sample_count > 1000000:  # Stop after 1M samples
             break
-    
+
     await service.shutdown()
 
 asyncio.run(main())
@@ -332,7 +352,7 @@ async def process_sdr():
         # Calibrate device
         calibration = await sdr.calibrate()
         print(f"Calibration: {calibration['recommendations']}")
-        
+
         # Stream data
         async for samples in sdr.stream_iq():
             # Process samples
@@ -357,7 +377,7 @@ await service.initialize(config)
 ```python
 async def robust_sdr_operation():
     service = SDRService()
-    
+
     try:
         await service.initialize()
     except SDRNotFoundError:
@@ -366,7 +386,7 @@ async def robust_sdr_operation():
     except SDRConfigError as e:
         print(f"Configuration error: {e}")
         return
-    
+
     try:
         async for samples in service.stream_iq():
             # Process samples

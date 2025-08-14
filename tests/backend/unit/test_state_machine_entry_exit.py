@@ -14,6 +14,7 @@ def state_machine():
     sm = StateMachine(enable_persistence=False)
     # Set a mock signal processor to allow transitions
     from unittest.mock import MagicMock
+
     sm.set_signal_processor(MagicMock())
     return sm
 
@@ -158,11 +159,14 @@ async def test_action_timing_measurement(state_machine):
 @pytest.mark.asyncio
 async def test_searching_exit_pauses_pattern(state_machine):
     """Test that exiting SEARCHING state pauses active search pattern."""
-    from src.backend.services.search_pattern_generator import (
-        PatternType, SearchPattern, CenterRadiusBoundary
-    )
     from datetime import datetime
     from unittest.mock import MagicMock
+
+    from src.backend.services.search_pattern_generator import (
+        CenterRadiusBoundary,
+        PatternType,
+        SearchPattern,
+    )
 
     # Create a mock search pattern using MagicMock to avoid constructor issues
     pattern = MagicMock(spec=SearchPattern)
@@ -202,7 +206,7 @@ async def test_idle_entry_releases_resources(state_machine):
 
     # First transition away from IDLE (machine starts in IDLE)
     await state_machine.transition_to(SystemState.SEARCHING)
-    
+
     # Set up some state
     state_machine._search_substate = SearchSubstate.EXECUTING
     state_machine._current_waypoint_index = 5

@@ -10,7 +10,6 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from src.backend.api.routes.analytics import router
 from src.backend.core.app import create_app
 
 
@@ -25,15 +24,15 @@ def client():
 def mock_data_path(sample_mission_data, monkeypatch):
     """Mock the data path to use test directory."""
     mission_id, mission_dir = sample_mission_data
-    
+
     # Mock Path to return our test directory
     original_path = Path
-    
+
     def mock_path(path_str):
         if path_str == "data/missions":
             return mission_dir.parent
         return original_path(path_str)
-    
+
     monkeypatch.setattr("src.backend.api.routes.analytics.Path", mock_path)
     return mission_id, mission_dir
 
@@ -125,7 +124,7 @@ def sample_mission_data(tmp_path):
 
     with open(states_file, "w") as f:
         json.dump(states, f)
-    
+
     # Create metrics JSON with proper structure
     metrics_file = mission_dir / "metrics.json"
     metrics = {
@@ -133,22 +132,22 @@ def sample_mission_data(tmp_path):
             "total_detections": 3,
             "avg_rssi": -70.0,
             "avg_snr": 12.0,
-            "detection_rate": 0.15
+            "detection_rate": 0.15,
         },
         "approach_metrics": {
             "total_approaches": 1,
             "successful_approaches": 0,
             "avg_approach_time": 120.0,
-            "avg_final_distance": 50.0
+            "avg_final_distance": 50.0,
         },
         "search_metrics": {
             "total_search_time": 600.0,
             "area_covered": 1000.0,
             "avg_speed": 5.0,
-            "pattern_efficiency": 0.85
-        }
+            "pattern_efficiency": 0.85,
+        },
     }
-    
+
     with open(metrics_file, "w") as f:
         json.dump(metrics, f)
 
@@ -280,17 +279,17 @@ def test_export_nonexistent_mission(client, monkeypatch):
     """Test exporting data for non-existent mission."""
     # Create a temporary path for the mock
     temp_path = Path("/tmp/test_missions")
-    
+
     # Mock Path to return our test directory
     original_path = Path
-    
+
     def mock_path(path_str):
         if path_str == "data/missions":
             return temp_path
         return original_path(path_str)
-    
+
     monkeypatch.setattr("src.backend.api.routes.analytics.Path", mock_path)
-    
+
     fake_mission_id = uuid4()
 
     response = client.post(

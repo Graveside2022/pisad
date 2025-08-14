@@ -1,7 +1,5 @@
 """Comprehensive unit tests for homing algorithm."""
 
-import math
-from collections import deque
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -11,7 +9,6 @@ from src.backend.services.homing_algorithm import (
     GradientVector,
     HomingAlgorithm,
     HomingSubstage,
-    RSSISample,
     VelocityCommand,
     set_debug_mode,
 )
@@ -60,7 +57,7 @@ class TestHomingAlgorithm:
         # Create a new algorithm to verify debug mode
         test_algo = HomingAlgorithm()
         # Debug mode should be enabled (check via log output or behavior)
-        
+
         # Test disabling debug mode
         set_debug_mode(False)
         # Create another algorithm to verify debug mode is off
@@ -70,7 +67,7 @@ class TestHomingAlgorithm:
     def test_add_rssi_sample(self, algorithm):
         """Test adding RSSI samples to history."""
         algorithm.add_rssi_sample(-70.0, 10.0, 20.0, 45.0, 1000.0)
-        
+
         assert len(algorithm.rssi_history) == 1
         sample = algorithm.rssi_history[0]
         assert sample.rssi == -70.0
@@ -84,7 +81,7 @@ class TestHomingAlgorithm:
         # Add more samples than window size
         for i in range(15):
             algorithm.add_rssi_sample(-70.0 + i, i * 1.0, i * 2.0, i * 10.0, i * 100.0)
-        
+
         # Should only keep last 10 samples
         assert len(algorithm.rssi_history) == 10
         # Oldest sample should be index 5 (samples 0-4 dropped)
@@ -95,7 +92,7 @@ class TestHomingAlgorithm:
         # Add only 2 samples (need 3)
         algorithm.add_rssi_sample(-70.0, 0.0, 0.0, 0.0, 0.0)
         algorithm.add_rssi_sample(-65.0, 1.0, 0.0, 0.0, 1.0)
-        
+
         gradient = algorithm.calculate_gradient()
         assert gradient is None
 
@@ -104,7 +101,7 @@ class TestHomingAlgorithm:
         # Add samples at nearly same position
         for i in range(5):
             algorithm.add_rssi_sample(-70.0 + i, 0.01 * i, 0.01 * i, 0.0, i)
-        
+
         gradient = algorithm.calculate_gradient()
         assert gradient is None
 
@@ -115,7 +112,7 @@ class TestHomingAlgorithm:
         algorithm.add_rssi_sample(-75.0, 5.0, 0.0, 90.0, 1.0)
         algorithm.add_rssi_sample(-70.0, 10.0, 0.0, 90.0, 2.0)
         algorithm.add_rssi_sample(-65.0, 10.0, 5.0, 45.0, 3.0)
-        
+
         gradient = algorithm.calculate_gradient()
         assert gradient is not None
         assert gradient.magnitude > 0
@@ -125,7 +122,7 @@ class TestHomingAlgorithm:
     def test_compute_optimal_heading(self, algorithm):
         """Test optimal heading computation."""
         gradient = GradientVector(magnitude=1.0, direction=45.0, confidence=80.0)
-        
+
         heading = algorithm.compute_optimal_heading(gradient)
         assert heading == 45.0  # Should follow gradient direction
 
@@ -136,7 +133,7 @@ class TestHomingAlgorithm:
         velocity = algorithm.scale_velocity_by_gradient(gradient)
         assert velocity > 0
         assert velocity <= algorithm.forward_velocity_max
-        
+
         # Low confidence gradient
         gradient_low = GradientVector(magnitude=2.0, direction=0.0, confidence=20.0)
         velocity_low = algorithm.scale_velocity_by_gradient(gradient_low)
@@ -148,15 +145,15 @@ class TestHomingAlgorithm:
         # No error
         yaw_rate = algorithm.calculate_yaw_rate(45.0, 45.0)
         assert abs(yaw_rate) < 0.01
-        
+
         # Positive error (turn right)
         yaw_rate = algorithm.calculate_yaw_rate(0.0, 90.0)
         assert yaw_rate > 0
-        
+
         # Negative error (turn left)
         yaw_rate = algorithm.calculate_yaw_rate(90.0, 0.0)
         assert yaw_rate < 0
-        
+
         # Wrap-around case
         yaw_rate = algorithm.calculate_yaw_rate(350.0, 10.0)
         assert yaw_rate > 0  # Should turn right 20 degrees, not left 340
@@ -171,10 +168,10 @@ class TestHomingAlgorithm:
         """Test velocity command in approach mode."""
         # Add strong signal sample
         algorithm.add_rssi_sample(-45.0, 0.0, 0.0, 0.0, 0.0)  # Above approach threshold
-        
+
         gradient = GradientVector(magnitude=1.0, direction=90.0, confidence=80.0)
         command = algorithm.generate_velocity_command(gradient, 0.0, 1.0)
-        
+
         assert algorithm.current_substage == HomingSubstage.APPROACH
         assert command.forward_velocity == algorithm.approach_velocity
 
@@ -183,9 +180,9 @@ class TestHomingAlgorithm:
         # Add samples with low variance (plateau)
         for i in range(10):
             algorithm.add_rssi_sample(-55.0 + np.random.normal(0, 0.1), i, i, 0.0, i)
-        
+
         command = algorithm.generate_velocity_command(None, 0.0, 10.0)
-        
+
         # Check if holding pattern detected (depends on variance calculation)
         if algorithm.current_substage == HomingSubstage.HOLDING:
             assert command.forward_velocity > 0
@@ -197,13 +194,13 @@ class TestHomingAlgorithm:
         algorithm.add_rssi_sample(-80.0, 0.0, 0.0, 0.0, 0.0)
         algorithm.add_rssi_sample(-75.0, 5.0, 0.0, 90.0, 1.0)
         algorithm.add_rssi_sample(-70.0, 10.0, 0.0, 90.0, 2.0)
-        
+
         gradient = algorithm.calculate_gradient()
         assert gradient is not None
         gradient.confidence = 80.0  # Ensure high confidence
-        
+
         command = algorithm.generate_velocity_command(gradient, 45.0, 3.0)
-        
+
         if gradient.confidence > 30:  # Above threshold
             assert algorithm.current_substage == HomingSubstage.GRADIENT_CLIMB
             assert command.forward_velocity > 0
@@ -214,16 +211,16 @@ class TestHomingAlgorithm:
         # Force sampling mode
         algorithm.current_substage = HomingSubstage.SAMPLING
         algorithm.sampling_start_time = None
-        
+
         # First call starts sampling
         command1 = algorithm._generate_sampling_command(0.0, 0.0)
         assert algorithm.sampling_start_time == 0.0
         assert command1.forward_velocity > 0
-        
+
         # Mid-sampling
         command2 = algorithm._generate_sampling_command(0.0, 5.0)
         assert abs(command2.yaw_rate) > 0  # Should be turning
-        
+
         # End of sampling
         command3 = algorithm._generate_sampling_command(0.0, 15.0)  # Past duration
         assert algorithm.sampling_start_time is None  # Reset
@@ -232,17 +229,17 @@ class TestHomingAlgorithm:
         """Test plateau detection."""
         # No samples
         assert algorithm._detect_plateau() is False
-        
+
         # Add high-variance samples (not plateau)
         for i in range(10):
             algorithm.add_rssi_sample(-70.0 + i * 5, i, i, 0.0, i)
         assert algorithm._detect_plateau() is False
-        
+
         # Clear and add low-variance strong samples (plateau)
         algorithm.rssi_history.clear()
         for i in range(10):
             algorithm.add_rssi_sample(-55.0 + np.random.normal(0, 0.1), i, i, 0.0, i)
-        
+
         # Should detect plateau (low variance + strong signal)
         is_plateau = algorithm._detect_plateau()
         # Result depends on exact variance calculation
@@ -252,9 +249,9 @@ class TestHomingAlgorithm:
         # Add some samples
         algorithm.add_rssi_sample(-70.0, 0.0, 0.0, 0.0, 0.0)
         algorithm.add_rssi_sample(-65.0, 5.0, 0.0, 90.0, 1.0)
-        
+
         status = algorithm.get_status()
-        
+
         assert "substage" in status
         assert status["substage"] == HomingSubstage.IDLE.value
         assert "gradient_confidence" in status
@@ -270,12 +267,12 @@ class TestHomingAlgorithm:
         algorithm.add_rssi_sample(-80.0, 0.0, 0.0, 0.0, 0.0)
         algorithm.add_rssi_sample(-75.0, 5.0, 0.0, 90.0, 1.0)
         algorithm.add_rssi_sample(-70.0, 10.0, 0.0, 90.0, 2.0)
-        
+
         gradient = algorithm.calculate_gradient()
         algorithm.generate_velocity_command(gradient, 0.0, 3.0)
-        
+
         status = algorithm.get_status()
-        
+
         if gradient:
             assert status["gradient_magnitude"] > 0
             assert status["gradient_direction"] >= 0
@@ -290,10 +287,10 @@ class TestHomingAlgorithm:
         algorithm.add_rssi_sample(-70.0, 0.0, 0.0, 0.0, 0.0)
         algorithm.current_substage = HomingSubstage.GRADIENT_CLIMB
         algorithm.last_gradient = GradientVector(1.0, 90.0, 80.0)
-        
+
         # Reset
         algorithm.reset()
-        
+
         assert len(algorithm.rssi_history) == 0
         assert algorithm.current_substage == HomingSubstage.IDLE
         assert algorithm.last_gradient is None
@@ -306,7 +303,7 @@ class TestHomingAlgorithm:
         algorithm.add_rssi_sample(-75.0, 1.0, 0.0, 0.0, 1.0)
         algorithm.add_rssi_sample(-70.0, 2.0, 0.0, 0.0, 2.0)
         algorithm.add_rssi_sample(-65.0, 3.0, 0.0, 0.0, 3.0)
-        
+
         gradient = algorithm.calculate_gradient()
         if gradient:  # May succeed with rank 2
             assert gradient.magnitude > 0
@@ -323,7 +320,7 @@ class TestHomingAlgorithm:
         # Add samples
         for i in range(5):
             algorithm.add_rssi_sample(-70.0 + i, i * 2, i * 2, i * 10, i)
-        
+
         # Generate multiple commands
         commands = []
         for t in range(5, 10):
@@ -331,7 +328,7 @@ class TestHomingAlgorithm:
             command = algorithm.generate_velocity_command(gradient, t * 10, t)
             commands.append(command)
             algorithm.add_rssi_sample(-65.0 + t, t * 2, t * 2, t * 10, t)
-        
+
         # Check all commands are valid
         for cmd in commands:
             assert isinstance(cmd, VelocityCommand)

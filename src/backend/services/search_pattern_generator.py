@@ -386,13 +386,13 @@ class SearchPatternGenerator:
             # Find the actual start and end points within the boundary
             # Sample points along the longitude to find entry/exit points
             track_points = []
-            
+
             # Sample 100 points along the longitude range
             for i in range(100):
                 test_lon = min_lon + (max_lon - min_lon) * i / 99
                 if boundary.contains_point(current_lat, test_lon):
                     track_points.append(test_lon)
-            
+
             # If we have valid points on this latitude, add waypoints
             if len(track_points) >= 2:
                 if direction == 1:
@@ -403,13 +403,13 @@ class SearchPatternGenerator:
                     # Moving west
                     start_lon = max(track_points)
                     end_lon = min(track_points)
-                
+
                 # Add waypoints
                 waypoints.append(Waypoint(index, current_lat, start_lon, altitude))
                 index += 1
                 waypoints.append(Waypoint(index, current_lat, end_lon, altitude))
                 index += 1
-                
+
                 direction *= -1  # Reverse direction for next track
 
             # Move to next track

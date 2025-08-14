@@ -1,7 +1,7 @@
 # Project Tasks
 
-*This file is synced with Clode Studio and Claude's native TodoWrite system.*  
-*Last updated: 2025-08-14T19:50:43.584Z*
+_This file is synced with Clode Studio and Claude's native TodoWrite system._  
+_Last updated: 2025-08-14T19:50:43.584Z_
 
 ## Backlog (13)
 
@@ -102,4 +102,5 @@
   - ~~Priority: medium~~
 
 ---
-*To update tasks, use the Kanban board in Clode Studio, ask Claude to modify this file, or use Claude's native TodoWrite system.*
+
+_To update tasks, use the Kanban board in Clode Studio, ask Claude to modify this file, or use Claude's native TodoWrite system._
