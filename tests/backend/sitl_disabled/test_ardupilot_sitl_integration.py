@@ -9,7 +9,7 @@ import pytest
 from pymavlink import mavutil
 
 from src.backend.services.mavlink_service import MAVLinkService
-from src.backend.services.state_machine import State, StateMachine
+from src.backend.services.state_machine import SystemState, StateMachine
 
 
 @pytest.mark.sitl
@@ -305,7 +305,7 @@ class TestArduPilotSITLIntegration:
     async def test_simulated_homing_behavior(self, mavlink_service, state_machine):
         """Test simulated homing behavior in SITL."""
         # Initialize state
-        state_machine.current_state = State.IDLE
+        state_machine.current_state = SystemState.IDLE
 
         # Arm and takeoff
         await mavlink_service.set_mode("GUIDED")
@@ -315,7 +315,7 @@ class TestArduPilotSITLIntegration:
 
         # Enable homing
         state_machine.homing_enabled = True
-        state_machine.current_state = State.SEARCHING
+        state_machine.current_state = SystemState.SEARCHING
 
         # Simulate beacon detection (would come from signal processor)
         beacon_bearing = 45  # degrees
@@ -329,7 +329,7 @@ class TestArduPilotSITLIntegration:
         vy = speed * math.sin(math.radians(beacon_bearing))
 
         # Start homing
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
 
         # Move towards beacon for 20 seconds
         start_time = time.time()
@@ -342,14 +342,14 @@ class TestArduPilotSITLIntegration:
 
         # Stop at beacon
         await mavlink_service.send_velocity_command(vx=0, vy=0, vz=0)
-        state_machine.current_state = State.BEACON_LOCATED
+        state_machine.current_state = SystemState.BEACON_LOCATED
 
         # Hold position for 5 seconds
         await mavlink_service.hold_position()
         await asyncio.sleep(5)
 
         # Return home
-        state_machine.current_state = State.RETURNING
+        state_machine.current_state = SystemState.RETURNING
         await mavlink_service.return_to_launch()
         await mavlink_service.set_mode("RTL")
 
@@ -360,7 +360,7 @@ class TestArduPilotSITLIntegration:
         position = await mavlink_service.get_position()
         assert position["alt"] < 2
 
-        state_machine.current_state = State.IDLE
+        state_machine.current_state = SystemState.IDLE
         state_machine.homing_enabled = False
 
         await mavlink_service.disarm()

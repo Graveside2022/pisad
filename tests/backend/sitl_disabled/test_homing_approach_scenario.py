@@ -10,7 +10,7 @@ import pytest
 from src.backend.services.homing_controller import HomingController
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.signal_processor import SignalProcessor
-from src.backend.services.state_machine import State, StateMachine
+from src.backend.services.state_machine import SystemState, StateMachine
 
 
 class TestHomingApproachScenario:
@@ -104,7 +104,7 @@ class TestHomingApproachScenario:
         # Enable homing
         homing_controller.enabled = True
         state_machine.homing_enabled = True
-        state_machine.current_state = State.SEARCHING
+        state_machine.current_state = SystemState.SEARCHING
 
         # Waypoint sequence for approach
         waypoints = []
@@ -164,13 +164,13 @@ class TestHomingApproachScenario:
             # Check for arrival detection
             distance_to_beacon = self.calculate_distance(pos, beacon_pos)
             if distance_to_beacon < 5:  # Within 5 meters
-                state_machine.current_state = State.BEACON_LOCATED
+                state_machine.current_state = SystemState.BEACON_LOCATED
                 break
 
             await asyncio.sleep(0.1)  # Simulate time passing
 
         # Verify approach completed
-        assert state_machine.current_state == State.BEACON_LOCATED
+        assert state_machine.current_state == SystemState.BEACON_LOCATED
         assert len(rssi_history) > 0
 
         # Verify RSSI improved during approach
@@ -207,7 +207,7 @@ class TestHomingApproachScenario:
         """Test approach abort when signal is lost."""
         # Start homing
         homing_controller.enabled = True
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
 
         # Simulate signal loss
         mock_signal_processor.beacon_detected = False
@@ -231,11 +231,11 @@ class TestHomingApproachScenario:
         # If signal lost for timeout duration, abort
         if (datetime.now(UTC) - signal_loss_start).total_seconds() >= signal_loss_timeout:
             homing_controller.enabled = False
-            state_machine.current_state = State.IDLE
+            state_machine.current_state = SystemState.IDLE
             state_machine.homing_enabled = False
 
         assert not homing_controller.enabled
-        assert state_machine.current_state == State.IDLE
+        assert state_machine.current_state == SystemState.IDLE
 
     @pytest.mark.asyncio
     async def test_approach_with_obstacles(self, homing_controller, mock_mavlink):

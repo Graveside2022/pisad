@@ -22,17 +22,25 @@ def pytest_collection_modifyitems(config, items):
         # Add markers based on test path
         if "unit" in str(item.fspath):
             item.add_marker(pytest.mark.unit)
+            # Set 2 second timeout for unit tests
+            item.add_marker(pytest.mark.timeout(2))
             # Group unit tests by module for parallel execution
             item.add_marker(pytest.mark.xdist_group(name=str(item.fspath.basename)))
         elif "integration" in str(item.fspath):
             item.add_marker(pytest.mark.integration)
+            # Set 10 second timeout for integration tests
+            item.add_marker(pytest.mark.timeout(10))
             # Run integration tests sequentially per module
             item.add_marker(pytest.mark.xdist_group(name="integration"))
         elif "sitl" in str(item.fspath):
             item.add_marker(pytest.mark.sitl)
+            # Set 10 second timeout for SITL tests
+            item.add_marker(pytest.mark.timeout(10))
             # SITL tests should run sequentially
             item.add_marker(pytest.mark.xdist_group(name="sitl"))
         elif "e2e" in str(item.fspath):
+            # Set 10 second timeout for e2e tests
+            item.add_marker(pytest.mark.timeout(10))
             item.add_marker(pytest.mark.xdist_group(name="e2e"))
 
 
@@ -40,7 +48,8 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture(scope="function")
 def event_loop():
     """Create an instance of the default event loop for each test function."""
-    loop = asyncio.new_event_loop()
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
     asyncio.set_event_loop(loop)
     yield loop
     try:
@@ -48,11 +57,23 @@ def event_loop():
         pending = asyncio.all_tasks(loop)
         for task in pending:
             task.cancel()
-        # Wait for tasks to complete cancellation
+        # Wait for tasks to complete cancellation with timeout
         if pending:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            loop.run_until_complete(
+                asyncio.wait_for(
+                    asyncio.gather(*pending, return_exceptions=True),
+                    timeout=0.1
+                )
+            )
+    except asyncio.TimeoutError:
+        # Force cancellation if tasks don't complete
+        pass
     finally:
-        loop.close()
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
 
 
 # MAVLink Mock Fixtures

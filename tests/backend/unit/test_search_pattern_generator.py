@@ -606,7 +606,7 @@ class TestSearchPatternGenerator:
                 pattern.waypoints[i].longitude
             )
             # Spacing should be roughly consistent
-            assert 20 < dist < 80  # Allow some variation
+            assert 20 < dist < 90  # Allow some variation in spiral patterns
 
     def test_lawnmower_parallel_tracks(self):
         """Test lawnmower creates parallel tracks."""

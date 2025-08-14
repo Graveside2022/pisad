@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.backend.services.mavlink_service import MAVLinkService
-from src.backend.services.state_machine import State, StateMachine
+from src.backend.services.state_machine import SystemState, StateMachine
 
 
 class AbortReason(Enum):
@@ -30,7 +30,7 @@ class TestMissionAbortScenario:
     def state_machine(self):
         """Create state machine for testing."""
         sm = StateMachine()
-        sm.current_state = State.IDLE
+        sm.current_state = SystemState.IDLE
         sm.homing_enabled = False
         sm.abort_reason = None
         sm.pre_abort_state = None
@@ -62,7 +62,7 @@ class TestMissionAbortScenario:
     async def test_emergency_stop_abort(self, abort_handler, state_machine, mock_mavlink):
         """Test emergency stop abort sequence."""
         # Start in active homing state
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
         state_machine.homing_enabled = True
 
         # Trigger emergency stop
@@ -72,7 +72,7 @@ class TestMissionAbortScenario:
 
         # Verify immediate actions
         assert abort_result["success"] == True
-        assert state_machine.current_state == State.IDLE
+        assert state_machine.current_state == SystemState.IDLE
         assert state_machine.homing_enabled == False
 
         # Verify MAVLink commands
@@ -81,7 +81,7 @@ class TestMissionAbortScenario:
 
         # Verify abort metadata
         assert state_machine.abort_reason == AbortReason.EMERGENCY_STOP
-        assert state_machine.pre_abort_state == State.HOMING
+        assert state_machine.pre_abort_state == SystemState.HOMING
 
     @pytest.mark.asyncio
     async def test_battery_critical_abort_with_rtl(
@@ -90,7 +90,7 @@ class TestMissionAbortScenario:
         """Test battery critical abort with return to launch."""
         # Set up low battery condition
         mock_mavlink.battery_percent = 10
-        state_machine.current_state = State.SEARCHING
+        state_machine.current_state = SystemState.SEARCHING
         state_machine.homing_enabled = True
 
         # Store home position
@@ -104,7 +104,7 @@ class TestMissionAbortScenario:
 
         # Verify abort actions
         assert abort_result["success"] == True
-        assert state_machine.current_state == State.IDLE
+        assert state_machine.current_state == SystemState.IDLE
         assert not state_machine.homing_enabled
 
         # Verify RTL initiated
@@ -120,7 +120,7 @@ class TestMissionAbortScenario:
     ):
         """Test signal lost abort with search pattern execution."""
         # Active homing when signal lost
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
         state_machine.homing_enabled = True
         last_known_position = mock_mavlink.current_position.copy()
 
@@ -131,7 +131,7 @@ class TestMissionAbortScenario:
 
         # Should transition to searching, not fully abort
         assert abort_result["success"] == True
-        assert state_machine.current_state == State.SEARCHING
+        assert state_machine.current_state == SystemState.SEARCHING
         assert state_machine.homing_enabled == True  # Still enabled, just searching
 
         # Verify search pattern initiated
@@ -147,7 +147,7 @@ class TestMissionAbortScenario:
 
         # Position outside geofence
         mock_mavlink.current_position = {"lat": 42.3620, "lon": -71.0589, "alt": 50}
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
 
         # Trigger geofence abort
         abort_result = await abort_handler.abort_mission(
@@ -156,7 +156,7 @@ class TestMissionAbortScenario:
 
         # Verify abort and return to fence
         assert abort_result["success"] == True
-        assert state_machine.current_state == State.IDLE
+        assert state_machine.current_state == SystemState.IDLE
         mock_mavlink.stop_mission.assert_called_once()
 
         # Should navigate back to fence center
@@ -167,7 +167,7 @@ class TestMissionAbortScenario:
     async def test_operator_override_abort(self, abort_handler, state_machine, mock_mavlink):
         """Test operator manual override abort."""
         # Active autonomous operation
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
         state_machine.homing_enabled = True
 
         # Operator takes control
@@ -180,7 +180,7 @@ class TestMissionAbortScenario:
 
         # Verify clean handover to manual control
         assert abort_result["success"] == True
-        assert state_machine.current_state == State.IDLE
+        assert state_machine.current_state == SystemState.IDLE
         assert not state_machine.homing_enabled
 
         # Should not fight operator control
@@ -193,7 +193,7 @@ class TestMissionAbortScenario:
         # Multiple critical conditions
         mock_mavlink.battery_percent = 5
         mock_mavlink.gps_status = "NO_FIX"
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
 
         # Track abort sequence
         abort_sequence = []
@@ -210,7 +210,7 @@ class TestMissionAbortScenario:
 
         # Highest priority abort should take precedence
         assert state_machine.abort_reason == AbortReason.GPS_LOST
-        assert state_machine.current_state == State.IDLE
+        assert state_machine.current_state == SystemState.IDLE
 
         # Both aborts recorded
         assert len(abort_sequence) == 2
@@ -220,7 +220,7 @@ class TestMissionAbortScenario:
     async def test_abort_with_state_persistence(self, abort_handler, state_machine):
         """Test abort state persistence for recovery."""
         # Store pre-abort state
-        initial_state = State.HOMING
+        initial_state = SystemState.HOMING
         initial_position = {"lat": 42.3605, "lon": -71.0587, "alt": 50}
         initial_heading = 135
 
@@ -252,7 +252,7 @@ class TestMissionAbortScenario:
         # Simulate communication loss
         mock_mavlink.connected = False
         mock_mavlink.last_heartbeat = datetime.now(UTC) - timedelta(seconds=15)
-        state_machine.current_state = State.SEARCHING
+        state_machine.current_state = SystemState.SEARCHING
 
         # Trigger communication lost abort
         abort_result = await abort_handler.abort_mission(
@@ -261,7 +261,7 @@ class TestMissionAbortScenario:
 
         # Should attempt fail-safe behavior
         assert abort_result["success"] == True
-        assert state_machine.current_state == State.IDLE
+        assert state_machine.current_state == SystemState.IDLE
 
         # Verify fail-safe mode activated
         assert state_machine.failsafe_active == True
@@ -271,11 +271,11 @@ class TestMissionAbortScenario:
     async def test_abort_during_different_states(self, abort_handler, state_machine):
         """Test abort behavior from different operational states."""
         test_states = [
-            (State.IDLE, State.IDLE, False),  # Already idle
-            (State.SEARCHING, State.IDLE, True),  # Active search
-            (State.HOMING, State.IDLE, True),  # Active homing
-            (State.BEACON_LOCATED, State.IDLE, True),  # At beacon
-            (State.RETURNING, State.IDLE, True),  # Returning home
+            (SystemState.IDLE, SystemState.IDLE, False),  # Already idle
+            (SystemState.SEARCHING, SystemState.IDLE, True),  # Active search
+            (SystemState.HOMING, SystemState.IDLE, True),  # Active homing
+            (SystemState.BEACON_LOCATED, SystemState.IDLE, True),  # At beacon
+            (SystemState.RETURNING, SystemState.IDLE, True),  # Returning home
         ]
 
         for initial_state, expected_state, should_stop_mission in test_states:
@@ -301,7 +301,7 @@ class TestMissionAbortScenario:
     ):
         """Test differences between graceful and emergency abort procedures."""
         # Test graceful abort
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
 
         graceful_result = await abort_handler.abort_mission(
             reason=AbortReason.OPERATOR_OVERRIDE, emergency=False, graceful_timeout=5.0
@@ -312,7 +312,7 @@ class TestMissionAbortScenario:
         assert graceful_result["completion_time"] <= 5.0
 
         # Reset for emergency abort
-        state_machine.current_state = State.HOMING
+        state_machine.current_state = SystemState.HOMING
         mock_mavlink.stop_mission.reset_mock()
         mock_mavlink.hold_position.reset_mock()
 
@@ -374,8 +374,8 @@ class TestMissionAbortScenario:
         assert event["reason"] == AbortReason.BATTERY_CRITICAL
         assert event["timestamp"] is not None
         assert event["details"]["battery_percent"] == 8
-        assert event["state_before"] == State.IDLE
-        assert event["state_after"] == State.IDLE
+        assert event["state_before"] == SystemState.IDLE
+        assert event["state_after"] == SystemState.IDLE
 
 
 class MissionAbortHandler:
@@ -429,13 +429,13 @@ class MissionAbortHandler:
         """Emergency abort procedure."""
         await self.mavlink.stop_mission()
         await self.mavlink.hold_position()
-        self.state_machine.current_state = State.IDLE
+        self.state_machine.current_state = SystemState.IDLE
         self.state_machine.homing_enabled = False
         return {"immediate_stop": True}
 
     async def _battery_critical_abort(self, return_home: bool = True, **kwargs) -> dict:
         """Battery critical abort procedure."""
-        self.state_machine.current_state = State.IDLE
+        self.state_machine.current_state = SystemState.IDLE
         self.state_machine.homing_enabled = False
         self.state_machine.autonomous_operations_blocked = True
 
@@ -450,7 +450,7 @@ class MissionAbortHandler:
     async def _signal_lost_abort(self, execute_search: bool = True, **kwargs) -> dict:
         """Signal lost abort procedure."""
         if execute_search:
-            self.state_machine.current_state = State.SEARCHING
+            self.state_machine.current_state = SystemState.SEARCHING
             return {
                 "search_pattern_started": True,
                 "search_center": kwargs.get("search_center"),
@@ -458,14 +458,14 @@ class MissionAbortHandler:
                 "recovery_initiated": True,
             }
         else:
-            self.state_machine.current_state = State.IDLE
+            self.state_machine.current_state = SystemState.IDLE
             self.state_machine.homing_enabled = False
             return {"recovery_procedure": "hold_position", "recovery_initiated": True}
 
     async def _geofence_breach_abort(self, return_to_fence: bool = True, **kwargs) -> dict:
         """Geofence breach abort procedure."""
         await self.mavlink.stop_mission()
-        self.state_machine.current_state = State.IDLE
+        self.state_machine.current_state = SystemState.IDLE
 
         if return_to_fence:
             return {
@@ -479,13 +479,13 @@ class MissionAbortHandler:
     async def _gps_lost_abort(self) -> dict:
         """GPS lost abort procedure."""
         await self.mavlink.hold_position()
-        self.state_machine.current_state = State.IDLE
+        self.state_machine.current_state = SystemState.IDLE
         self.state_machine.homing_enabled = False
         return {"recovery_procedure": "hold_position", "recovery_initiated": True}
 
     async def _communication_lost_abort(self, **kwargs) -> dict:
         """Communication lost abort procedure."""
-        self.state_machine.current_state = State.IDLE
+        self.state_machine.current_state = SystemState.IDLE
         self.state_machine.failsafe_active = True
         return {
             "failsafe_mode": "LAND",
@@ -495,9 +495,9 @@ class MissionAbortHandler:
 
     async def _standard_abort(self) -> dict:
         """Standard abort procedure."""
-        if self.state_machine.current_state != State.IDLE:
+        if self.state_machine.current_state != SystemState.IDLE:
             await self.mavlink.stop_mission()
-        self.state_machine.current_state = State.IDLE
+        self.state_machine.current_state = SystemState.IDLE
         self.state_machine.homing_enabled = False
         return {"recovery_procedure": "disarm", "recovery_initiated": True}
 
