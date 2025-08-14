@@ -1792,10 +1792,84 @@ jobs:
   Frontend Unit  Backend Unit
 ```
 
-### Test Organization
+### Complete Test File Inventory
+
+#### Backend Unit Tests (35 files in `tests/backend/unit/`)
+```
+tests/backend/unit/
+├── test_api_analytics.py              # Analytics API endpoint tests
+├── test_api_state.py                  # State API endpoint tests  
+├── test_config.py                     # Configuration system tests
+├── test_config_service.py             # Configuration service tests
+├── test_database_models.py            # Database model tests
+├── test_field_test_service.py         # Field test service tests
+├── test_homing_algorithm_comprehensive.py    # Homing algorithm tests
+├── test_homing_controller_comprehensive.py   # Homing controller tests
+├── test_homing_debug_mode.py          # Homing debug mode tests
+├── test_homing_parameters_api.py      # Homing parameters API tests
+├── test_homing_performance.py         # Homing performance tests
+├── test_main.py                       # Main entry point tests
+├── test_mavlink_service.py            # MAVLink service tests
+├── test_mission_replay_service.py     # Mission replay tests
+├── test_models_schemas.py             # Data model schema tests
+├── test_performance_analytics.py      # Performance analytics tests
+├── test_recommendations_engine.py     # Recommendations engine tests
+├── test_report_generator.py           # Report generation tests
+├── test_safety.py                     # Safety system tests
+├── test_sdr_service.py                # SDR service tests
+├── test_search_pattern_generator.py   # Search pattern tests
+├── test_signal_processor.py           # Signal processing tests
+├── test_state_integration.py          # State integration tests
+├── test_state_machine_additional.py   # Additional state machine tests
+├── test_state_machine_comprehensive.py # Comprehensive state tests
+├── test_state_machine_enhanced.py     # Enhanced state machine tests
+├── test_state_machine_entry_exit.py   # State entry/exit tests
+├── test_state_override_api.py         # State override API tests
+├── test_state_persistence.py          # State persistence tests
+├── test_telemetry_api.py              # Telemetry API tests
+├── test_telemetry.py                  # Telemetry service tests
+├── test_telemetry_recorder.py         # Telemetry recorder tests
+├── test_utils_safety.py               # Safety utility tests
+├── test_waypoint_exporter_enhanced.py # Enhanced waypoint tests
+└── test_waypoint_exporter.py          # Waypoint exporter tests
+```
+
+#### Backend Integration Tests (19 files in `tests/backend/integration/`)
+```
+tests/backend/integration/
+├── test_analytics_api.py              # Analytics API integration
+├── test_analytics_export.py           # Analytics export integration
+├── test_api_auth.py                   # Authentication integration
+├── test_api_config.py                 # Config API integration
+├── test_api_missions.py               # Missions API integration
+├── test_api_system.py                 # System API integration
+├── test_app.py                        # FastAPI app integration
+├── test_config_routes.py              # Config routes integration
+├── test_field_test_service.py         # Field test integration
+├── test_gcs_integration.py            # GCS integration tests
+├── test_homing_integration.py         # Homing system integration
+├── test_mavlink_integration.py        # MAVLink integration
+├── test_safety_integration.py         # Safety system integration
+├── test_safety_system.py              # Safety system tests
+├── test_search_api.py                 # Search API integration
+├── test_websocket.py                  # WebSocket integration
+├── test_websocket_state_events.py     # WebSocket state events
+└── conftest.py                        # Integration test fixtures
+```
+
+#### SITL Tests (7 files in `tests/backend/sitl_disabled/`)
+```
+tests/backend/sitl_disabled/
+├── test_ardupilot_sitl_integration.py # ArduPilot SITL integration
+├── test_beacon_detection_scenario.py  # Beacon detection scenarios
+├── test_homing_approach_scenario.py   # Homing approach scenarios
+├── test_homing_behavior.py            # Homing behavior tests
+├── test_mission_abort_scenario.py     # Mission abort scenarios
+├── test_safety_interlock_scenario.py  # Safety interlock scenarios
+└── test_safety_scenarios.py           # Safety system scenarios
+```
 
 #### Frontend Tests
-
 ```
 tests/frontend/
 ├── components/
@@ -1808,29 +1882,47 @@ tests/frontend/
     └── api.test.ts
 ```
 
-#### Backend Tests
-
-```
-tests/backend/
-├── unit/
-│   ├── test_signal_processor.py
-│   ├── test_state_machine.py
-│   └── test_homing_controller.py
-├── integration/
-│   ├── test_sdr_service.py
-│   ├── test_mavlink_service.py
-│   └── test_api_routes.py
-└── conftest.py
-```
-
 #### E2E Tests
-
 ```
 tests/e2e/
 ├── homing_activation.spec.ts
 ├── profile_management.spec.ts
 └── signal_detection.spec.ts
 ```
+
+### Test Coverage Summary
+
+#### Current Test Statistics (as of 2025-08-14)
+- **Total Unit Tests:** 740 tests across 35 files
+- **Total Integration Tests:** 171 tests across 19 files
+- **Total SITL Tests:** 36 tests across 7 files  
+- **Pass Rate:** 718/740 unit tests passing (97.0%)
+- **Backend Coverage:** ~52% (when tests run without timeout)
+- **Target Coverage:** 60% minimum
+
+#### Key Test Files by Component
+
+**Core Services:**
+- Signal Processing: `test_signal_processor.py` (47 tests)
+- MAVLink Service: `test_mavlink_service.py` (53 tests)
+- SDR Service: `test_sdr_service.py` (18 tests)
+- State Machine: `test_state_machine_enhanced.py` (32 tests)
+
+**Homing System:**
+- Algorithm: `test_homing_algorithm_comprehensive.py` (22 tests)
+- Controller: `test_homing_controller_comprehensive.py` (21 tests)
+- Debug Mode: `test_homing_debug_mode.py` (6 tests)
+- Performance: `test_homing_performance.py` (7 tests)
+
+**API Endpoints:**
+- State API: `test_api_state.py` (44 tests)
+- Analytics API: `test_api_analytics.py` (16 tests)
+- Telemetry API: `test_telemetry_api.py` (15 tests)
+
+**Safety & Field Testing:**
+- Safety System: `test_safety.py` (28 tests)
+- Safety Utils: `test_utils_safety.py` (51 tests)
+- Field Test Service: `test_field_test_service.py` (48 tests)
 
 ### Test Examples
 

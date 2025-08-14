@@ -26,7 +26,11 @@ def temp_db():
 @pytest.fixture
 def state_machine_with_db(temp_db):
     """Create a state machine with database persistence."""
-    return StateMachine(db_path=temp_db, enable_persistence=True)
+    sm = StateMachine(db_path=temp_db, enable_persistence=True)
+    # Set a mock signal processor to allow transitions
+    mock_processor = MagicMock()
+    sm.set_signal_processor(mock_processor)
+    return sm
 
 
 @pytest.fixture
@@ -60,7 +64,8 @@ async def test_current_state_persistence(state_machine_with_db, temp_db):
     state_machine_with_db._detection_count = 5
     state_machine_with_db._last_detection_time = 123456.789
 
-    # Transition to a new state
+    # Transition through valid states to reach DETECTING
+    await state_machine_with_db.transition_to(SystemState.SEARCHING)
     await state_machine_with_db.transition_to(SystemState.DETECTING)
 
     # Check current state in database
@@ -69,7 +74,7 @@ async def test_current_state_persistence(state_machine_with_db, temp_db):
 
     assert saved_state is not None
     assert saved_state["state"] == "DETECTING"
-    assert saved_state["previous_state"] == "IDLE"
+    assert saved_state["previous_state"] == "SEARCHING"  # Previous state before DETECTING
     assert saved_state["homing_enabled"] is True
     assert saved_state["detection_count"] == 5
     assert saved_state["last_detection_time"] == 123456.789
@@ -80,6 +85,9 @@ async def test_state_restoration_on_startup(temp_db):
     """Test that state is restored from database on startup."""
     # Create first state machine and set some state
     sm1 = StateMachine(db_path=temp_db, enable_persistence=True)
+    sm1.set_signal_processor(MagicMock())
+    # Set MAVLink service to allow HOMING transition
+    sm1.set_mavlink_service(MagicMock())
     sm1.enable_homing(True)
     sm1._detection_count = 10
     await sm1.transition_to(SystemState.SEARCHING)
@@ -88,6 +96,7 @@ async def test_state_restoration_on_startup(temp_db):
 
     # Create new state machine with same database
     sm2 = StateMachine(db_path=temp_db, enable_persistence=True)
+    sm2.set_signal_processor(MagicMock())
 
     # Check restored state
     assert sm2.get_current_state() == SystemState.HOMING
@@ -121,6 +130,7 @@ async def test_forced_transition_persistence(state_machine_with_db, temp_db):
 async def test_persistence_with_database_failure(temp_db):
     """Test that state machine continues working even if database fails."""
     sm = StateMachine(db_path=temp_db, enable_persistence=True)
+    sm.set_signal_processor(MagicMock())
 
     # Break the database connection
     if sm._state_db:
@@ -216,6 +226,7 @@ def test_state_history_filtering(state_db):
 async def test_persistence_disabled(temp_db):
     """Test state machine works without persistence."""
     sm = StateMachine(db_path=temp_db, enable_persistence=False)
+    sm.set_signal_processor(MagicMock())
 
     assert sm._state_db is None
 

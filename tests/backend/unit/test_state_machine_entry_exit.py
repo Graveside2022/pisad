@@ -10,7 +10,12 @@ from src.backend.services.state_machine import StateMachine, SystemState
 @pytest.fixture
 def state_machine():
     """Create a state machine instance for testing."""
-    return StateMachine()
+    # Disable persistence to avoid database state restoration
+    sm = StateMachine(enable_persistence=False)
+    # Set a mock signal processor to allow transitions
+    from unittest.mock import MagicMock
+    sm.set_signal_processor(MagicMock())
+    return sm
 
 
 @pytest.mark.asyncio
@@ -153,20 +158,28 @@ async def test_action_timing_measurement(state_machine):
 @pytest.mark.asyncio
 async def test_searching_exit_pauses_pattern(state_machine):
     """Test that exiting SEARCHING state pauses active search pattern."""
-    from src.backend.services.search_pattern_generator import PatternType, SearchPattern
-
-    # Create a mock search pattern
-    pattern = SearchPattern(
-        id="test-pattern",
-        pattern_type=PatternType.SPIRAL,
-        center_lat=0.0,
-        center_lon=0.0,
-        size_meters=100,
-        spacing_meters=10,
-        waypoints=[],
-        total_waypoints=10,
-        state="IDLE",
+    from src.backend.services.search_pattern_generator import (
+        PatternType, SearchPattern, CenterRadiusBoundary
     )
+    from datetime import datetime
+    from unittest.mock import MagicMock
+
+    # Create a mock search pattern using MagicMock to avoid constructor issues
+    pattern = MagicMock(spec=SearchPattern)
+    pattern.id = "test-pattern"
+    pattern.pattern_type = PatternType.SPIRAL
+    pattern.spacing = 10.0
+    pattern.velocity = 5.0
+    pattern.boundary = CenterRadiusBoundary(0.0, 0.0, 100.0)
+    pattern.waypoints = []
+    pattern.total_waypoints = 10
+    pattern.completed_waypoints = 0
+    pattern.state = "IDLE"
+    pattern.progress_percent = 0.0
+    pattern.estimated_time_remaining = 100.0
+    pattern.created_at = datetime.now()
+    pattern.started_at = None
+    pattern.paused_at = None
 
     state_machine.set_search_pattern(pattern)
 
@@ -187,11 +200,14 @@ async def test_idle_entry_releases_resources(state_machine):
     """Test that entering IDLE state releases resources."""
     from src.backend.services.state_machine import SearchSubstate
 
+    # First transition away from IDLE (machine starts in IDLE)
+    await state_machine.transition_to(SystemState.SEARCHING)
+    
     # Set up some state
     state_machine._search_substate = SearchSubstate.EXECUTING
     state_machine._current_waypoint_index = 5
 
-    # Transition to IDLE
+    # Now transition back to IDLE
     await state_machine.transition_to(SystemState.IDLE)
 
     # Resources should be released
