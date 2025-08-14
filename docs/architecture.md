@@ -128,6 +128,43 @@ graph TB
 | Logging                | Python logging + systemd     | Built-in        | Structured logging                         | Integrated with systemd journal                                                |
 | CSS Framework          | MUI sx prop                  | 7.3.1           | Styling via sx prop                        | 95% MUI, 5% custom CSS for performance                                         |
 
+### Additional Dependencies
+
+#### MAVLink/Drone Control Stack
+| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
+| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| Ground Station         | MAVProxy                     | 1.8.74          | MAVLink ground control station             | Industry standard, Python-based, integrates with mission planners              |
+| Drone SDK              | DroneKit                     | 2.9.2           | High-level drone control API               | Simplifies MAVLink commands, vehicle abstraction                               |
+| MAVLink Library        | pymavlink                    | 2.4.49          | MAVLink protocol implementation            | Core protocol library, included with MAVProxy                                  |
+| Computer Vision        | OpenCV (headless)            | 4.12.0          | Image processing for visual markers        | Headless version for server deployment                                         |
+| Serial Communication   | PySerial                     | 3.5             | Serial port communication                  | Required for MAVLink over serial/USB                                           |
+| Companion Libraries    | future                       | 1.0.0           | Python 2/3 compatibility                   | Required by DroneKit for legacy support (Note: Python 3.13+ compatibility issue with collections.MutableMapping) |
+
+#### SDR (Software Defined Radio) Stack  
+| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
+| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| SDR Hardware Support   | HackRF Host Tools            | git-c5d63b97    | HackRF One SDR control                     | Built from source for latest features and ARM64 optimization                   |
+| SDR Library            | libhackrf                    | 0.9             | HackRF library interface                   | Core library for HackRF hardware access                                        |
+| Python SDR Interface   | pyrtlsdr                     | 0.3.0           | RTL-SDR Python bindings                    | Support for RTL-SDR dongles as alternative hardware                            |
+| Signal Processing      | NumPy                        | 2.2.1           | Numerical computing                        | Core array operations for signal processing                                    |
+| Scientific Computing   | SciPy                        | 1.15.1          | Advanced signal processing                 | FFT, filters, signal analysis algorithms                                       |
+
+#### System GUI Dependencies (Installed via apt)
+| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
+| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| GUI Framework          | wxPython                     | 4.2.0           | MAVProxy GUI support                       | Required for MAVProxy map and console windows                                  |
+| Plotting Library       | Matplotlib                   | 3.10.5          | Real-time signal visualization             | Used by MAVProxy for graphs and system GUI                                     |
+| OpenCV GUI Support     | python3-opencv               | System          | OpenCV with GUI support                    | System package for full OpenCV functionality                                   |
+
+#### Build Dependencies
+| Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
+| ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| C++ Compiler           | g++                          | 12.2.0          | Compile native extensions                  | Required for building HackRF and Python packages                               |
+| Build System           | CMake                        | 3.25.1          | Cross-platform build configuration         | Required for HackRF compilation                                                |
+| USB Library            | libusb-1.0-0-dev             | 1.0.26          | USB device communication                   | Required for SDR hardware communication                                        |
+| FFT Library            | libfftw3-dev                 | 3.3.10          | Fast Fourier Transform                     | Optimized FFT for signal processing                                            |
+| Package Config         | pkg-config                   | 1.8.1           | Library configuration                      | Manages compiler flags for libraries                                           |
+
 ## Data Models
 
 ### SignalDetection

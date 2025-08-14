@@ -406,6 +406,230 @@ class SDRService:
                 await self._configure_device()
             raise
 
+    async def calibrate(self) -> dict[str, Any]:
+        """Perform SDR calibration routine.
+        
+        This routine calibrates the SDR device for optimal performance by:
+        1. Testing frequency accuracy
+        2. Measuring noise floor
+        3. Determining optimal gain settings
+        4. Validating sample rate stability
+        
+        Returns:
+            Calibration results and recommended settings
+        """
+        if not self.device:
+            raise SDRConfigError("Device not initialized")
+        
+        logger.info("Starting SDR calibration routine...")
+        calibration_results = {
+            "status": "in_progress",
+            "frequency_accuracy": {},
+            "noise_floor": {},
+            "gain_optimization": {},
+            "sample_rate_stability": {},
+            "recommendations": {},
+            "timestamp": time.time()
+        }
+        
+        try:
+            # Step 1: Test frequency accuracy
+            logger.info("Testing frequency accuracy...")
+            test_frequencies = [
+                433.0e6,  # Common ISM band
+                868.0e6,  # European ISM band
+                915.0e6,  # US ISM band
+                self.config.frequency  # Target frequency
+            ]
+            
+            freq_errors = []
+            for freq in test_frequencies:
+                try:
+                    self.device.setFrequency(SoapySDR.SOAPY_SDR_RX, 0, freq)
+                    actual_freq = self.device.getFrequency(SoapySDR.SOAPY_SDR_RX, 0)
+                    error_ppm = (actual_freq - freq) / freq * 1e6
+                    freq_errors.append(error_ppm)
+                    logger.debug(f"Frequency {freq/1e6:.1f} MHz: error = {error_ppm:.2f} ppm")
+                except Exception as e:
+                    logger.warning(f"Failed to test frequency {freq/1e6:.1f} MHz: {e}")
+            
+            if freq_errors:
+                avg_error = sum(freq_errors) / len(freq_errors)
+                calibration_results["frequency_accuracy"] = {
+                    "average_error_ppm": avg_error,
+                    "max_error_ppm": max(abs(e) for e in freq_errors),
+                    "recommended_ppm_correction": -avg_error
+                }
+                logger.info(f"Frequency calibration: avg error = {avg_error:.2f} ppm")
+            
+            # Step 2: Measure noise floor
+            logger.info("Measuring noise floor...")
+            
+            # Set to minimum gain for noise floor measurement
+            original_gain = self.config.gain
+            self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, 0.0)
+            
+            # Setup stream for noise measurement
+            stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+            self.device.activateStream(stream)
+            
+            # Collect samples for noise analysis
+            noise_samples = []
+            buffer = np.zeros(self.config.buffer_size, dtype=np.complex64)
+            
+            for _ in range(10):  # Collect 10 buffers
+                result = self.device.readStream(stream, [buffer], self.config.buffer_size, timeoutUs=100000)
+                ret, _, _ = result
+                if ret > 0:
+                    # Calculate power in dBm
+                    power = np.abs(buffer[:ret]) ** 2
+                    power_dbm = 10 * np.log10(power + 1e-10)
+                    noise_samples.extend(power_dbm)
+                await asyncio.sleep(0.01)
+            
+            self.device.deactivateStream(stream)
+            self.device.closeStream(stream)
+            
+            if noise_samples:
+                noise_floor = np.percentile(noise_samples, 10)  # 10th percentile
+                noise_std = np.std(noise_samples)
+                calibration_results["noise_floor"] = {
+                    "noise_floor_dbm": float(noise_floor),
+                    "noise_std_db": float(noise_std),
+                    "samples_collected": len(noise_samples)
+                }
+                logger.info(f"Noise floor: {noise_floor:.1f} dBm (std: {noise_std:.1f} dB)")
+            
+            # Step 3: Optimize gain settings
+            logger.info("Optimizing gain settings...")
+            
+            # Get available gain range
+            gain_range = self.device.getGainRange(SoapySDR.SOAPY_SDR_RX, 0)
+            if gain_range:
+                min_gain = gain_range.minimum()
+                max_gain = gain_range.maximum()
+                
+                # Test different gain levels
+                test_gains = [min_gain, (min_gain + max_gain) / 2, max_gain]
+                gain_metrics = []
+                
+                for gain in test_gains:
+                    self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, gain)
+                    
+                    # Measure dynamic range at this gain
+                    stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+                    self.device.activateStream(stream)
+                    
+                    samples = []
+                    for _ in range(5):
+                        result = self.device.readStream(stream, [buffer], self.config.buffer_size, timeoutUs=100000)
+                        ret, _, _ = result
+                        if ret > 0:
+                            samples.extend(np.abs(buffer[:ret]))
+                    
+                    self.device.deactivateStream(stream)
+                    self.device.closeStream(stream)
+                    
+                    if samples:
+                        dynamic_range = 20 * np.log10(max(samples) / (min(samples) + 1e-10))
+                        gain_metrics.append({
+                            "gain_db": gain,
+                            "dynamic_range_db": float(dynamic_range),
+                            "max_amplitude": float(max(samples))
+                        })
+                
+                # Find optimal gain (best dynamic range without saturation)
+                optimal_gain = original_gain
+                for metric in gain_metrics:
+                    if metric["max_amplitude"] < 0.9:  # Not saturating
+                        optimal_gain = metric["gain_db"]
+                
+                calibration_results["gain_optimization"] = {
+                    "tested_gains": gain_metrics,
+                    "recommended_gain": optimal_gain,
+                    "gain_range": {"min": min_gain, "max": max_gain}
+                }
+                logger.info(f"Optimal gain: {optimal_gain:.1f} dB")
+            
+            # Restore original gain
+            if isinstance(original_gain, str) and original_gain == "AUTO":
+                self.device.setGainMode(SoapySDR.SOAPY_SDR_RX, 0, True)
+            else:
+                self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, float(original_gain))
+            
+            # Step 4: Test sample rate stability
+            logger.info("Testing sample rate stability...")
+            
+            # Measure actual sample rate
+            stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+            self.device.activateStream(stream)
+            
+            sample_counts = []
+            time_intervals = []
+            
+            for _ in range(10):
+                start_time = time.time()
+                total_samples = 0
+                
+                # Collect samples for 100ms
+                while time.time() - start_time < 0.1:
+                    result = self.device.readStream(stream, [buffer], self.config.buffer_size, timeoutUs=10000)
+                    ret, _, _ = result
+                    if ret > 0:
+                        total_samples += ret
+                
+                elapsed = time.time() - start_time
+                if elapsed > 0:
+                    actual_rate = total_samples / elapsed
+                    sample_counts.append(actual_rate)
+                    time_intervals.append(elapsed)
+                
+                await asyncio.sleep(0.05)
+            
+            self.device.deactivateStream(stream)
+            self.device.closeStream(stream)
+            
+            if sample_counts:
+                avg_rate = sum(sample_counts) / len(sample_counts)
+                rate_stability = np.std(sample_counts) / avg_rate * 100  # Percentage
+                
+                calibration_results["sample_rate_stability"] = {
+                    "configured_rate": self.config.sampleRate,
+                    "measured_rate": avg_rate,
+                    "stability_percent": float(rate_stability),
+                    "rate_error_percent": (avg_rate - self.config.sampleRate) / self.config.sampleRate * 100
+                }
+                logger.info(f"Sample rate: {avg_rate/1e6:.2f} Msps (stability: {rate_stability:.2f}%)")
+            
+            # Generate recommendations
+            recommendations = []
+            
+            if calibration_results["frequency_accuracy"].get("recommended_ppm_correction"):
+                ppm = calibration_results["frequency_accuracy"]["recommended_ppm_correction"]
+                if abs(ppm) > 1:
+                    recommendations.append(f"Apply PPM correction of {ppm:.1f}")
+            
+            if calibration_results["gain_optimization"].get("recommended_gain"):
+                rec_gain = calibration_results["gain_optimization"]["recommended_gain"]
+                if rec_gain != original_gain and original_gain != "AUTO":
+                    recommendations.append(f"Consider using gain of {rec_gain:.1f} dB")
+            
+            if calibration_results["sample_rate_stability"].get("stability_percent", 0) > 5:
+                recommendations.append("Sample rate instability detected - check USB connection")
+            
+            calibration_results["recommendations"] = recommendations
+            calibration_results["status"] = "complete"
+            
+            logger.info(f"SDR calibration complete. Recommendations: {recommendations}")
+            
+            return calibration_results
+            
+        except Exception as e:
+            logger.error(f"Calibration failed: {e}")
+            calibration_results["status"] = "failed"
+            calibration_results["error"] = str(e)
+            raise SDRConfigError(f"Calibration failed: {e}")
+
     async def shutdown(self) -> None:
         """Shutdown SDR service and cleanup."""
         logger.info("Shutting down SDR service")
