@@ -9,8 +9,72 @@ from uuid import uuid4
 import pytest
 
 # Mock matplotlib and PIL before importing report_generator to prevent timeout
+# Create mock matplotlib that saves dummy files
+class MockPyplot:
+    def figure(self, *args, **kwargs):
+        return MagicMock()
+    
+    def subplots(self, *args, **kwargs):
+        fig = MagicMock()
+        ax = MagicMock()
+        ax.bar = MagicMock(return_value=[MagicMock(get_height=lambda: 10.0, get_x=lambda: 0, get_width=lambda: 1)])
+        ax.set_ylabel = MagicMock()
+        ax.set_title = MagicMock()
+        ax.grid = MagicMock()
+        ax.text = MagicMock()
+        ax.plot = MagicMock()
+        ax.set_xlabel = MagicMock()
+        ax.legend = MagicMock()
+        ax.axhline = MagicMock()
+        return fig, ax
+    
+    def subplot(self, *args, **kwargs):
+        return MagicMock()
+    
+    def bar(self, *args, **kwargs):
+        pass
+    
+    def plot(self, *args, **kwargs):
+        pass
+    
+    def title(self, *args, **kwargs):
+        pass
+    
+    def xlabel(self, *args, **kwargs):
+        pass
+    
+    def ylabel(self, *args, **kwargs):
+        pass
+    
+    def legend(self, *args, **kwargs):
+        pass
+    
+    def grid(self, *args, **kwargs):
+        pass
+    
+    def tight_layout(self, *args, **kwargs):
+        pass
+    
+    def savefig(self, path, *args, **kwargs):
+        # Create an empty file when saving
+        Path(path).touch()
+    
+    def close(self, *args, **kwargs):
+        pass
+    
+    def polar(self, *args, **kwargs):
+        ax = MagicMock()
+        ax.plot = MagicMock()
+        ax.fill = MagicMock()
+        ax.set_xticks = MagicMock()
+        ax.set_xticklabels = MagicMock()
+        ax.set_ylim = MagicMock()
+        ax.set_title = MagicMock()
+        ax.grid = MagicMock()
+        return ax
+
 sys.modules['matplotlib'] = MagicMock()
-sys.modules['matplotlib.pyplot'] = MagicMock()
+sys.modules['matplotlib.pyplot'] = MockPyplot()
 sys.modules['matplotlib.figure'] = MagicMock()
 sys.modules['PIL'] = MagicMock()
 sys.modules['PIL.Image'] = MagicMock()
