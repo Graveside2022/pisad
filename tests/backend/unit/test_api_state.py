@@ -57,11 +57,21 @@ def mock_state_machine():
 @pytest.fixture
 def test_client(mock_state_machine):
     """Create test client with mocked state machine."""
-    with patch("src.backend.api.routes.state.get_state_machine") as mock_get:
-        mock_get.return_value = mock_state_machine
-        from src.backend.core.app import app
-        app.state.state_machine = mock_state_machine
-        yield TestClient(app)
+    # Create a minimal app for testing just the state routes
+    from fastapi import FastAPI
+    from src.backend.api.routes import state
+    
+    app = FastAPI()
+    
+    # Override the dependency directly
+    def override_get_state_machine():
+        return mock_state_machine
+    
+    app.dependency_overrides[state.get_state_machine] = override_get_state_machine
+    app.include_router(state.router)
+    
+    with TestClient(app) as client:
+        yield client
 
 
 class TestGetCurrentState:

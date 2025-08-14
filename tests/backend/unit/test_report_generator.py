@@ -1,10 +1,26 @@
 """Unit tests for report generator service."""
 
 import json
+import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
+
+# Mock matplotlib and PIL before importing report_generator to prevent timeout
+sys.modules['matplotlib'] = MagicMock()
+sys.modules['matplotlib.pyplot'] = MagicMock()
+sys.modules['matplotlib.figure'] = MagicMock()
+sys.modules['PIL'] = MagicMock()
+sys.modules['PIL.Image'] = MagicMock()
+sys.modules['reportlab'] = MagicMock()
+sys.modules['reportlab.lib'] = MagicMock()
+sys.modules['reportlab.lib.pagesizes'] = MagicMock(letter=(612, 792))
+sys.modules['reportlab.lib.styles'] = MagicMock()
+sys.modules['reportlab.lib.units'] = MagicMock(inch=72)
+sys.modules['reportlab.platypus'] = MagicMock()
+sys.modules['reportlab.lib.enums'] = MagicMock(TA_LEFT=0, TA_CENTER=1, TA_RIGHT=2, TA_JUSTIFY=3)
 
 from src.backend.services.performance_analytics import MissionPerformanceMetrics
 from src.backend.services.report_generator import (
