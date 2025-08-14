@@ -184,23 +184,23 @@ class TestRecommendationsEngine:
         
         assert "sdr_gain" in thresholds
         assert thresholds["sdr_gain"]["min"] == 20
-        assert thresholds["sdr_gain"]["max"] == 60
-        assert thresholds["sdr_gain"]["optimal"] == 40
+        assert thresholds["sdr_gain"]["max"] == 40
+        assert thresholds["sdr_gain"]["optimal"] == 30
         
-        assert "detection_threshold" in thresholds
-        assert "approach_velocity" in thresholds
+        assert "detection_threshold_dbm" in thresholds
+        assert "approach_speed_ms" in thresholds
     
     def test_analyze_mission_metrics(self, engine):
         """Test analyzing individual mission metrics."""
         metrics = MissionPerformanceMetrics(
             mission_id=uuid4(),
-            detection_rate=3.0,  # Below threshold
-            approach_efficiency=50.0,  # Below threshold
-            signal_quality_consistency=0.6,
-            search_pattern_coverage=0.7,
-            false_positive_rate=0.2,
-            response_time_avg=5.0,
-            environmental_factors={}
+            detection_metrics={"detection_rate": 3.0, "signal_quality_consistency": 0.6},
+            approach_metrics={"approach_efficiency": 50.0, "response_time_avg": 5.0},
+            search_metrics={"search_pattern_coverage": 0.7},
+            false_positive_analysis={"false_positive_rate": 0.2},
+            environmental_correlation={},
+            baseline_comparison={},
+            overall_score=45.0
         )
         
         recommendations = engine.analyze_mission_metrics(metrics)
@@ -218,13 +218,13 @@ class TestRecommendationsEngine:
         """Test analyzing mission with good metrics."""
         metrics = MissionPerformanceMetrics(
             mission_id=uuid4(),
-            detection_rate=10.0,  # Good
-            approach_efficiency=85.0,  # Good
-            signal_quality_consistency=0.9,
-            search_pattern_coverage=0.95,
-            false_positive_rate=0.05,
-            response_time_avg=2.0,
-            environmental_factors={}
+            detection_metrics={"detection_rate": 10.0, "signal_quality_consistency": 0.9},
+            approach_metrics={"approach_efficiency": 85.0, "response_time_avg": 2.0},
+            search_metrics={"search_pattern_coverage": 0.95},
+            false_positive_analysis={"false_positive_rate": 0.05},
+            environmental_correlation={},
+            baseline_comparison={},
+            overall_score=85.0
         )
         
         recommendations = engine.analyze_mission_metrics(metrics)
@@ -239,13 +239,13 @@ class TestRecommendationsEngine:
         for _ in range(5):
             metrics = MissionPerformanceMetrics(
                 mission_id=uuid4(),
-                detection_rate=2.0,  # Consistently low
-                approach_efficiency=75.0,
-                signal_quality_consistency=0.7,
-                search_pattern_coverage=0.8,
-                false_positive_rate=0.1,
-                response_time_avg=3.0,
-                environmental_factors={}
+                detection_metrics={"detection_rate": 2.0, "signal_quality_consistency": 0.7},
+                approach_metrics={"approach_efficiency": 75.0, "response_time_avg": 3.0},
+                search_metrics={"search_pattern_coverage": 0.8},
+                false_positive_analysis={"false_positive_rate": 0.1},
+                environmental_correlation={},
+                baseline_comparison={},
+                overall_score=50.0
             )
             metrics_list.append(metrics)
         
@@ -265,13 +265,13 @@ class TestRecommendationsEngine:
         for _ in range(3):
             metrics = MissionPerformanceMetrics(
                 mission_id=uuid4(),
-                detection_rate=2.0,
-                approach_efficiency=80.0,
-                signal_quality_consistency=0.7,
-                search_pattern_coverage=0.8,
-                false_positive_rate=0.1,
-                response_time_avg=3.0,
-                environmental_factors={}
+                detection_metrics={"detection_rate": 2.0, "signal_quality_consistency": 0.7},
+                approach_metrics={"approach_efficiency": 80.0, "response_time_avg": 3.0},
+                search_metrics={"search_pattern_coverage": 0.8},
+                false_positive_analysis={"false_positive_rate": 0.1},
+                environmental_correlation={},
+                baseline_comparison={},
+                overall_score=55.0
             )
             metrics_list.append(metrics)
         
@@ -279,13 +279,13 @@ class TestRecommendationsEngine:
         for _ in range(2):
             metrics = MissionPerformanceMetrics(
                 mission_id=uuid4(),
-                detection_rate=8.0,
-                approach_efficiency=40.0,
-                signal_quality_consistency=0.7,
-                search_pattern_coverage=0.8,
-                false_positive_rate=0.1,
-                response_time_avg=3.0,
-                environmental_factors={}
+                detection_metrics={"detection_rate": 8.0, "signal_quality_consistency": 0.7},
+                approach_metrics={"approach_efficiency": 40.0, "response_time_avg": 3.0},
+                search_metrics={"search_pattern_coverage": 0.8},
+                false_positive_analysis={"false_positive_rate": 0.1},
+                environmental_correlation={},
+                baseline_comparison={},
+                overall_score=65.0
             )
             metrics_list.append(metrics)
         
