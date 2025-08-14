@@ -10,34 +10,22 @@ from typing import Any
 import psutil
 from fastapi import APIRouter, Depends, HTTPException
 
+from src.backend.core.dependencies import (
+    get_sdr_service,
+    get_mavlink_service,
+    get_state_machine,
+    get_signal_processor,
+    get_service_manager,
+)
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.sdr_service import SDRService
 from src.backend.services.state_machine import StateMachine
+from src.backend.services.signal_processor import SignalProcessor
 from src.backend.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/health", tags=["health"])
-
-# Service instances (will be injected via dependencies)
-sdr_service: SDRService | None = None
-mavlink_service: MAVLinkService | None = None
-state_machine: StateMachine | None = None
-
-
-def get_sdr_service() -> SDRService | None:
-    """Get SDR service instance."""
-    return sdr_service
-
-
-def get_mavlink_service() -> MAVLinkService | None:
-    """Get MAVLink service instance."""
-    return mavlink_service
-
-
-def get_state_machine() -> StateMachine | None:
-    """Get state machine instance."""
-    return state_machine
 
 
 @router.get("")
@@ -49,7 +37,11 @@ async def health_check() -> dict[str, Any]:
         Aggregated health status of all services.
     """
     try:
-        # Get system metrics
+        # Get service manager health
+        service_manager = get_service_manager()
+        manager_health = await service_manager.get_service_health()
+        
+        # Add system metrics
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage("/")
@@ -62,63 +54,18 @@ async def health_check() -> dict[str, Any]:
         except (FileNotFoundError, PermissionError):
             pass
         
-        # Check each service
-        services_health = {}
-        
-        # SDR Service
-        if sdr_service:
-            sdr_status = sdr_service.get_status()
-            services_health["sdr"] = {
-                "status": sdr_status.status,
-                "connected": sdr_status.status == "CONNECTED",
-                "device": sdr_status.device_name,
-                "driver": sdr_status.driver,
-                "stream_active": sdr_status.stream_active,
-                "samples_per_second": sdr_status.samples_per_second,
-                "buffer_overflows": sdr_status.buffer_overflows,
-                "temperature": sdr_status.temperature,
-            }
-        else:
-            services_health["sdr"] = {"status": "NOT_INITIALIZED"}
-        
-        # MAVLink Service
-        if mavlink_service:
-            services_health["mavlink"] = {
-                "connected": mavlink_service.is_connected(),
-                "state": mavlink_service.state.value,
-                "telemetry": mavlink_service.get_telemetry(),
-            }
-        else:
-            services_health["mavlink"] = {"status": "NOT_INITIALIZED"}
-        
-        # State Machine
-        if state_machine:
-            services_health["state_machine"] = {
-                "current_state": state_machine.get_current_state().value,
-                "is_running": state_machine._is_running,
-                "statistics": state_machine.get_statistics(),
-            }
-        else:
-            services_health["state_machine"] = {"status": "NOT_INITIALIZED"}
-        
-        # Determine overall health
-        overall_status = "healthy"
-        if not all(
-            s.get("connected", s.get("status") == "CONNECTED")
-            for s in services_health.values()
-            if s.get("status") != "NOT_INITIALIZED"
-        ):
-            overall_status = "degraded"
-        
+        # Check if system resources are stressed
         if cpu_percent > 90 or memory.percent > 90:
-            overall_status = "degraded"
+            manager_health["status"] = "degraded"
         
         if temperature and temperature > 80:
-            overall_status = "degraded"
+            manager_health["status"] = "degraded"
         
         return {
-            "status": overall_status,
+            "status": manager_health["status"],
             "timestamp": datetime.now(UTC).isoformat(),
+            "initialized": manager_health["initialized"],
+            "startup_time": manager_health["startup_time"],
             "system": {
                 "cpu_percent": cpu_percent,
                 "memory_percent": memory.percent,
@@ -126,7 +73,7 @@ async def health_check() -> dict[str, Any]:
                 "temperature": temperature,
                 "uptime": int(time.time() - psutil.boot_time()),
             },
-            "services": services_health,
+            "services": manager_health["services"],
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -134,16 +81,15 @@ async def health_check() -> dict[str, Any]:
 
 
 @router.get("/sdr")
-async def sdr_health_check() -> dict[str, Any]:
+async def sdr_health_check(
+    sdr_service: SDRService = Depends(get_sdr_service)
+) -> dict[str, Any]:
     """
     SDR service health check.
     
     Returns:
         Detailed SDR service status.
     """
-    if not sdr_service:
-        raise HTTPException(status_code=503, detail="SDR service not initialized")
-    
     try:
         status = sdr_service.get_status()
         
@@ -181,16 +127,15 @@ async def sdr_health_check() -> dict[str, Any]:
 
 
 @router.get("/mavlink")
-async def mavlink_health_check() -> dict[str, Any]:
+async def mavlink_health_check(
+    mavlink_service: MAVLinkService = Depends(get_mavlink_service)
+) -> dict[str, Any]:
     """
     MAVLink service health check.
     
     Returns:
         Detailed MAVLink service status.
     """
-    if not mavlink_service:
-        raise HTTPException(status_code=503, detail="MAVLink service not initialized")
-    
     try:
         is_connected = mavlink_service.is_connected()
         telemetry = mavlink_service.get_telemetry()
@@ -228,16 +173,15 @@ async def mavlink_health_check() -> dict[str, Any]:
 
 
 @router.get("/state")
-async def state_machine_health_check() -> dict[str, Any]:
+async def state_machine_health_check(
+    state_machine: StateMachine = Depends(get_state_machine)
+) -> dict[str, Any]:
     """
     State machine health check.
     
     Returns:
         Detailed state machine status.
     """
-    if not state_machine:
-        raise HTTPException(status_code=503, detail="State machine not initialized")
-    
     try:
         current_state = state_machine.get_current_state()
         statistics = state_machine.get_statistics()
@@ -268,67 +212,42 @@ async def state_machine_health_check() -> dict[str, Any]:
 
 
 @router.get("/signal")
-async def signal_processor_health_check() -> dict[str, Any]:
+async def signal_processor_health_check(
+    signal_processor: SignalProcessor = Depends(get_signal_processor)
+) -> dict[str, Any]:
     """
     Signal processor health check.
     
     Returns:
         Detailed signal processor status.
     """
-    # Import signal processor if available
     try:
-        from src.backend.services.signal_processor import signal_processor_instance
-        
-        if not signal_processor_instance:
-            raise HTTPException(status_code=503, detail="Signal processor not initialized")
-        
         # Get signal processor metrics
-        metrics = signal_processor_instance.get_metrics()
+        metrics = signal_processor.get_metrics()
         
         # Determine health level
         health = "healthy"
-        if not signal_processor_instance.is_processing:
+        if not signal_processor.is_processing:
             health = "unhealthy"
         elif metrics.get("processing_errors", 0) > 10:
             health = "degraded"
         
         return {
             "health": health,
-            "is_processing": signal_processor_instance.is_processing,
-            "current_rssi": signal_processor_instance.current_rssi,
-            "noise_floor": signal_processor_instance.noise_floor,
-            "signal_detected": signal_processor_instance.signal_detected,
-            "detection_confidence": signal_processor_instance.detection_confidence,
+            "is_processing": signal_processor.is_processing,
+            "current_rssi": signal_processor.current_rssi,
+            "noise_floor": signal_processor.noise_floor,
+            "signal_detected": signal_processor.signal_detected,
+            "detection_confidence": signal_processor.detection_confidence,
             "metrics": metrics,
             "config": {
-                "detection_threshold": signal_processor_instance.detection_threshold,
-                "noise_floor_percentile": signal_processor_instance.noise_floor_percentile,
-                "debounce_samples": signal_processor_instance.debounce_samples,
+                "detection_threshold": signal_processor.detection_threshold,
+                "noise_floor_percentile": signal_processor.noise_floor_percentile,
+                "debounce_samples": signal_processor.debounce_samples,
             },
             "timestamp": datetime.now(UTC).isoformat(),
         }
-    except ImportError:
-        raise HTTPException(status_code=503, detail="Signal processor module not available")
     except Exception as e:
         logger.error(f"Signal processor health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-def set_service_instances(
-    sdr: SDRService | None = None,
-    mavlink: MAVLinkService | None = None,
-    state: StateMachine | None = None,
-) -> None:
-    """
-    Set service instances for health checks.
-    
-    Args:
-        sdr: SDR service instance
-        mavlink: MAVLink service instance
-        state: State machine instance
-    """
-    global sdr_service, mavlink_service, state_machine
-    sdr_service = sdr
-    mavlink_service = mavlink
-    state_machine = state
-    logger.info("Health check service instances configured")
