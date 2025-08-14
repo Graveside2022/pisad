@@ -58,7 +58,7 @@ _Last updated: 2025-08-14T19:50:43.584Z_
   - Type: feature
   - Priority: medium
 
-## To Do (3)
+## To Do (4)
 
 - [ ] **Story 4.4: CI/CD Pipeline & Deployment**
   - Assignee: claude
@@ -75,6 +75,11 @@ _Last updated: 2025-08-14T19:50:43.584Z_
   - Type: feature
   - Priority: medium
   - Description: Achieve 80-90% code coverage as required for safety-critical emergency services systems
+- [ ] **Story 4.7: Hardware Integration Testing**
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: Define and integrate actual SDR and flight controller hardware for Raspberry Pi to achieve complete test coverage
 
 ## In Progress (1)
 

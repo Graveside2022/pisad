@@ -4,25 +4,18 @@ Focuses on uncovered paths in SDR, MAVLink, and State Machine services.
 """
 
 import asyncio
-import time
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import pytest
 
 from src.backend.models.schemas import SDRConfig
 from src.backend.services.mavlink_service import (
-    ConnectionState,
-    LogLevel,
     MAVLinkService,
 )
 from src.backend.services.sdr_service import (
     SDRConfigError,
-    SDRNotFoundError,
     SDRService,
-    SDRStatus,
-    SDRStreamError,
 )
 from src.backend.services.state_machine import SearchSubstate, StateMachine, SystemState
 
@@ -462,7 +455,6 @@ class TestHealthEndpointsCoverageBoost:
 
 def mock_open(read_data=""):
     """Helper to create mock file open."""
-    import builtins
     from unittest.mock import mock_open as base_mock_open
 
     return base_mock_open(read_data=read_data)

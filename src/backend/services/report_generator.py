@@ -398,9 +398,9 @@ class ReportGenerator:
             summary_text = f"""
             Overall Performance Score: <b>{summary['overall_score']}/100</b><br/>
             <br/>
-            The mission achieved {summary['key_metrics']['total_detections']} detections 
-            over {summary['key_metrics']['search_time_minutes']:.1f} minutes, 
-            covering {summary['key_metrics']['area_covered_km2']:.2f} km² 
+            The mission achieved {summary['key_metrics']['total_detections']} detections
+            over {summary['key_metrics']['search_time_minutes']:.1f} minutes,
+            covering {summary['key_metrics']['area_covered_km2']:.2f} km²
             ({summary['key_metrics']['coverage_percentage']:.1f}% of search area).
             """
             story.append(Paragraph(summary_text, self.styles["CustomBody"]))

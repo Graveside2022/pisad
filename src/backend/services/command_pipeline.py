@@ -2,13 +2,14 @@
 
 This module implements a safe command execution pipeline with:
 - Safety interlock checks before commands
-- Command validation and sanitization  
+- Command validation and sanitization
 - Rate limiting to prevent flooding
 - Priority queue for emergency commands
 - Audit logging for all commands (FR12)
 """
 
 import asyncio
+import contextlib
 import time
 from collections import deque
 from collections.abc import Callable
@@ -106,7 +107,7 @@ class CommandAuditEntry:
 
 class CommandPipeline:
     """Safe command execution pipeline with multiple safety layers.
-    
+
     Implements PRD requirements:
     - FR8: Geofence safety checks
     - FR12: Command audit logging
@@ -191,16 +192,16 @@ class CommandPipeline:
         source: str = "api",
     ) -> str:
         """Submit a command for execution.
-        
+
         Args:
             command_type: Type of command
             parameters: Command parameters
             priority: Command priority
             source: Source of command (for audit)
-            
+
         Returns:
             Command ID for tracking
-            
+
         Raises:
             ValueError: If command validation fails
             asyncio.QueueFull: If queue is full
@@ -234,7 +235,7 @@ class CommandPipeline:
 
     async def _execute_emergency_command(self, command: Command) -> None:
         """Execute emergency command immediately (100ms requirement).
-        
+
         Args:
             command: Emergency command to execute
         """
@@ -282,10 +283,10 @@ class CommandPipeline:
 
     async def _validate_command(self, command: Command) -> bool:
         """Validate and sanitize command parameters.
-        
+
         Args:
             command: Command to validate
-            
+
         Returns:
             True if valid, False otherwise
         """
@@ -344,11 +345,7 @@ class CommandPipeline:
         # Validate velocity limits (m/s)
         max_velocity = 20.0  # 20 m/s max
 
-        for v in [params["vx"], params["vy"], params["vz"]]:
-            if abs(v) > max_velocity:
-                return False
-
-        return True
+        return all(abs(v) <= max_velocity for v in [params["vx"], params["vy"], params["vz"]])
 
     def _validate_set_mode(self, command: Command) -> bool:
         """Validate set mode command."""
@@ -396,7 +393,7 @@ class CommandPipeline:
 
     async def _check_minimal_safety(self) -> dict[str, bool]:
         """Check minimal safety for emergency commands.
-        
+
         Returns:
             Safety check results
         """
@@ -419,10 +416,10 @@ class CommandPipeline:
 
     async def _check_full_safety(self, command: Command) -> tuple[bool, dict[str, bool]]:
         """Check all safety interlocks for a command.
-        
+
         Args:
             command: Command to check
-            
+
         Returns:
             Tuple of (safe_to_proceed, check_results)
         """
@@ -455,7 +452,7 @@ class CommandPipeline:
 
     async def _execute_command(self, command: Command) -> None:
         """Execute a validated command.
-        
+
         Args:
             command: Command to execute
         """
@@ -522,7 +519,7 @@ class CommandPipeline:
         success: bool,
     ) -> None:
         """Log command execution for audit trail (FR12).
-        
+
         Args:
             command: Executed command
             safety_status: Safety check results
@@ -575,10 +572,8 @@ class CommandPipeline:
 
         if self.process_task:
             self.process_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.process_task
-            except asyncio.CancelledError:
-                pass
 
         # Stop safety monitoring
         await self.safety_system.stop_monitoring()
@@ -628,7 +623,7 @@ class CommandPipeline:
 
     def get_statistics(self) -> dict[str, Any]:
         """Get pipeline statistics.
-        
+
         Returns:
             Dictionary with statistics
         """
@@ -648,10 +643,10 @@ class CommandPipeline:
 
     def get_audit_log(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get recent audit log entries.
-        
+
         Args:
             limit: Maximum entries to return
-            
+
         Returns:
             List of audit entries
         """

@@ -472,25 +472,24 @@ class RecommendationsEngine:
             )
 
         # Terrain-specific recommendations
-        if terrain_data:
-            if terrain_data.get("type") == "mountainous":
-                recommendations.append(
-                    Recommendation(
-                        id="pattern_terrain_following",
-                        type=RecommendationType.SEARCH_PATTERN,
-                        priority=RecommendationPriority.HIGH,
-                        title="Implement Terrain-Following Search",
-                        description="Mountainous terrain requires adaptive altitude patterns.",
-                        expected_improvement="Better signal detection in valleys",
-                        implementation_effort="high",
-                        affected_metrics=["detection_rate", "safety"],
-                        specific_parameters={
-                            "pattern": "terrain_following",
-                            "altitude_agl": "100m",
-                            "terrain_buffer": "50m",
-                        },
-                    )
+        if terrain_data and terrain_data.get("type") == "mountainous":
+            recommendations.append(
+                Recommendation(
+                    id="pattern_terrain_following",
+                    type=RecommendationType.SEARCH_PATTERN,
+                    priority=RecommendationPriority.HIGH,
+                    title="Implement Terrain-Following Search",
+                    description="Mountainous terrain requires adaptive altitude patterns.",
+                    expected_improvement="Better signal detection in valleys",
+                    implementation_effort="high",
+                    affected_metrics=["detection_rate", "safety"],
+                    specific_parameters={
+                        "pattern": "terrain_following",
+                        "altitude_agl": "100m",
+                        "terrain_buffer": "50m",
+                    },
                 )
+            )
 
         return recommendations
 

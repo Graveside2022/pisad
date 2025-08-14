@@ -1,13 +1,11 @@
 """Integration tests for signal state controller and command pipeline."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
-import numpy as np
 import pytest
 
 from src.backend.services.command_pipeline import (
-    Command,
     CommandPipeline,
     CommandPriority,
     CommandType,
@@ -92,38 +90,38 @@ class TestSignalStateController:
     async def test_signal_detection_with_hysteresis(self, signal_controller):
         """Test signal detection with hysteresis thresholds."""
         noise_floor = -100.0
-        
+
         # Start with no signal
         state, event = await signal_controller.process_signal(-90.0, noise_floor)
         assert state == SignalState.NO_SIGNAL
         assert event is None
-        
+
         # Signal rises above trigger threshold (12dB SNR)
         state, event = await signal_controller.process_signal(-87.0, noise_floor)  # 13dB SNR
         assert state == SignalState.RISING
         assert event is None
-        
+
         # Wait for confirmation time
         await asyncio.sleep(0.15)
-        
+
         # Signal still strong, should confirm
         state, event = await signal_controller.process_signal(-85.0, noise_floor)  # 15dB SNR
         assert state == SignalState.CONFIRMED
         assert event is not None
         assert event.rssi == -85.0
         assert event.snr == 15.0
-        
+
         # Signal drops but stays above drop threshold (6dB)
         state, event = await signal_controller.process_signal(-93.0, noise_floor)  # 7dB SNR
         assert state == SignalState.CONFIRMED
-        
+
         # Signal drops below drop threshold
         state, event = await signal_controller.process_signal(-95.0, noise_floor)  # 5dB SNR
         assert state == SignalState.FALLING
-        
+
         # Wait for drop time
         await asyncio.sleep(0.25)
-        
+
         # Signal still weak, should be lost
         state, event = await signal_controller.process_signal(-96.0, noise_floor)  # 4dB SNR
         assert state == SignalState.LOST
@@ -132,11 +130,11 @@ class TestSignalStateController:
     async def test_false_positive_prevention(self, signal_controller):
         """Test that brief spikes don't trigger false positives."""
         noise_floor = -100.0
-        
+
         # Brief spike above threshold
         state, event = await signal_controller.process_signal(-85.0, noise_floor)  # 15dB SNR
         assert state == SignalState.RISING
-        
+
         # Immediately drops - should reject as false positive
         state, event = await signal_controller.process_signal(-96.0, noise_floor)  # 4dB SNR
         assert state == SignalState.NO_SIGNAL
@@ -147,11 +145,11 @@ class TestSignalStateController:
     async def test_anomaly_detection(self, signal_controller):
         """Test anomaly detection for sudden spikes."""
         noise_floor = -100.0
-        
+
         # Build up stable signal history
         for _ in range(20):
             await signal_controller.process_signal(-95.0, noise_floor)  # 5dB SNR
-        
+
         # Sudden spike (anomaly)
         state, event = await signal_controller.process_signal(-70.0, noise_floor)  # 30dB SNR
         # Should not trigger due to anomaly detection
@@ -161,20 +159,20 @@ class TestSignalStateController:
     async def test_state_machine_integration(self, signal_controller, state_machine):
         """Test integration with state machine."""
         noise_floor = -100.0
-        
+
         # Trigger detection
         await signal_controller.process_signal(-87.0, noise_floor)  # 13dB SNR
         await asyncio.sleep(0.15)
         await signal_controller.process_signal(-85.0, noise_floor)  # 15dB SNR
-        
+
         # Should have called state machine
         state_machine.handle_detection.assert_called_once()
-        
+
         # Lose signal
         await signal_controller.process_signal(-96.0, noise_floor)  # 4dB SNR
         await asyncio.sleep(0.25)
         await signal_controller.process_signal(-97.0, noise_floor)  # 3dB SNR
-        
+
         # Should have called signal lost
         state_machine.handle_signal_lost.assert_called_once()
 
@@ -182,7 +180,7 @@ class TestSignalStateController:
     async def test_false_positive_rate_tracking(self, signal_controller):
         """Test false positive rate calculation."""
         noise_floor = -100.0
-        
+
         # Create some true positives
         for i in range(3):
             await signal_controller.process_signal(-87.0, noise_floor)
@@ -193,12 +191,12 @@ class TestSignalStateController:
             await asyncio.sleep(0.25)
             await signal_controller.process_signal(-97.0, noise_floor)
             await asyncio.sleep(2.1)  # Reset to NO_SIGNAL
-        
+
         # Create false positives
         for i in range(2):
             await signal_controller.process_signal(-85.0, noise_floor)
             await signal_controller.process_signal(-96.0, noise_floor)
-        
+
         # Check statistics
         stats = signal_controller.get_statistics()
         assert stats["true_positives"] == 3
@@ -209,16 +207,16 @@ class TestSignalStateController:
     async def test_transition_audit_logging(self, signal_controller):
         """Test that transitions are logged for audit."""
         noise_floor = -100.0
-        
+
         # Create some transitions
         await signal_controller.process_signal(-87.0, noise_floor)
         await asyncio.sleep(0.15)
         await signal_controller.process_signal(-85.0, noise_floor)
-        
+
         # Get audit log
         log = signal_controller.get_transition_log()
         assert len(log) >= 2
-        
+
         # Check log entries
         for entry in log:
             assert "id" in entry
@@ -241,14 +239,14 @@ class TestCommandPipeline:
             {"latitude": 45.0, "longitude": -122.0, "altitude": 50.0},
         )
         assert cmd_id is not None
-        
+
         # Invalid goto position (missing altitude)
         with pytest.raises(ValueError):
             await command_pipeline.submit_command(
                 CommandType.GOTO_POSITION,
                 {"latitude": 45.0, "longitude": -122.0},
             )
-        
+
         # Invalid velocity (exceeds limit)
         with pytest.raises(ValueError):
             await command_pipeline.submit_command(
@@ -264,10 +262,10 @@ class TestCommandPipeline:
             CommandType.EMERGENCY_STOP,
             priority=CommandPriority.EMERGENCY,
         )
-        
+
         # Should execute immediately
         mavlink_service.emergency_stop.assert_called_once()
-        
+
         # Check audit log
         log = command_pipeline.get_audit_log(limit=1)
         assert len(log) > 0
@@ -286,23 +284,23 @@ class TestCommandPipeline:
             "battery": True,
             "geofence": True,
         }
-        
+
         # Start pipeline
         await command_pipeline.start()
-        
+
         # Submit command
         cmd_id = await command_pipeline.submit_command(
             CommandType.ARM,
             priority=CommandPriority.NORMAL,
         )
-        
+
         # Wait for processing
         await asyncio.sleep(0.1)
-        
+
         # Check statistics
         stats = command_pipeline.get_statistics()
         assert stats["blocked_by_safety"] > 0
-        
+
         await command_pipeline.stop()
 
     @pytest.mark.asyncio
@@ -311,10 +309,10 @@ class TestCommandPipeline:
         # Set low rate limit for testing
         command_pipeline.rate_limit = 2.0  # 2 commands per second
         command_pipeline.min_interval = 0.5
-        
+
         # Start pipeline
         await command_pipeline.start()
-        
+
         # Submit multiple commands quickly
         start_time = asyncio.get_event_loop().time()
         for i in range(3):
@@ -322,14 +320,14 @@ class TestCommandPipeline:
                 CommandType.LOITER,
                 priority=CommandPriority.NORMAL,
             )
-        
+
         # Wait for processing
         await asyncio.sleep(1.5)
-        
+
         # Commands should be rate limited
         elapsed = asyncio.get_event_loop().time() - start_time
         assert elapsed >= 1.0  # At least 1 second for 3 commands at 2/sec
-        
+
         await command_pipeline.stop()
 
     @pytest.mark.asyncio
@@ -337,7 +335,7 @@ class TestCommandPipeline:
         """Test that higher priority commands execute first."""
         # Start pipeline
         await command_pipeline.start()
-        
+
         # Submit commands in reverse priority order
         low_cmd = await command_pipeline.submit_command(
             CommandType.LOITER,
@@ -352,19 +350,19 @@ class TestCommandPipeline:
             {"mode": "GUIDED"},
             priority=CommandPriority.NORMAL,
         )
-        
+
         # Wait for processing
         await asyncio.sleep(0.5)
-        
+
         # Check audit log order
         log = command_pipeline.get_audit_log(limit=10)
         executed_order = [entry["command_id"] for entry in log if entry["success"]]
-        
+
         # High priority should execute before normal and low
         if len(executed_order) >= 2:
             assert executed_order.index(high_cmd) < executed_order.index(normal_cmd)
             assert executed_order.index(high_cmd) < executed_order.index(low_cmd)
-        
+
         await command_pipeline.stop()
 
     @pytest.mark.asyncio
@@ -372,7 +370,7 @@ class TestCommandPipeline:
         """Test comprehensive audit logging."""
         # Start pipeline
         await command_pipeline.start()
-        
+
         # Submit various commands
         cmd_ids = []
         cmd_ids.append(
@@ -388,13 +386,13 @@ class TestCommandPipeline:
                 source="autopilot",
             )
         )
-        
+
         # Wait for processing
         await asyncio.sleep(0.5)
-        
+
         # Get audit log
         log = command_pipeline.get_audit_log()
-        
+
         # Verify log entries
         for entry in log:
             assert "command_id" in entry
@@ -404,7 +402,7 @@ class TestCommandPipeline:
             assert "safety_status" in entry
             assert "execution_time_ms" in entry
             assert "success" in entry
-        
+
         await command_pipeline.stop()
 
     @pytest.mark.asyncio
@@ -419,35 +417,35 @@ class TestCommandPipeline:
             "geofence": False,  # Outside geofence
         }
         safety_system.is_safe_to_proceed.return_value = False
-        
+
         # Start pipeline
         await command_pipeline.start()
-        
+
         # Try to command position outside geofence
         cmd_id = await command_pipeline.submit_command(
             CommandType.GOTO_POSITION,
             {"latitude": 45.0, "longitude": -122.0, "altitude": 50.0},
         )
-        
+
         # Wait for processing
         await asyncio.sleep(0.2)
-        
+
         # Command should be blocked
         stats = command_pipeline.get_statistics()
         assert stats["blocked_by_safety"] > 0
-        
+
         # Check audit log
         log = command_pipeline.get_audit_log(limit=1)
         assert not log[0]["success"]
         assert not log[0]["safety_status"]["geofence"]
-        
+
         await command_pipeline.stop()
 
     @pytest.mark.asyncio
     async def test_100ms_emergency_stop_requirement(self, command_pipeline, mavlink_service):
         """Test emergency stop executes within 100ms (NFR2)."""
         import time
-        
+
         # Submit emergency stop and measure time
         start = time.perf_counter()
         cmd_id = await command_pipeline.submit_command(
@@ -455,11 +453,11 @@ class TestCommandPipeline:
             priority=CommandPriority.EMERGENCY,
         )
         end = time.perf_counter()
-        
+
         # Check execution time
         execution_time_ms = (end - start) * 1000
         assert execution_time_ms < 100, f"Emergency stop took {execution_time_ms:.1f}ms"
-        
+
         # Verify command executed
         mavlink_service.emergency_stop.assert_called_once()
 
@@ -479,25 +477,25 @@ class TestIntegratedSystem:
                 {"rssi": rssi, "confidence": confidence},
                 priority=CommandPriority.HIGH,
             )
-        
+
         state_machine.handle_detection = mock_detection
-        
+
         # Start command pipeline
         await command_pipeline.start()
-        
+
         # Trigger signal detection
         noise_floor = -100.0
         await signal_controller.process_signal(-87.0, noise_floor)
         await asyncio.sleep(0.15)
         await signal_controller.process_signal(-85.0, noise_floor)
-        
+
         # Wait for command processing
         await asyncio.sleep(0.2)
-        
+
         # Check that homing command was submitted
         stats = command_pipeline.get_statistics()
         assert stats["total_commands"] > 0
-        
+
         await command_pipeline.stop()
 
     @pytest.mark.asyncio
@@ -511,12 +509,12 @@ class TestIntegratedSystem:
                 CommandType.RETURN_TO_LAUNCH,
                 priority=CommandPriority.CRITICAL,
             )
-        
+
         state_machine.handle_signal_lost = mock_signal_lost
-        
+
         # Start command pipeline
         await command_pipeline.start()
-        
+
         # Establish then lose signal
         noise_floor = -100.0
         await signal_controller.process_signal(-87.0, noise_floor)
@@ -526,13 +524,13 @@ class TestIntegratedSystem:
         await signal_controller.process_signal(-96.0, noise_floor)
         await asyncio.sleep(0.25)
         await signal_controller.process_signal(-97.0, noise_floor)
-        
+
         # Wait for command processing
         await asyncio.sleep(0.2)
-        
+
         # Check that RTL command was submitted
         log = command_pipeline.get_audit_log()
         rtl_commands = [e for e in log if e["type"] == CommandType.RETURN_TO_LAUNCH.value]
         assert len(rtl_commands) > 0
-        
+
         await command_pipeline.stop()
