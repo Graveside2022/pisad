@@ -18,8 +18,24 @@ from src.backend.core.app import create_app
 def client():
     """Create test client."""
     app = create_app()
-    app.include_router(router)
     return TestClient(app)
+
+
+@pytest.fixture
+def mock_data_path(sample_mission_data, monkeypatch):
+    """Mock the data path to use test directory."""
+    mission_id, mission_dir = sample_mission_data
+    
+    # Mock Path to return our test directory
+    original_path = Path
+    
+    def mock_path(path_str):
+        if path_str == "data/missions":
+            return mission_dir.parent
+        return original_path(path_str)
+    
+    monkeypatch.setattr("src.backend.api.routes.analytics.Path", mock_path)
+    return mission_id, mission_dir
 
 
 @pytest.fixture
@@ -109,14 +125,39 @@ def sample_mission_data(tmp_path):
 
     with open(states_file, "w") as f:
         json.dump(states, f)
+    
+    # Create metrics JSON with proper structure
+    metrics_file = mission_dir / "metrics.json"
+    metrics = {
+        "detection_metrics": {
+            "total_detections": 3,
+            "avg_rssi": -70.0,
+            "avg_snr": 12.0,
+            "detection_rate": 0.15
+        },
+        "approach_metrics": {
+            "total_approaches": 1,
+            "successful_approaches": 0,
+            "avg_approach_time": 120.0,
+            "avg_final_distance": 50.0
+        },
+        "search_metrics": {
+            "total_search_time": 600.0,
+            "area_covered": 1000.0,
+            "avg_speed": 5.0,
+            "pattern_efficiency": 0.85
+        }
+    }
+    
+    with open(metrics_file, "w") as f:
+        json.dump(metrics, f)
 
     return mission_id, mission_dir
 
 
-def test_export_json_all_data(client, sample_mission_data, monkeypatch):
+def test_export_json_all_data(client, mock_data_path):
     """Test exporting all data in JSON format."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     response = client.post(
         "/api/analytics/export",
@@ -138,10 +179,9 @@ def test_export_json_all_data(client, sample_mission_data, monkeypatch):
     assert len(data["detections"]) == 3
 
 
-def test_export_csv_telemetry(client, sample_mission_data, monkeypatch):
+def test_export_csv_telemetry(client, mock_data_path):
     """Test exporting telemetry data in CSV format."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     response = client.post(
         "/api/analytics/export",
@@ -154,7 +194,7 @@ def test_export_csv_telemetry(client, sample_mission_data, monkeypatch):
     )
 
     assert response.status_code == 200
-    assert response.headers["content-type"] == "text/csv"
+    assert response.headers["content-type"].startswith("text/csv")
 
     # Parse CSV response
     csv_content = response.content.decode("utf-8")
@@ -166,10 +206,9 @@ def test_export_csv_telemetry(client, sample_mission_data, monkeypatch):
     assert "rssi_dbm" in rows[0]
 
 
-def test_export_with_time_filter(client, sample_mission_data, monkeypatch):
+def test_export_with_time_filter(client, mock_data_path):
     """Test exporting data with time range filter."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     base_time = datetime.now()
     start_time = base_time + timedelta(seconds=5)
@@ -194,10 +233,9 @@ def test_export_with_time_filter(client, sample_mission_data, monkeypatch):
     assert 8 <= len(data["telemetry"]) <= 12
 
 
-def test_export_detections_only(client, sample_mission_data, monkeypatch):
+def test_export_detections_only(client, mock_data_path):
     """Test exporting only detection events."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     response = client.post(
         "/api/analytics/export",
@@ -216,10 +254,9 @@ def test_export_detections_only(client, sample_mission_data, monkeypatch):
     assert len(data["detections"]) == 3
 
 
-def test_export_metrics_only(client, sample_mission_data, monkeypatch):
+def test_export_metrics_only(client, mock_data_path):
     """Test exporting only performance metrics."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     response = client.post(
         "/api/analytics/export",
@@ -239,8 +276,21 @@ def test_export_metrics_only(client, sample_mission_data, monkeypatch):
     assert "search_metrics" in data["metrics"]
 
 
-def test_export_nonexistent_mission(client):
+def test_export_nonexistent_mission(client, monkeypatch):
     """Test exporting data for non-existent mission."""
+    # Create a temporary path for the mock
+    temp_path = Path("/tmp/test_missions")
+    
+    # Mock Path to return our test directory
+    original_path = Path
+    
+    def mock_path(path_str):
+        if path_str == "data/missions":
+            return temp_path
+        return original_path(path_str)
+    
+    monkeypatch.setattr("src.backend.api.routes.analytics.Path", mock_path)
+    
     fake_mission_id = uuid4()
 
     response = client.post(
@@ -257,10 +307,9 @@ def test_export_nonexistent_mission(client):
     assert "not found" in response.json()["detail"].lower()
 
 
-def test_export_data_sanitization(client, sample_mission_data, monkeypatch):
+def test_export_data_sanitization(client, mock_data_path):
     """Test that sensitive data is removed when include_sensitive=False."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     # Add sensitive data to telemetry
     telemetry_file = mission_dir / "telemetry.csv"
@@ -302,10 +351,9 @@ def test_export_data_sanitization(client, sample_mission_data, monkeypatch):
         assert "longitude" in item
 
 
-def test_export_invalid_format(client, sample_mission_data, monkeypatch):
+def test_export_invalid_format(client, mock_data_path):
     """Test export with invalid format parameter."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     response = client.post(
         "/api/analytics/export",
@@ -320,10 +368,9 @@ def test_export_invalid_format(client, sample_mission_data, monkeypatch):
     assert response.status_code == 422  # Validation error
 
 
-def test_export_invalid_data_type(client, sample_mission_data, monkeypatch):
+def test_export_invalid_data_type(client, mock_data_path):
     """Test export with invalid data_type parameter."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     response = client.post(
         "/api/analytics/export",
@@ -338,10 +385,9 @@ def test_export_invalid_data_type(client, sample_mission_data, monkeypatch):
     assert response.status_code == 422  # Validation error
 
 
-def test_export_with_sensitive_data(client, sample_mission_data, monkeypatch):
+def test_export_with_sensitive_data(client, mock_data_path):
     """Test exporting with sensitive data included."""
-    mission_id, mission_dir = sample_mission_data
-    monkeypatch.setattr(Path, "cwd", lambda: mission_dir.parent.parent.parent)
+    mission_id, mission_dir = mock_data_path
 
     # Add sensitive data
     telemetry_file = mission_dir / "telemetry.csv"

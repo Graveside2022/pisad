@@ -41,13 +41,17 @@ def create_app() -> FastAPI:
         logger.info(f"CORS enabled with origins: {config.api.API_CORS_ORIGINS}")
 
     # Register API routes FIRST (before static files)
-    from src.backend.api.routes import detections, search, static, system, testing
+    from src.backend.api.routes import analytics, config, detections, search, state, static, system, telemetry, testing
 
     app.include_router(system.router, prefix="/api", tags=["system"])
     app.include_router(detections.router, prefix="/api", tags=["detections"])
-    app.include_router(search.router, tags=["search"])
+    app.include_router(analytics.router, tags=["analytics"])  # Already has /api/analytics prefix
+    app.include_router(config.router, prefix="/api", tags=["config"])  # Has /config prefix, needs /api
+    app.include_router(state.router, tags=["state"])  # Already has /api/state prefix
+    app.include_router(telemetry.router, tags=["telemetry"])  # Already has /api/telemetry prefix
+    app.include_router(search.router, tags=["search"])  # Already has /api/search prefix
     app.include_router(static.router, prefix="/api", tags=["static"])
-    app.include_router(testing.router, tags=["testing"])
+    app.include_router(testing.router, tags=["testing"])  # Already has /api/testing prefix
 
     # Register WebSocket endpoint
     from src.backend.api import websocket
