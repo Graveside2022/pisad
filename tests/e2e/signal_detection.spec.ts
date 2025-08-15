@@ -13,17 +13,17 @@ test.describe("Signal Detection Workflow", () => {
     test("should display real-time RSSI values", async () => {
       const signalMeter = page.locator('[data-testid="signal-meter"]');
       await expect(signalMeter).toBeVisible();
-      
+
       // Check RSSI display
       const rssiValue = signalMeter.locator('[data-testid="rssi-value"]');
       await expect(rssiValue).toBeVisible();
       await expect(rssiValue).toContainText('dBm');
-      
+
       // Check noise floor
       const noiseFloor = signalMeter.locator('[data-testid="noise-floor"]');
       await expect(noiseFloor).toBeVisible();
       await expect(noiseFloor).toContainText('dBm');
-      
+
       // Check SNR
       const snr = signalMeter.locator('[data-testid="snr-value"]');
       await expect(snr).toBeVisible();
@@ -43,12 +43,12 @@ test.describe("Signal Detection Workflow", () => {
           }
         }, "*");
       });
-      
+
       await page.waitForTimeout(500);
-      
+
       const signalIndicator = page.locator('[data-testid="signal-strength-indicator"]');
       await expect(signalIndicator).toHaveClass(/signal-strong/);
-      
+
       // Simulate weak signal
       await page.evaluate(() => {
         window.postMessage({
@@ -61,7 +61,7 @@ test.describe("Signal Detection Workflow", () => {
           }
         }, "*");
       });
-      
+
       await page.waitForTimeout(500);
       await expect(signalIndicator).toHaveClass(/signal-weak/);
     });
@@ -69,11 +69,11 @@ test.describe("Signal Detection Workflow", () => {
     test("should display signal history graph", async () => {
       const rssiGraph = page.locator('[data-testid="rssi-graph"]');
       await expect(rssiGraph).toBeVisible();
-      
+
       // Check if canvas is rendered
       const canvas = rssiGraph.locator('canvas');
       await expect(canvas).toBeVisible();
-      
+
       // Verify graph updates with new data
       for (let i = 0; i < 5; i++) {
         await page.evaluate((rssi) => {
@@ -87,16 +87,16 @@ test.describe("Signal Detection Workflow", () => {
             }
           }, "*");
         }, -60 + i * 5);
-        
+
         await page.waitForTimeout(100);
       }
-      
+
       // Check if graph has data points
       const dataPoints = await page.evaluate(() => {
         const canvas = document.querySelector('[data-testid="rssi-graph"] canvas') as HTMLCanvasElement;
         return canvas?.getContext('2d')?.getImageData(0, 0, canvas.width, canvas.height).data.some(pixel => pixel > 0);
       });
-      
+
       expect(dataPoints).toBeTruthy();
     });
   });
@@ -105,7 +105,7 @@ test.describe("Signal Detection Workflow", () => {
     test("should log detection events", async () => {
       const detectionLog = page.locator('[data-testid="detection-log"]');
       await expect(detectionLog).toBeVisible();
-      
+
       // Simulate detection event
       await page.evaluate(() => {
         window.postMessage({
@@ -121,9 +121,9 @@ test.describe("Signal Detection Workflow", () => {
           }
         }, "*");
       });
-      
+
       await page.waitForTimeout(500);
-      
+
       const logEntry = detectionLog.locator('[data-testid="detection-entry"]').first();
       await expect(logEntry).toBeVisible();
       await expect(logEntry).toContainText('-40 dBm');
@@ -146,9 +146,9 @@ test.describe("Signal Detection Workflow", () => {
           }
         }, "*");
       });
-      
+
       await page.waitForTimeout(500);
-      
+
       const strongDetection = page.locator('[data-testid="detection-entry"]').first();
       await expect(strongDetection).toHaveClass(/detection-strong/);
       await expect(strongDetection.locator('[data-testid="strong-signal-badge"]')).toBeVisible();
@@ -162,7 +162,7 @@ test.describe("Signal Detection Workflow", () => {
         { id: "det-3", confidence: 0.55 },
         { id: "det-4", confidence: 0.35 }
       ];
-      
+
       for (const det of detections) {
         await page.evaluate((detection) => {
           window.postMessage({
@@ -178,13 +178,13 @@ test.describe("Signal Detection Workflow", () => {
           }, "*");
         }, det);
       }
-      
+
       await page.waitForTimeout(500);
-      
+
       // Set confidence filter
       await page.fill('[data-testid="confidence-filter"]', '0.7');
       await page.click('[data-testid="apply-filter"]');
-      
+
       const visibleEntries = await page.locator('[data-testid="detection-entry"]:visible').count();
       expect(visibleEntries).toBe(2); // Only high confidence detections
     });
@@ -193,10 +193,10 @@ test.describe("Signal Detection Workflow", () => {
   test.describe("Signal Search", () => {
     test("should start signal search", async () => {
       await page.click('[data-testid="start-search-button"]');
-      
+
       await expect(page.locator('[data-testid="search-status"]')).toContainText('SEARCHING');
       await expect(page.locator('[data-testid="search-progress"]')).toBeVisible();
-      
+
       // Verify SDR status
       const sdrStatus = page.locator('[data-testid="sdr-status"]');
       await expect(sdrStatus).toContainText('ACTIVE');
@@ -204,10 +204,10 @@ test.describe("Signal Detection Workflow", () => {
 
     test("should display search progress", async () => {
       await page.click('[data-testid="start-search-button"]');
-      
+
       const progressBar = page.locator('[data-testid="search-progress-bar"]');
       await expect(progressBar).toBeVisible();
-      
+
       // Simulate progress updates
       for (let i = 0; i <= 100; i += 20) {
         await page.evaluate((progress) => {
@@ -216,9 +216,9 @@ test.describe("Signal Detection Workflow", () => {
             data: { progress: progress }
           }, "*");
         }, i);
-        
+
         await page.waitForTimeout(200);
-        
+
         const progressValue = await progressBar.getAttribute('aria-valuenow');
         expect(parseInt(progressValue || '0')).toBe(i);
       }
@@ -227,9 +227,9 @@ test.describe("Signal Detection Workflow", () => {
     test("should stop signal search", async () => {
       await page.click('[data-testid="start-search-button"]');
       await expect(page.locator('[data-testid="search-status"]')).toContainText('SEARCHING');
-      
+
       await page.click('[data-testid="stop-search-button"]');
-      
+
       await expect(page.locator('[data-testid="search-status"]')).toContainText('IDLE');
       await expect(page.locator('[data-testid="search-progress"]')).not.toBeVisible();
     });
@@ -238,24 +238,24 @@ test.describe("Signal Detection Workflow", () => {
   test.describe("Frequency Scanning", () => {
     test("should configure frequency scan parameters", async () => {
       await page.click('[data-testid="scan-config-button"]');
-      
+
       const scanDialog = page.locator('[role="dialog"]:has-text("Frequency Scan Configuration")');
       await expect(scanDialog).toBeVisible();
-      
+
       await page.fill('[name="startFrequency"]', '433000000');
       await page.fill('[name="endFrequency"]', '434000000');
       await page.fill('[name="stepSize"]', '10000');
       await page.fill('[name="dwellTime"]', '100');
-      
+
       await page.click('button:has-text("Start Scan")');
-      
+
       await expect(page.locator('[data-testid="scan-status"]')).toContainText('SCANNING');
     });
 
     test("should display scan results", async () => {
       // Start scan
       await page.click('[data-testid="quick-scan-button"]');
-      
+
       // Simulate scan results
       await page.evaluate(() => {
         window.postMessage({
@@ -267,9 +267,9 @@ test.describe("Signal Detection Workflow", () => {
           }
         }, "*");
       });
-      
+
       await page.waitForTimeout(500);
-      
+
       const scanResults = page.locator('[data-testid="scan-results"]');
       await expect(scanResults).toBeVisible();
       await expect(scanResults).toContainText('433.92 MHz');
@@ -284,7 +284,7 @@ test.describe("Signal Detection Workflow", () => {
         { freq: 433.92e6, rssi: -45 }, // Strongest
         { freq: 433.94e6, rssi: -65 }
       ];
-      
+
       for (const f of frequencies) {
         await page.evaluate((data) => {
           window.postMessage({
@@ -297,11 +297,11 @@ test.describe("Signal Detection Workflow", () => {
           }, "*");
         }, f);
       }
-      
+
       await page.waitForTimeout(500);
-      
+
       await page.click('[data-testid="auto-tune-button"]');
-      
+
       await expect(page.locator('[data-testid="current-frequency"]')).toContainText('433.92');
       await expect(page.locator('text=Tuned to strongest signal')).toBeVisible();
     });
@@ -311,7 +311,7 @@ test.describe("Signal Detection Workflow", () => {
     test("should display signal characteristics", async () => {
       const signalAnalysis = page.locator('[data-testid="signal-analysis"]');
       await expect(signalAnalysis).toBeVisible();
-      
+
       // Simulate signal with specific pattern
       for (let i = 0; i < 10; i++) {
         await page.evaluate((index) => {
@@ -325,10 +325,10 @@ test.describe("Signal Detection Workflow", () => {
             }
           }, "*");
         }, i);
-        
+
         await page.waitForTimeout(100);
       }
-      
+
       // Check analysis results
       await expect(signalAnalysis.locator('[data-testid="avg-rssi"]')).toBeVisible();
       await expect(signalAnalysis.locator('[data-testid="peak-rssi"]')).toBeVisible();
@@ -344,7 +344,7 @@ test.describe("Signal Detection Workflow", () => {
         { duration: 500, rssi: -45 },  // Pulse
         { duration: 2000, rssi: -90 }, // Long gap
       ];
-      
+
       for (const p of pattern) {
         await page.evaluate((data) => {
           window.postMessage({
@@ -357,10 +357,10 @@ test.describe("Signal Detection Workflow", () => {
             }
           }, "*");
         }, p);
-        
+
         await page.waitForTimeout(p.duration);
       }
-      
+
       const patternDetection = page.locator('[data-testid="pattern-detection"]');
       await expect(patternDetection).toBeVisible();
       await expect(patternDetection).toContainText('Pattern Detected');
@@ -381,10 +381,10 @@ test.describe("Signal Detection Workflow", () => {
             }
           }, "*");
         }, -80 + i * 3);
-        
+
         await page.waitForTimeout(200);
       }
-      
+
       const gradient = page.locator('[data-testid="signal-gradient"]');
       await expect(gradient).toBeVisible();
       await expect(gradient).toContainText('APPROACHING');
@@ -407,7 +407,7 @@ test.describe("Signal Detection Workflow", () => {
           }
         }, "*");
       });
-      
+
       const notification = page.locator('[data-testid="detection-notification"]');
       await expect(notification).toBeVisible({ timeout: 5000 });
       await expect(notification).toContainText('Strong Signal Detected');
@@ -419,7 +419,7 @@ test.describe("Signal Detection Workflow", () => {
       await page.click('[data-testid="settings-button"]');
       await page.check('[name="audioAlerts"]');
       await page.click('[data-testid="save-settings"]');
-      
+
       // Mock audio play
       await page.evaluate(() => {
         window.AudioPlayed = false;
@@ -428,7 +428,7 @@ test.describe("Signal Detection Workflow", () => {
           return Promise.resolve();
         };
       });
-      
+
       // Trigger strong detection
       await page.evaluate(() => {
         window.postMessage({
@@ -443,9 +443,9 @@ test.describe("Signal Detection Workflow", () => {
           }
         }, "*");
       });
-      
+
       await page.waitForTimeout(500);
-      
+
       const audioPlayed = await page.evaluate(() => window.AudioPlayed);
       expect(audioPlayed).toBeTruthy();
     });
@@ -469,18 +469,18 @@ test.describe("Signal Detection Workflow", () => {
           }, "*");
         }, i);
       }
-      
+
       await page.waitForTimeout(500);
-      
+
       // Export data
       await page.click('[data-testid="export-button"]');
       await page.click('[data-testid="export-csv"]');
-      
+
       const [download] = await Promise.all([
         page.waitForEvent('download'),
         page.click('[data-testid="confirm-export"]')
       ]);
-      
+
       expect(download.suggestedFilename()).toContain('.csv');
       expect(download.suggestedFilename()).toContain('detections');
     });
@@ -488,12 +488,12 @@ test.describe("Signal Detection Workflow", () => {
     test("should export signal history graph", async () => {
       await page.click('[data-testid="export-button"]');
       await page.click('[data-testid="export-graph"]');
-      
+
       const [download] = await Promise.all([
         page.waitForEvent('download'),
         page.click('[data-testid="confirm-export"]')
       ]);
-      
+
       expect(download.suggestedFilename()).toContain('.png');
       expect(download.suggestedFilename()).toContain('signal-history');
     });

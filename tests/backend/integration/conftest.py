@@ -2,7 +2,6 @@
 Integration test specific fixtures and configuration.
 """
 
-import asyncio
 import os
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -19,35 +18,35 @@ def integration_config():
     """Override configuration for integration tests."""
     # Create a mock config object that matches the structure used in the app
     config = MagicMock()
-    
+
     # App config
     config.app.APP_NAME = "PISAD Test"
     config.app.APP_VERSION = "1.0.0"
     config.app.ENVIRONMENT = "test"
-    
+
     # API config
     config.api.API_CORS_ENABLED = True
     config.api.API_CORS_ORIGINS = ["http://testserver"]
     config.api.API_KEY = "test-api-key"
-    
+
     # Database config
     config.database.DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-    
+
     # Logging config
     config.logging.LOG_LEVEL = "INFO"
-    
+
     # Safety config
     config.safety.SAFETY_MAX_VELOCITY = 15.0
     config.safety.SAFETY_MIN_ALTITUDE = 5.0
     config.safety.SAFETY_MAX_ALTITUDE = 150.0
     config.safety.SAFETY_GEOFENCE_RADIUS = 1000.0
-    
+
     # SDR config
     config.sdr.SDR_ENABLED = False
     config.sdr.SDR_FREQUENCY = 433920000
     config.sdr.SDR_SAMPLE_RATE = 2048000
     config.sdr.SDR_GAIN = 30
-    
+
     return config
 
 
@@ -64,6 +63,7 @@ async def test_db_session() -> AsyncGenerator[AsyncSession, None]:
     # Create tables if database module is available
     try:
         from src.backend.models.database import Base
+
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     except ImportError:
@@ -88,9 +88,9 @@ async def test_db_session() -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture(scope="function")
 async def integration_app(integration_config):
     """Create application instance for integration tests."""
-    with patch('src.backend.core.config.get_config', return_value=integration_config):
+    with patch("src.backend.core.config.get_config", return_value=integration_config):
         from src.backend.core.app import create_app
-        
+
         app = create_app()
         yield app
 

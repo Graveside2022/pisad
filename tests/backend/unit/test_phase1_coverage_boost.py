@@ -425,7 +425,6 @@ class TestHealthEndpointsCoverageBoost:
                     with patch("psutil.disk_usage") as mock_disk:
                         mock_disk.return_value.percent = 40.0
                         with patch("builtins.open", mock_open(read_data="85000")):  # 85°C
-
                             result = await health_check()
 
                             # Should be degraded due to high temperature

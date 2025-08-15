@@ -7,7 +7,6 @@ Date: 2025-01-14
 Standard: BMAD-METHOD Compliant (BDD, Modular, Automatic, Decoupled)
 """
 
-
 import pytest
 
 from src.backend.core.dependencies import (

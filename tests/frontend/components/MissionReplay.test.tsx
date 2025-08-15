@@ -94,7 +94,7 @@ describe('MissionReplay', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Setup WebSocket mock
     (global as any).WebSocket = jest.fn((url: string) => {
       mockWebSocket = new MockWebSocket(url);
@@ -372,7 +372,7 @@ describe('MissionReplay', () => {
 
     const speedSelect = screen.getByLabelText('Speed');
     fireEvent.mouseDown(speedSelect);
-    
+
     const option2x = await screen.findByText('2x');
     fireEvent.click(option2x);
 
@@ -451,7 +451,7 @@ describe('MissionReplay', () => {
 
   it('should call onEventUpdate when event is received', async () => {
     const onEventUpdate = jest.fn();
-    
+
     global.fetch = jest.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ status: mockReplayStatus }),

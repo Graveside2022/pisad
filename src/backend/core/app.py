@@ -44,7 +44,6 @@ def create_app() -> FastAPI:
     # Register API routes FIRST (before static files)
     from src.backend.api.routes import (
         analytics,
-        config,
         detections,
         health,
         search,
@@ -54,13 +53,16 @@ def create_app() -> FastAPI:
         telemetry,
         testing,
     )
+    from src.backend.api.routes import (
+        config as config_routes,
+    )
 
     app.include_router(system.router, prefix="/api", tags=["system"])
     app.include_router(health.router, prefix="/api", tags=["health"])  # Health endpoints
     app.include_router(detections.router, prefix="/api", tags=["detections"])
     app.include_router(analytics.router, tags=["analytics"])  # Already has /api/analytics prefix
     app.include_router(
-        config.router, prefix="/api", tags=["config"]
+        config_routes.router, prefix="/api", tags=["config"]
     )  # Has /config prefix, needs /api
     app.include_router(state.router, tags=["state"])  # Already has /api/state prefix
     app.include_router(telemetry.router, tags=["telemetry"])  # Already has /api/telemetry prefix

@@ -4,8 +4,8 @@
 
 ## Story 4.1: Frontend Application Stability
 
-**As a** developer,  
-**I want** a fully functional frontend application with proper TypeScript configuration,  
+**As a** developer,
+**I want** a fully functional frontend application with proper TypeScript configuration,
 **So that** the web interface runs without errors and maintains type safety.
 
 **Acceptance Criteria:**
@@ -38,8 +38,8 @@
 
 ## Story 4.2: Comprehensive Test Coverage
 
-**As a** technical lead,  
-**I want** comprehensive test coverage across backend, frontend, and integration layers,  
+**As a** technical lead,
+**I want** comprehensive test coverage across backend, frontend, and integration layers,
 **So that** we can confidently deploy changes without introducing regressions.
 
 **Acceptance Criteria:**
@@ -62,8 +62,8 @@
 
 ## Story 4.3: Hardware Service Integration
 
-**As a** system operator,  
-**I want** all hardware services properly initialized and integrated,  
+**As a** system operator,
+**I want** all hardware services properly initialized and integrated,
 **So that** the drone can communicate with SDR hardware and flight controller.
 
 **Acceptance Criteria:**
@@ -88,8 +88,8 @@
 
 ## Story 4.4: CI/CD Pipeline & Deployment
 
-**As a** DevOps engineer,  
-**I want** automated CI/CD pipelines with proper deployment configuration,  
+**As a** DevOps engineer,
+**I want** automated CI/CD pipelines with proper deployment configuration,
 **So that** code changes are automatically tested and deployable to production.
 
 **Acceptance Criteria:**
@@ -114,8 +114,8 @@
 
 ## Story 4.5: API Documentation & Security
 
-**As a** API consumer,  
-**I want** complete API documentation with proper authentication and validation,  
+**As a** API consumer,
+**I want** complete API documentation with proper authentication and validation,
 **So that** I can safely integrate with the PISAD system.
 
 **Acceptance Criteria:**
@@ -137,8 +137,8 @@
 
 ## Story 4.6: Project Documentation & Repository Management
 
-**As a** new developer,  
-**I want** comprehensive documentation and clean repository history,  
+**As a** new developer,
+**I want** comprehensive documentation and clean repository history,
 **So that** I can quickly understand and contribute to the project.
 
 **Acceptance Criteria:**

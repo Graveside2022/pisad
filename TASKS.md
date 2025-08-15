@@ -1,6 +1,6 @@
 # Project Tasks
 
-*This file is synced with Clode Studio and Claude's native TodoWrite system.*  
+*This file is synced with Clode Studio and Claude's native TodoWrite system.*
 *Last updated: 2025-08-14T23:54:31.068Z*
 
 ## Backlog (3)

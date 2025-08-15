@@ -6,13 +6,13 @@ import { AppProvider, useAppContext } from "../../../src/frontend/src/contexts/A
 // Test component to access context
 const TestComponent = () => {
   const context = useAppContext();
-  
+
   return (
     <div>
       <div data-testid="state">{context.state.currentMode}</div>
       <div data-testid="loading">{context.state.isLoading.toString()}</div>
       <div data-testid="error">{context.state.error || "no-error"}</div>
-      <button 
+      <button
         onClick={() => context.dispatch({ type: "SET_MODE", payload: "ACTIVE" })}
       >
         Set Active
@@ -53,7 +53,7 @@ describe("AppContext", () => {
       );
 
       const setActiveButton = screen.getByText("Set Active");
-      
+
       act(() => {
         setActiveButton.click();
       });
@@ -69,7 +69,7 @@ describe("AppContext", () => {
       );
 
       const setLoadingButton = screen.getByText("Set Loading");
-      
+
       act(() => {
         setLoadingButton.click();
       });
@@ -85,7 +85,7 @@ describe("AppContext", () => {
       );
 
       const setErrorButton = screen.getByText("Set Error");
-      
+
       act(() => {
         setErrorButton.click();
       });
@@ -111,7 +111,7 @@ describe("AppContext", () => {
   describe("reducer", () => {
     const TestReducerComponent = () => {
       const { state, dispatch } = useAppContext();
-      
+
       return (
         <div>
           <div data-testid="mode">{state.currentMode}</div>
@@ -132,9 +132,9 @@ describe("AppContext", () => {
             Reset
           </button>
           <button
-            onClick={() => dispatch({ 
-              type: "UPDATE_CONFIG", 
-              payload: { frequency: 433950000 } 
+            onClick={() => dispatch({
+              type: "UPDATE_CONFIG",
+              payload: { frequency: 433950000 }
             })}
           >
             Update Config
@@ -187,16 +187,16 @@ describe("AppContext", () => {
     it("handles config updates", () => {
       const TestConfigComponent = () => {
         const { state, dispatch } = useAppContext();
-        
+
         return (
           <div>
             <div data-testid="config">
               {JSON.stringify(state.config || {})}
             </div>
             <button
-              onClick={() => dispatch({ 
-                type: "UPDATE_CONFIG", 
-                payload: { frequency: 433950000, sampleRate: 2400000 } 
+              onClick={() => dispatch({
+                type: "UPDATE_CONFIG",
+                payload: { frequency: 433950000, sampleRate: 2400000 }
               })}
             >
               Update
@@ -264,14 +264,14 @@ describe("AppContext", () => {
   describe("complex state updates", () => {
     const ComplexComponent = () => {
       const { state, dispatch } = useAppContext();
-      
+
       const handleComplexUpdate = () => {
         dispatch({ type: "SET_LOADING", payload: true });
         dispatch({ type: "SET_MODE", payload: "HOMING" });
         dispatch({ type: "UPDATE_CONFIG", payload: { homingEnabled: true } });
         dispatch({ type: "SET_LOADING", payload: false });
       };
-      
+
       return (
         <div>
           <div data-testid="complex-state">

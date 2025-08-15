@@ -42,21 +42,21 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
   Serial.println("PISAD Test Beacon Transmitter v1.0");
-  
+
   // Initialize LoRa module
   LoRa.setPins(SS, RST, DIO0);
-  
+
   if (!LoRa.begin(FREQUENCY)) {
     Serial.println("ERROR: LoRa initialization failed!");
     while (1);
   }
-  
+
   // Configure LoRa parameters
   LoRa.setSpreadingFactor(SPREADING_FACTOR);
   LoRa.setSignalBandwidth(BANDWIDTH);
   LoRa.setCodingRate4(CODING_RATE);
   LoRa.setTxPower(config.power_dbm);
-  
+
   Serial.println("LoRa initialized successfully");
   printConfig();
 }
@@ -66,7 +66,7 @@ void loop() {
   if (Serial.available()) {
     handleSerialCommand();
   }
-  
+
   // Transmit beacon pulse if enabled
   if (config.enabled) {
     transmitBeacon();
@@ -78,36 +78,36 @@ void loop() {
 
 void transmitBeacon() {
   unsigned long startTime = millis();
-  
+
   // Begin packet transmission
   LoRa.beginPacket();
-  
+
   // Beacon packet structure
   LoRa.write(0xBE);  // Beacon identifier byte 1
   LoRa.write(0xAC);  // Beacon identifier byte 2
   LoRa.write(config.power_dbm);  // Current power setting
-  
+
   // Add timestamp (lower 4 bytes of millis)
   unsigned long timestamp = millis();
   LoRa.write((timestamp >> 24) & 0xFF);
   LoRa.write((timestamp >> 16) & 0xFF);
   LoRa.write((timestamp >> 8) & 0xFF);
   LoRa.write(timestamp & 0xFF);
-  
+
   // Keep transmitting for pulse duration
   while (millis() - startTime < config.pulse_duration_ms) {
     LoRa.write(0xFF);  // Fill bytes
   }
-  
+
   LoRa.endPacket();
-  
+
   // Debug output
   Serial.print(".");
 }
 
 void handleSerialCommand() {
   char c = Serial.read();
-  
+
   if (c == '\n') {
     // Process complete command
     processCommand(commandBuffer);
@@ -120,7 +120,7 @@ void handleSerialCommand() {
 void processCommand(String cmd) {
   cmd.trim();
   cmd.toUpperCase();
-  
+
   if (cmd.startsWith("POWER:")) {
     // Set transmit power: POWER:15
     int power = cmd.substring(6).toInt();

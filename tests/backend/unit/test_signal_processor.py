@@ -16,13 +16,13 @@ pytestmark = [pytest.mark.unit, pytest.mark.critical]
 
 class TestEWMAFilter:
     """Test cases for Exponential Weighted Moving Average (EWMA) filter.
-    
+
     The EWMA filter is used to smooth RSSI readings and reduce noise.
     These tests verify:
     - Proper initialization with valid/invalid alpha values
     - Correct filtering behavior with different smoothing factors
     - Edge cases and boundary conditions
-    
+
     Test scenarios cover various alpha values (0.1-0.9) to ensure
     the filter responds appropriately to rapid vs gradual signal changes.
     """
@@ -91,7 +91,7 @@ class TestEWMAFilter:
 
 class TestSignalProcessor:
     """Test cases for SignalProcessor class.
-    
+
     The SignalProcessor handles real-time RSSI signal analysis for beacon detection.
     These tests verify:
     - Initialization and configuration management
@@ -100,7 +100,7 @@ class TestSignalProcessor:
     - Detection event generation based on thresholds
     - Integration with MAVLink for telemetry updates
     - Asynchronous processing lifecycle management
-    
+
     Test scenarios include normal operation, signal loss handling,
     multipath detection, and performance under various SNR conditions.
     """

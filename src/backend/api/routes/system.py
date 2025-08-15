@@ -603,7 +603,6 @@ async def get_state_history(
     try:
         # Get history from database if persistence is enabled
         if state_machine._state_db:
-
             history = state_machine._state_db.get_state_history(
                 limit=limit, from_state=from_state, to_state=to_state
             )

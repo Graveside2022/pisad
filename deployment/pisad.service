@@ -1,5 +1,5 @@
 [Unit]
-Description=PISAD Web Interface Service
+Description=PISAD Beacon Detection Service
 After=network.target
 Wants=network-online.target
 
@@ -9,10 +9,13 @@ User=pisad
 Group=pisad
 WorkingDirectory=/home/pisad/projects/pisad
 Environment="PATH=/home/pisad/.local/bin:/usr/local/bin:/usr/bin:/bin"
-Environment="PYTHONPATH=/home/pisad/projects/pisad"
-ExecStart=/usr/bin/python3 -m uvicorn src.backend.core.app:app --host 0.0.0.0 --port 8080
-Restart=always
-RestartSec=10
+Environment="UV_SYSTEM_PYTHON=1"
+Environment="PYTHONPATH=/home/pisad/projects/pisad/src"
+ExecStart=/home/pisad/.local/bin/uv run uvicorn src.backend.core.app:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=3
+StartLimitInterval=60
 StandardOutput=journal
 StandardError=journal
 

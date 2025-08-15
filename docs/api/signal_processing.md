@@ -16,7 +16,7 @@ def update_noise_floor(readings: list[float]) -> float:
     """Calculate noise floor using 10th percentile of RSSI history."""
     if len(readings) < 10:
         return current_noise_floor  # Need minimum samples
-    
+
     return np.percentile(readings, 10)
 ```
 
@@ -68,7 +68,7 @@ def detect_anomaly(snr: float) -> bool:
     mean = np.mean(signal_history)
     std = np.std(signal_history)
     z_score = abs((snr - mean) / std)
-    
+
     return z_score > 3.0  # 3-sigma threshold
 ```
 
@@ -135,11 +135,11 @@ Emergency commands execute immediately with minimal checks:
 ```python
 async def execute_emergency_stop():
     start = time.perf_counter()
-    
+
     # Bypass queue
     await mavlink.emergency_stop()
     await safety_system.emergency_stop()
-    
+
     execution_time = (time.perf_counter() - start) * 1000
     assert execution_time < 100  # Must complete in 100ms
 ```

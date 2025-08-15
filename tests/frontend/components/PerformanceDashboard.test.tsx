@@ -72,7 +72,7 @@ describe('PerformanceDashboard', () => {
 
   it('should render info message when no mission is selected', async () => {
     render(<PerformanceDashboard />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/Select a mission to view performance metrics/i)).toBeInTheDocument();
     });

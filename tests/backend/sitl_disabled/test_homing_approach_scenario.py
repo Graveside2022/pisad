@@ -10,7 +10,7 @@ import pytest
 from src.backend.services.homing_controller import HomingController
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.signal_processor import SignalProcessor
-from src.backend.services.state_machine import SystemState, StateMachine
+from src.backend.services.state_machine import StateMachine, SystemState
 
 
 class TestHomingApproachScenario:

@@ -4,8 +4,8 @@
 
 ## Story 1.1: Project Setup & Development Environment
 
-**As a** developer,  
-**I want** a properly configured development environment with all dependencies,  
+**As a** developer,
+**I want** a properly configured development environment with all dependencies,
 **so that** I can build, test, and deploy the RF-homing payload software consistently.
 
 **Acceptance Criteria:**
@@ -20,8 +20,8 @@
 
 ## Story 1.2: SDR Hardware Interface Layer
 
-**As a** system operator,  
-**I want** the software to reliably interface with SDR hardware,  
+**As a** system operator,
+**I want** the software to reliably interface with SDR hardware,
 **so that** I can capture RF signals regardless of using HackRF or USRP devices.
 
 **Acceptance Criteria:**
@@ -36,8 +36,8 @@
 
 ## Story 1.3: Signal Processing Pipeline
 
-**As a** signal analyst,  
-**I want** real-time RSSI computation from IQ samples,  
+**As a** signal analyst,
+**I want** real-time RSSI computation from IQ samples,
 **so that** I can detect and measure RF beacon signal strength.
 
 **Acceptance Criteria:**
@@ -52,8 +52,8 @@
 
 ## Story 1.4: Web-Based Payload UI Foundation
 
-**As a** system operator,  
-**I want** a web interface to monitor signal detection in real-time,  
+**As a** system operator,
+**I want** a web interface to monitor signal detection in real-time,
 **so that** I can observe payload operation without additional software installation.
 
 **Acceptance Criteria:**
@@ -68,8 +68,8 @@
 
 ## Story 1.5: Configuration Management & Persistence
 
-**As a** field operator,  
-**I want** to save and load different configuration profiles,  
+**As a** field operator,
+**I want** to save and load different configuration profiles,
 **so that** I can quickly adapt to different beacon types and environments.
 
 **Acceptance Criteria:**

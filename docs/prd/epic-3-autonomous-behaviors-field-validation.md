@@ -4,8 +4,8 @@
 
 ## Story 3.1: Search Pattern Generation
 
-**As a** SAR coordinator,  
-**I want** the drone to execute systematic search patterns,  
+**As a** SAR coordinator,
+**I want** the drone to execute systematic search patterns,
 **so that** it efficiently covers the designated search area while monitoring for signals.
 
 **Acceptance Criteria:**
@@ -20,8 +20,8 @@
 
 ## Story 3.2: RSSI Gradient Homing Algorithm
 
-**As a** drone operator,  
-**I want** the payload to guide the drone toward stronger signals,  
+**As a** drone operator,
+**I want** the payload to guide the drone toward stronger signals,
 **so that** it can autonomously locate the beacon source.
 
 **Acceptance Criteria:**
@@ -36,8 +36,8 @@
 
 ## Story 3.3: State Machine Orchestration
 
-**As a** system developer,  
-**I want** clear state management for different operational modes,  
+**As a** system developer,
+**I want** clear state management for different operational modes,
 **so that** the system behaves predictably and is maintainable.
 
 **Acceptance Criteria:**
@@ -52,8 +52,8 @@
 
 ## Story 3.4: Field Testing Campaign
 
-**As a** project manager,  
-**I want** systematic field validation of the complete system,  
+**As a** project manager,
+**I want** systematic field validation of the complete system,
 **so that** we can prove operational readiness and identify limitations.
 
 **Acceptance Criteria:**
@@ -68,8 +68,8 @@
 
 ## Story 3.5: Performance Analytics & Reporting
 
-**As a** program sponsor,  
-**I want** comprehensive performance data and analysis,  
+**As a** program sponsor,
+**I want** comprehensive performance data and analysis,
 **so that** I can assess system effectiveness and plan improvements.
 
 **Acceptance Criteria:**

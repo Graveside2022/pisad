@@ -106,19 +106,22 @@ class TestHomingParametersAPI:
         with patch("src.backend.api.routes.system.get_config", return_value=mock_config):
             # Test invalid forward_velocity_max (too high)
             response = client.patch(
-                "/api/homing/parameters", json={"forward_velocity_max": 15.0}  # Max is 10.0
+                "/api/homing/parameters",
+                json={"forward_velocity_max": 15.0},  # Max is 10.0
             )
             assert response.status_code == 422
 
             # Test invalid approach_threshold (too high)
             response = client.patch(
-                "/api/homing/parameters", json={"approach_threshold": -10.0}  # Max is -20.0
+                "/api/homing/parameters",
+                json={"approach_threshold": -10.0},  # Max is -20.0
             )
             assert response.status_code == 422
 
             # Test invalid gradient_window_size (too small)
             response = client.patch(
-                "/api/homing/parameters", json={"gradient_window_size": 2}  # Min is 3
+                "/api/homing/parameters",
+                json={"gradient_window_size": 2},  # Min is 3
             )
             assert response.status_code == 422
 

@@ -356,8 +356,15 @@ class CommandPipeline:
 
         # Valid modes
         valid_modes = [
-            "MANUAL", "STABILIZE", "GUIDED", "AUTO", "LOITER",
-            "RTL", "LAND", "POSHOLD", "BRAKE"
+            "MANUAL",
+            "STABILIZE",
+            "GUIDED",
+            "AUTO",
+            "LOITER",
+            "RTL",
+            "LAND",
+            "POSHOLD",
+            "BRAKE",
         ]
 
         return params["mode"] in valid_modes
@@ -470,9 +477,7 @@ class CommandPipeline:
 
             elif command.type == CommandType.SET_VELOCITY:
                 params = command.parameters
-                await self.mavlink_service.set_velocity(
-                    params["vx"], params["vy"], params["vz"]
-                )
+                await self.mavlink_service.set_velocity(params["vx"], params["vy"], params["vz"])
                 command.result = "Velocity command sent"
 
             elif command.type == CommandType.SET_MODE:
@@ -585,9 +590,7 @@ class CommandPipeline:
         while self.is_running:
             try:
                 # Get next command with timeout
-                priority, command = await asyncio.wait_for(
-                    self.command_queue.get(), timeout=1.0
-                )
+                priority, command = await asyncio.wait_for(self.command_queue.get(), timeout=1.0)
 
                 start_time = time.perf_counter()
 

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.backend.services.mavlink_service import MAVLinkService
-from src.backend.services.state_machine import SystemState, StateMachine
+from src.backend.services.state_machine import StateMachine, SystemState
 
 
 class AbortReason(Enum):
@@ -204,7 +204,8 @@ class TestMissionAbortScenario:
 
         # Second abort - GPS lost (higher priority)
         abort2 = await abort_handler.abort_mission(
-            reason=AbortReason.GPS_LOST, priority=0  # Higher priority (lower number)
+            reason=AbortReason.GPS_LOST,
+            priority=0,  # Higher priority (lower number)
         )
         abort_sequence.append(abort2)
 

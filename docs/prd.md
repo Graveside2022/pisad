@@ -158,8 +158,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 1.1: Project Setup & Development Environment
 
-**As a** developer,  
-**I want** a properly configured development environment with all dependencies,  
+**As a** developer,
+**I want** a properly configured development environment with all dependencies,
 **so that** I can build, test, and deploy the RF-homing payload software consistently.
 
 **Acceptance Criteria:**
@@ -174,8 +174,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 1.2: SDR Hardware Interface Layer
 
-**As a** system operator,  
-**I want** the software to reliably interface with SDR hardware,  
+**As a** system operator,
+**I want** the software to reliably interface with SDR hardware,
 **so that** I can capture RF signals regardless of using HackRF or USRP devices.
 
 **Acceptance Criteria:**
@@ -190,8 +190,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 1.3: Signal Processing Pipeline
 
-**As a** signal analyst,  
-**I want** real-time RSSI computation from IQ samples,  
+**As a** signal analyst,
+**I want** real-time RSSI computation from IQ samples,
 **so that** I can detect and measure RF beacon signal strength.
 
 **Acceptance Criteria:**
@@ -206,8 +206,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 1.4: Web-Based Payload UI Foundation
 
-**As a** system operator,  
-**I want** a web interface to monitor signal detection in real-time,  
+**As a** system operator,
+**I want** a web interface to monitor signal detection in real-time,
 **so that** I can observe payload operation without additional software installation.
 
 **Acceptance Criteria:**
@@ -222,8 +222,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 1.5: Configuration Management & Persistence
 
-**As a** field operator,  
-**I want** to save and load different configuration profiles,  
+**As a** field operator,
+**I want** to save and load different configuration profiles,
 **so that** I can quickly adapt to different beacon types and environments.
 
 **Acceptance Criteria:**
@@ -242,8 +242,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 2.1: MAVLink Communication Foundation
 
-**As a** drone operator,  
-**I want** reliable bi-directional communication between payload and flight controller,  
+**As a** drone operator,
+**I want** reliable bi-directional communication between payload and flight controller,
 **so that** the payload can receive telemetry and send velocity commands when authorized.
 
 **Acceptance Criteria:**
@@ -258,8 +258,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 2.2: Safety Interlock System
 
-**As a** safety officer,  
-**I want** multiple independent safety mechanisms,  
+**As a** safety officer,
+**I want** multiple independent safety mechanisms,
 **so that** the payload never compromises flight safety or operator control.
 
 **Acceptance Criteria:**
@@ -274,8 +274,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 2.3: Operator Control Interface
 
-**As a** drone operator,  
-**I want** clear and intuitive controls for activating and monitoring homing behavior,  
+**As a** drone operator,
+**I want** clear and intuitive controls for activating and monitoring homing behavior,
 **so that** I maintain situational awareness and positive control.
 
 **Acceptance Criteria:**
@@ -290,8 +290,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 2.4: Telemetry Integration & Reporting
 
-**As a** mission commander,  
-**I want** payload status visible in my primary GCS,  
+**As a** mission commander,
+**I want** payload status visible in my primary GCS,
 **so that** I have unified situational awareness without switching interfaces.
 
 **Acceptance Criteria:**
@@ -306,8 +306,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 2.5: Ground Testing & Safety Validation
 
-**As a** test engineer,  
-**I want** comprehensive ground testing procedures,  
+**As a** test engineer,
+**I want** comprehensive ground testing procedures,
 **so that** I can validate all safety systems before flight testing.
 
 **Acceptance Criteria:**
@@ -326,8 +326,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 3.1: Search Pattern Generation
 
-**As a** SAR coordinator,  
-**I want** the drone to execute systematic search patterns,  
+**As a** SAR coordinator,
+**I want** the drone to execute systematic search patterns,
 **so that** it efficiently covers the designated search area while monitoring for signals.
 
 **Acceptance Criteria:**
@@ -342,8 +342,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 3.2: RSSI Gradient Homing Algorithm
 
-**As a** drone operator,  
-**I want** the payload to guide the drone toward stronger signals,  
+**As a** drone operator,
+**I want** the payload to guide the drone toward stronger signals,
 **so that** it can autonomously locate the beacon source.
 
 **Acceptance Criteria:**
@@ -358,8 +358,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 3.3: State Machine Orchestration
 
-**As a** system developer,  
-**I want** clear state management for different operational modes,  
+**As a** system developer,
+**I want** clear state management for different operational modes,
 **so that** the system behaves predictably and is maintainable.
 
 **Acceptance Criteria:**
@@ -374,8 +374,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 3.4: Field Testing Campaign
 
-**As a** project manager,  
-**I want** systematic field validation of the complete system,  
+**As a** project manager,
+**I want** systematic field validation of the complete system,
 **so that** we can prove operational readiness and identify limitations.
 
 **Acceptance Criteria:**
@@ -390,8 +390,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### Story 3.5: Performance Analytics & Reporting
 
-**As a** program sponsor,  
-**I want** comprehensive performance data and analysis,  
+**As a** program sponsor,
+**I want** comprehensive performance data and analysis,
 **so that** I can assess system effectiveness and plan improvements.
 
 **Acceptance Criteria:**
@@ -408,8 +408,8 @@ Single repository containing all components (flight control configs, SDR process
 
 ### PRD Validation Summary
 
-**Overall PRD Completeness:** 94%  
-**MVP Scope Appropriateness:** Just Right  
+**Overall PRD Completeness:** 94%
+**MVP Scope Appropriateness:** Just Right
 **Readiness for Architecture Phase:** ✅ READY
 
 ### Category Assessment

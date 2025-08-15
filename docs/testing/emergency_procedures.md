@@ -428,6 +428,6 @@ All team members must:
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-08-12  
+**Document Version**: 1.0
+**Last Updated**: 2025-08-12
 **Review Frequency**: Before each test session

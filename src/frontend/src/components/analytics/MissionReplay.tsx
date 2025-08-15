@@ -170,12 +170,12 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
     };
 
     setCurrentEvent(replayEvent);
-    
+
     // Update RSSI history
     if (replayEvent.telemetry.rssi_dbm) {
       const time = new Date(replayEvent.timestamp).getTime() / 1000;
       const newPoint = { time, rssi: replayEvent.telemetry.rssi_dbm };
-      
+
       rssiHistoryRef.current = [...rssiHistoryRef.current.slice(-99), newPoint];
       setRssiHistory(rssiHistoryRef.current);
     }
@@ -203,11 +203,11 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ...params }),
       });
-      
+
       if (!response.ok) {
         throw new Error('Control command failed');
       }
-      
+
       const updatedStatus = await response.json();
       setStatus(updatedStatus);
     } catch (err) {
@@ -287,7 +287,7 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
           <IconButton onClick={handleSkipBackward} disabled={status.state === 'playing'}>
             <SkipPrevious />
           </IconButton>
-          
+
           {status.state === 'playing' ? (
             <IconButton onClick={handlePause} color="primary">
               <Pause />
@@ -297,11 +297,11 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
               <PlayArrow />
             </IconButton>
           )}
-          
+
           <IconButton onClick={handleStop} color="error">
             <Stop />
           </IconButton>
-          
+
           <IconButton onClick={handleSkipForward} disabled={status.state === 'playing'}>
             <SkipNext />
           </IconButton>
@@ -373,21 +373,21 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
                   <Typography variant="body1" gutterBottom>
                     {currentEvent.telemetry.latitude.toFixed(6)}, {currentEvent.telemetry.longitude.toFixed(6)}
                   </Typography>
-                  
+
                   <Typography variant="body2" color="text.secondary">
                     Altitude
                   </Typography>
                   <Typography variant="body1" gutterBottom>
                     {currentEvent.telemetry.altitude.toFixed(1)} m
                   </Typography>
-                  
+
                   <Typography variant="body2" color="text.secondary">
                     Speed / Heading
                   </Typography>
                   <Typography variant="body1" gutterBottom>
                     {currentEvent.telemetry.groundspeed.toFixed(1)} m/s @ {currentEvent.telemetry.heading.toFixed(0)}°
                   </Typography>
-                  
+
                   <Typography variant="body2" color="text.secondary">
                     Battery
                   </Typography>
@@ -415,14 +415,14 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
                   <Typography variant="body1" gutterBottom>
                     {currentEvent.telemetry.rssi_dbm.toFixed(1)} dBm
                   </Typography>
-                  
+
                   <Typography variant="body2" color="text.secondary">
                     SNR
                   </Typography>
                   <Typography variant="body1" gutterBottom>
                     {currentEvent.telemetry.snr_db.toFixed(1)} dB
                   </Typography>
-                  
+
                   <Typography variant="body2" color="text.secondary">
                     Beacon Status
                   </Typography>
@@ -432,7 +432,7 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
                     size="small"
                     sx={{ mt: 0.5 }}
                   />
-                  
+
                   {currentEvent.signal_detections.length > 0 && (
                     <>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
@@ -469,7 +469,7 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
                       mb: 2,
                     }}
                   />
-                  
+
                   {currentEvent.state_changes.length > 0 && (
                     <>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -487,7 +487,7 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
                       ))}
                     </>
                   )}
-                  
+
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                     Timestamp
                   </Typography>
@@ -509,21 +509,21 @@ export const MissionReplay: React.FC<MissionReplayProps> = ({ missionId, onEvent
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={rssiHistory}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="time" 
+            <XAxis
+              dataKey="time"
               domain={['dataMin', 'dataMax']}
               type="number"
               tickFormatter={(value) => new Date(value * 1000).toLocaleTimeString()}
             />
             <YAxis domain={[-100, -40]} />
-            <ChartTooltip 
+            <ChartTooltip
               labelFormatter={(value) => new Date(value * 1000).toLocaleTimeString()}
               formatter={(value: any) => `${value} dBm`}
             />
-            <Line 
-              type="monotone" 
-              dataKey="rssi" 
-              stroke="#1976d2" 
+            <Line
+              type="monotone"
+              dataKey="rssi"
+              stroke="#1976d2"
               strokeWidth={2}
               dot={false}
             />

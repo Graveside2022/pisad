@@ -32,7 +32,6 @@ async def test_service_initialization_order(service_manager):
         patch("src.backend.core.dependencies.SignalProcessor") as MockSignalProcessor,
         patch("src.backend.core.dependencies.HomingController") as MockHomingController,
     ):
-
         # Setup mock instances
         mock_sdr = MockSDR.return_value
         mock_sdr.initialize = AsyncMock(side_effect=lambda: init_order.append("sdr"))
@@ -72,7 +71,6 @@ async def test_service_health_aggregation(service_manager):
         patch("src.backend.core.dependencies.SignalProcessor") as MockSignalProcessor,
         patch("src.backend.core.dependencies.HomingController") as MockHomingController,
     ):
-
         # Setup mock instances with health status
         mock_sdr = MockSDR.return_value
         mock_sdr.initialize = AsyncMock()
@@ -134,7 +132,6 @@ async def test_service_shutdown_order(service_manager):
         patch("src.backend.core.dependencies.SignalProcessor") as MockSignalProcessor,
         patch("src.backend.core.dependencies.HomingController") as MockHomingController,
     ):
-
         # Setup mock instances
         mock_sdr = MockSDR.return_value
         mock_sdr.initialize = AsyncMock()
@@ -174,7 +171,6 @@ async def test_service_error_recovery():
         patch("src.backend.core.dependencies.HomingController") as MockHomingController,
         patch("asyncio.sleep", new_callable=AsyncMock),
     ):  # Speed up test
-
         # Setup mock that fails first time, succeeds second time
         mock_sdr = MockSDR.return_value
 
@@ -221,7 +217,6 @@ async def test_service_communication():
         patch("src.backend.core.dependencies.SignalProcessor") as MockSignalProcessor,
         patch("src.backend.core.dependencies.HomingController") as MockHomingController,
     ):
-
         # Setup interconnected mocks
         mock_sdr = MockSDR.return_value
         mock_sdr.initialize = AsyncMock()
@@ -262,7 +257,6 @@ async def test_startup_time_monitoring(service_manager):
         patch("src.backend.core.dependencies.SignalProcessor") as MockSignalProcessor,
         patch("src.backend.core.dependencies.HomingController") as MockHomingController,
     ):
-
         # Setup fast mock initialization
         MockSDR.return_value.initialize = AsyncMock()
         MockMAVLink.return_value.connect = AsyncMock()
@@ -292,13 +286,14 @@ async def test_degraded_service_health():
         patch("src.backend.core.dependencies.SignalProcessor") as MockSignalProcessor,
         patch("src.backend.core.dependencies.HomingController") as MockHomingController,
     ):
-
         # Setup mock with one degraded service
         mock_sdr = MockSDR.return_value
         mock_sdr.initialize = AsyncMock()
         mock_sdr.get_status = Mock()
         mock_sdr.get_status.return_value = Mock(
-            status="DISCONNECTED", device_name="No Device", stream_active=False  # Degraded
+            status="DISCONNECTED",
+            device_name="No Device",
+            stream_active=False,  # Degraded
         )
 
         mock_mavlink = MockMAVLink.return_value

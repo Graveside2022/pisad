@@ -4,7 +4,7 @@
 
 This checklist must be completed before every flight test involving the PiSAD system. All items must pass for a GO decision. Any NO-GO item requires resolution before proceeding.
 
-**Date**: \***\*\_\_\_\*\*** **Time**: \***\*\_\_\_\*\*** **Location**: \***\*\_\_\_\*\***  
+**Date**: \***\*\_\_\_\*\*** **Time**: \***\*\_\_\_\*\*** **Location**: \***\*\_\_\_\*\***
 **Pilot**: \***\*\_\_\_\*\*** **Safety Officer**: \***\*\_\_\_\*\*** **Test ID**: \***\*\_\_\_\*\***
 
 ## 1. Hardware Verification
@@ -96,7 +96,7 @@ This checklist must be completed before every flight test involving the PiSAD sy
 - [ ] **Command Response**: Velocity commands acknowledged
 - [ ] **Latency**: <100ms round trip
 
-**Test Result**: \***\*\_\_\_\*\***  
+**Test Result**: \***\*\_\_\_\*\***
 **Status**: [ ] GO [ ] NO-GO
 
 ### WebSocket Communication
@@ -107,7 +107,7 @@ This checklist must be completed before every flight test involving the PiSAD sy
 - [ ] **Command Transmission**: Button presses registered
 - [ ] **Latency**: <50ms for UI updates
 
-**Test Result**: \***\*\_\_\_\*\***  
+**Test Result**: \***\*\_\_\_\*\***
 **Status**: [ ] GO [ ] NO-GO
 
 ### Ground Station Link
@@ -118,7 +118,7 @@ This checklist must be completed before every flight test involving the PiSAD sy
 - [ ] **Video Feed**: FPV operational (if applicable)
 - [ ] **Range Test**: Communication at 100m confirmed
 
-**Test Result**: \***\*\_\_\_\*\***  
+**Test Result**: \***\*\_\_\_\*\***
 **Status**: [ ] GO [ ] NO-GO
 
 ## 5. Safety Interlock Verification
@@ -139,7 +139,7 @@ This checklist must be completed before every flight test involving the PiSAD sy
 - [ ] **Logging**: All safety events recorded
 - [ ] **Notifications**: UI shows safety status correctly
 
-**Test Result**: \***\*\_\_\_\*\***  
+**Test Result**: \***\*\_\_\_\*\***
 **Status**: [ ] GO [ ] NO-GO
 
 ## 6. SDR Functionality Checks
@@ -161,7 +161,7 @@ This checklist must be completed before every flight test involving the PiSAD sy
 - [ ] **USB Stability**: No disconnections in 10 min test
 - [ ] **Data Pipeline**: No dropped samples warning
 
-**Test Result**: \***\*\_\_\_\*\***  
+**Test Result**: \***\*\_\_\_\*\***
 **Status**: [ ] GO [ ] NO-GO
 
 ## 7. Battery and Power Verification

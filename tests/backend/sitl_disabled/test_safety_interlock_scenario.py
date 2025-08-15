@@ -6,13 +6,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.backend.services.state_machine import SystemState, StateMachine
-from src.backend.utils.safety import SafetyInterlockSystem, SafetyEventType
+from src.backend.services.state_machine import StateMachine, SystemState
+from src.backend.utils.safety import SafetyInterlockSystem
 
 
 @dataclass
 class SafetyStatus:
     """Safety status for testing."""
+
     mode_check: bool = True
     battery_check: bool = True
     geofence_check: bool = True
@@ -29,7 +30,7 @@ class TestSafetyInterlockScenario:
     def safety_interlock(self):
         """Create mocked safety interlock instance."""
         mock_interlock = AsyncMock(spec=SafetyInterlockSystem)
-        
+
         # Mock check_all to return SafetyStatus
         async def mock_check_all(**kwargs):
             # Default to all checks passing
@@ -40,9 +41,9 @@ class TestSafetyInterlockScenario:
                 signal_check=True,
                 operator_check=True,
                 all_passed=True,
-                blocked_reasons=[]
+                blocked_reasons=[],
             )
-        
+
         mock_interlock.check_all = mock_check_all
         return mock_interlock
 

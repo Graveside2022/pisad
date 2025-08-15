@@ -1,12 +1,11 @@
 """Comprehensive tests for database models to reach 60% coverage."""
 
-import json
 import sqlite3
 import tempfile
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, mock_open
-import uuid
+from unittest.mock import patch
 
 import pytest
 
@@ -48,14 +47,14 @@ class TestConfigProfileDB:
     def test_init_database(self, temp_db):
         """Test database initialization."""
         db = ConfigProfileDB(db_path=temp_db)
-        
+
         # Verify tables were created
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
         conn.close()
-        
+
         assert ("config_profiles",) in tables
 
     def test_init_database_creates_directory(self):
@@ -75,14 +74,14 @@ class TestConfigProfileDB:
         """Test successful profile insertion."""
         result = config_db.insert_profile(sample_profile)
         assert result is True
-        
+
         # Verify data was inserted
         conn = sqlite3.connect(str(config_db.db_path))
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM config_profiles WHERE id=?", (sample_profile["id"],))
         row = cursor.fetchone()
         conn.close()
-        
+
         assert row is not None
         assert row[1] == sample_profile["name"]  # name column
 
@@ -102,7 +101,7 @@ class TestConfigProfileDB:
         """Test getting profile by ID."""
         config_db.insert_profile(sample_profile)
         profile = config_db.get_profile(sample_profile["id"])
-        
+
         assert profile is not None
         assert profile["name"] == sample_profile["name"]
         assert profile["description"] == sample_profile["description"]
@@ -111,7 +110,7 @@ class TestConfigProfileDB:
         """Test getting profile by name."""
         config_db.insert_profile(sample_profile)
         profile = config_db.get_profile_by_name(sample_profile["name"])
-        
+
         assert profile is not None
         assert profile["id"] == sample_profile["id"]
 
@@ -133,10 +132,10 @@ class TestConfigProfileDB:
         profile2 = sample_profile.copy()
         profile2["id"] = str(uuid.uuid4())
         profile2["name"] = "Profile 2"
-        
+
         config_db.insert_profile(profile1)
         config_db.insert_profile(profile2)
-        
+
         profiles = config_db.list_profiles()  # Use list_profiles instead
         assert len(profiles) == 2
         assert any(p["name"] == "Test Profile" for p in profiles)
@@ -156,14 +155,14 @@ class TestConfigProfileDB:
     def test_update_profile(self, config_db, sample_profile):
         """Test updating profile."""
         config_db.insert_profile(sample_profile)
-        
+
         # Update profile
         sample_profile["description"] = "Updated Description"
         sample_profile["sdrConfig"]["frequency"] = 915000000
-        
+
         result = config_db.update_profile(sample_profile["id"], sample_profile)
         assert result is True
-        
+
         # Verify update
         updated = config_db.get_profile(sample_profile["id"])
         assert updated["description"] == "Updated Description"
@@ -182,10 +181,10 @@ class TestConfigProfileDB:
     def test_delete_profile(self, config_db, sample_profile):
         """Test deleting profile."""
         config_db.insert_profile(sample_profile)
-        
+
         result = config_db.delete_profile(sample_profile["id"])
         assert result is True
-        
+
         # Verify deletion
         profile = config_db.get_profile(sample_profile["id"])
         assert profile is None
@@ -204,10 +203,10 @@ class TestConfigProfileDB:
     def test_set_default_profile(self, config_db, sample_profile):
         """Test setting default profile."""
         config_db.insert_profile(sample_profile)
-        
+
         result = config_db.set_default_profile(sample_profile["id"])
         assert result is True
-        
+
         # Verify default was set
         profile = config_db.get_profile(sample_profile["id"])
         assert profile["isDefault"] is True
@@ -219,15 +218,15 @@ class TestConfigProfileDB:
         profile2 = sample_profile.copy()
         profile2["id"] = str(uuid.uuid4())
         profile2["name"] = "Profile 2"
-        
+
         config_db.insert_profile(profile1)
         config_db.insert_profile(profile2)
-        
+
         # Set first as default
         config_db.set_default_profile(profile1["id"])
         # Set second as default
         config_db.set_default_profile(profile2["id"])
-        
+
         # Verify only second is default
         p1 = config_db.get_profile(profile1["id"])
         p2 = config_db.get_profile(profile2["id"])
@@ -238,7 +237,7 @@ class TestConfigProfileDB:
         """Test getting default profile."""
         sample_profile["isDefault"] = True
         config_db.insert_profile(sample_profile)
-        
+
         # Use list_profiles and find the default
         profiles = config_db.list_profiles()
         default = next((p for p in profiles if p.get("isDefault")), None)
@@ -283,14 +282,14 @@ class TestStateHistoryDB:
     def test_init_database(self, temp_db):
         """Test database initialization."""
         db = StateHistoryDB(db_path=temp_db)
-        
+
         # Verify tables were created
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
         conn.close()
-        
+
         assert ("state_history",) in tables
 
     def test_log_state_transition(self, state_db, sample_state):
@@ -299,7 +298,7 @@ class TestStateHistoryDB:
             sample_state["previous_state"],
             sample_state["new_state"],
             datetime.now(UTC),
-            sample_state["trigger"]
+            sample_state["trigger"],
         )
         assert result is True
 
@@ -310,7 +309,7 @@ class TestStateHistoryDB:
                 sample_state["previous_state"],
                 sample_state["new_state"],
                 datetime.now(UTC),
-                sample_state["trigger"]
+                sample_state["trigger"],
             )
             assert result is False
 
@@ -319,13 +318,8 @@ class TestStateHistoryDB:
         # Log multiple transitions
         states = ["IDLE", "SEARCHING", "DETECTING", "HOMING", "HOLDING"]
         for i in range(len(states) - 1):
-            state_db.save_state_change(
-                states[i],
-                states[i + 1],
-                datetime.now(UTC),
-                "test_trigger"
-            )
-        
+            state_db.save_state_change(states[i], states[i + 1], datetime.now(UTC), "test_trigger")
+
         recent = state_db.get_state_history(limit=3)
         assert len(recent) == 3
         # Should be ordered by timestamp descending
@@ -343,7 +337,7 @@ class TestStateHistoryDB:
         state_db.save_state_change("SEARCHING", "DETECTING", datetime.now(UTC), "signal")
         state_db.save_state_change("DETECTING", "SEARCHING", datetime.now(UTC), "lost")
         state_db.save_state_change("SEARCHING", "IDLE", datetime.now(UTC), "timeout")
-        
+
         # Get all transitions to SEARCHING
         transitions = state_db.get_state_history(to_state="SEARCHING")
         assert len(transitions) == 2
@@ -355,7 +349,7 @@ class TestStateHistoryDB:
         state_db.save_state_change("IDLE", "SEARCHING", datetime.now(UTC), "user")
         state_db.save_state_change("SEARCHING", "DETECTING", datetime.now(UTC), "signal")
         state_db.save_state_change("SEARCHING", "IDLE", datetime.now(UTC), "timeout")
-        
+
         # Get all transitions from SEARCHING
         transitions = state_db.get_state_history(from_state="SEARCHING")
         assert len(transitions) == 2
@@ -369,7 +363,7 @@ class TestStateHistoryDB:
         state_db.save_state_change("DETECTING", "HOMING", datetime.now(UTC), "lock")
         state_db.save_state_change("HOMING", "HOLDING", datetime.now(UTC), "reached")
         state_db.save_state_change("HOLDING", "IDLE", datetime.now(UTC), "complete")
-        
+
         # Verify transitions were saved
         history = state_db.get_state_history()
         assert len(history) == 5
@@ -377,14 +371,14 @@ class TestStateHistoryDB:
     def test_get_state_duration_stats(self, state_db):
         """Test state durations via history."""
         import time
-        
+
         # Log transitions with delays
         state_db.save_state_change("IDLE", "SEARCHING", datetime.now(UTC), "user")
         time.sleep(0.1)
         state_db.save_state_change("SEARCHING", "DETECTING", datetime.now(UTC), "signal")
         time.sleep(0.1)
         state_db.save_state_change("DETECTING", "HOMING", datetime.now(UTC), "lock")
-        
+
         # Verify transitions were saved
         history = state_db.get_state_history()
         assert len(history) == 3
@@ -393,14 +387,14 @@ class TestStateHistoryDB:
         """Test clearing old state history."""
         # Log old transitions
         old_time = datetime.now(UTC).replace(day=datetime.now(UTC).day - 8)  # 8 days old
-        
+
         # Manually insert old records
         conn = sqlite3.connect(str(state_db.db_path))
         cursor = conn.cursor()
         for i in range(5):
             cursor.execute(
                 """
-                INSERT INTO state_history 
+                INSERT INTO state_history
                 (from_state, to_state, timestamp, reason, operator_id, action_duration_ms)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
@@ -410,19 +404,19 @@ class TestStateHistoryDB:
                     (old_time - timedelta(hours=i)).isoformat(),
                     "old_reason",
                     "test_operator",
-                    100
-                )
+                    100,
+                ),
             )
         conn.commit()
         conn.close()
-        
+
         # Log recent transition
         state_db.save_state_change("IDLE", "SEARCHING", datetime.now(UTC), "recent")
-        
+
         # Clear transitions older than 7 days
         deleted_count = state_db.cleanup_old_history(days_to_keep=7)
         assert deleted_count == 5  # Should have deleted 5 old records
-        
+
         # Verify only recent transition remains
         history = state_db.get_state_history()
         assert len(history) == 1
@@ -436,9 +430,9 @@ class TestStateHistoryDB:
             previous_state="DETECTING",
             homing_enabled=True,
             last_detection_time=123.45,
-            detection_count=5
+            detection_count=5,
         )
-        
+
         # Restore state
         current = state_db.restore_state()
         assert current is not None
@@ -457,17 +451,17 @@ class TestStateHistoryDB:
         # Log some transitions
         state_db.save_state_change("IDLE", "SEARCHING", datetime.now(UTC), "user")
         state_db.save_state_change("SEARCHING", "DETECTING", datetime.now(UTC), "signal")
-        
+
         # Get history - this is what would be exported to CSV
         history = state_db.get_state_history()
         assert len(history) == 2
-        
+
         # Verify content structure for CSV export
         first_transition = history[1]  # Oldest first (reversed)
         assert first_transition["from_state"] == "IDLE"
         assert first_transition["to_state"] == "SEARCHING"
         assert first_transition["reason"] == "user"
-        
+
         second_transition = history[0]  # Most recent
         assert second_transition["from_state"] == "SEARCHING"
         assert second_transition["to_state"] == "DETECTING"

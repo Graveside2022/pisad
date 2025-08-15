@@ -1028,7 +1028,9 @@ class MAVLinkService:
         try:
             # Request mission current
             self.connection.mav.mission_request_int_send(
-                self.target_system, self.target_component, 0  # request current waypoint
+                self.target_system,
+                self.target_component,
+                0,  # request current waypoint
             )
 
             # Get response

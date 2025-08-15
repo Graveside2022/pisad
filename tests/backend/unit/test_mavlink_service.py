@@ -333,7 +333,9 @@ class TestMAVLinkService:
 
         # Send command with excessive velocity
         await mavlink_service.send_velocity_command(
-            vx=10.0, vy=-10.0, vz=3.0  # Should be clamped to 5.0  # Should be clamped to -5.0
+            vx=10.0,
+            vy=-10.0,
+            vz=3.0,  # Should be clamped to 5.0  # Should be clamped to -5.0
         )
 
         # Check that velocities were clamped

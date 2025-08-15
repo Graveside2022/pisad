@@ -9,7 +9,7 @@ import pytest
 from pymavlink import mavutil
 
 from src.backend.services.mavlink_service import MAVLinkService
-from src.backend.services.state_machine import SystemState, StateMachine
+from src.backend.services.state_machine import StateMachine, SystemState
 
 
 @pytest.mark.sitl

@@ -1,8 +1,9 @@
 """Integration tests for FastAPI application."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
 
 from src.backend.core.app import create_app
 
@@ -42,7 +43,7 @@ class TestAppCreation:
         """Test app creation with configuration."""
         with patch("src.backend.core.app.get_config", return_value=mock_config):
             app = create_app()
-            
+
             assert app.title == "PISAD Test"
             assert app.version == "1.0.0-test"
             assert "PISAD" in app.description
@@ -50,10 +51,10 @@ class TestAppCreation:
     def test_cors_enabled(self, mock_config):
         """Test CORS middleware is added when enabled."""
         mock_config.api.API_CORS_ENABLED = True
-        
+
         with patch("src.backend.core.app.get_config", return_value=mock_config):
             app = create_app()
-            
+
             # Check if CORS middleware is present
             middlewares = [str(m) for m in app.middleware]
             assert any("CORSMiddleware" in str(m) for m in middlewares)
@@ -61,10 +62,10 @@ class TestAppCreation:
     def test_cors_disabled(self, mock_config):
         """Test CORS middleware is not added when disabled."""
         mock_config.api.API_CORS_ENABLED = False
-        
+
         with patch("src.backend.core.app.get_config", return_value=mock_config):
             app = create_app()
-            
+
             # Check that CORS middleware is not present
             middlewares = [str(m) for m in app.middleware]
             assert not any("CORSMiddleware" in str(m) for m in middlewares)
@@ -72,7 +73,7 @@ class TestAppCreation:
     def test_routers_included(self, test_app):
         """Test all API routers are included."""
         routes = [route.path for route in test_app.routes]
-        
+
         # Check API routes are included
         assert any("/api/system" in path for path in routes)
         assert any("/api/detections" in path for path in routes)
@@ -100,7 +101,7 @@ class TestAppCreation:
             client = TestClient(test_app)
             client.__enter__()
             client.__exit__(None, None, None)
-            
+
             # Check shutdown logs
             assert mock_logger.info.called
             calls = [str(call) for call in mock_logger.info.call_args_list]
@@ -122,20 +123,23 @@ class TestAPIEndpoints:
         response = client.get("/openapi.json")
         assert response.status_code == 200
         assert "openapi" in response.json()
-        
+
         # Swagger UI
         response = client.get("/docs")
         assert response.status_code == 200
-        
+
         # ReDoc
         response = client.get("/redoc")
         assert response.status_code == 200
 
-    @pytest.mark.parametrize("endpoint", [
-        "/api/system/status",
-        "/api/system/health",
-        "/api/detections",
-    ])
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "/api/system/status",
+            "/api/system/health",
+            "/api/detections",
+        ],
+    )
     def test_api_endpoints_exist(self, client, endpoint):
         """Test that API endpoints are accessible."""
         response = client.get(endpoint)
@@ -161,9 +165,9 @@ class TestCORSHeaders:
             headers={
                 "Origin": "http://localhost:3000",
                 "Access-Control-Request-Method": "GET",
-            }
+            },
         )
-        
+
         # CORS preflight should return 200
         assert response.status_code == 200
         # Check CORS headers
@@ -173,16 +177,10 @@ class TestCORSHeaders:
     def test_cors_allows_configured_origins(self, client):
         """Test CORS allows configured origins."""
         # Test allowed origin
-        response = client.get(
-            "/api/system/health",
-            headers={"Origin": "http://localhost:3000"}
-        )
-        
+        response = client.get("/api/system/health", headers={"Origin": "http://localhost:3000"})
+
         if "access-control-allow-origin" in response.headers:
-            assert response.headers["access-control-allow-origin"] in [
-                "http://localhost:3000",
-                "*"
-            ]
+            assert response.headers["access-control-allow-origin"] in ["http://localhost:3000", "*"]
 
     def test_cors_credentials_allowed(self, client):
         """Test CORS allows credentials."""
@@ -191,9 +189,9 @@ class TestCORSHeaders:
             headers={
                 "Origin": "http://localhost:3000",
                 "Access-Control-Request-Method": "GET",
-            }
+            },
         )
-        
+
         if "access-control-allow-credentials" in response.headers:
             assert response.headers["access-control-allow-credentials"] == "true"
 
@@ -217,9 +215,9 @@ class TestStaticFiles:
                     mock_frontend_path = MagicMock()
                     mock_frontend_path.exists.return_value = False
                     mock_path.return_value.parent.parent.parent.__truediv__.return_value.__truediv__.return_value = mock_frontend_path
-                    
+
                     app = create_app()
-                    
+
                     # Check warning was logged
                     assert mock_logger.warning.called
                     calls = [str(call) for call in mock_logger.warning.call_args_list]
@@ -245,10 +243,7 @@ class TestErrorHandling:
     def test_validation_error(self, client):
         """Test 422 error for invalid request data."""
         # Send invalid data to an endpoint that expects specific format
-        response = client.post(
-            "/api/detections",
-            json={"invalid": "data"}
-        )
+        response = client.post("/api/detections", json={"invalid": "data"})
         # Should return 422 Unprocessable Entity or other error
         assert response.status_code in [400, 422, 404]
 
@@ -259,7 +254,7 @@ class TestHealthCheck:
     def test_health_endpoint(self, client):
         """Test health check endpoint returns expected data."""
         response = client.get("/api/system/health")
-        
+
         if response.status_code == 200:
             data = response.json()
             # Health endpoint should return some status
@@ -268,7 +263,7 @@ class TestHealthCheck:
     def test_status_endpoint(self, client):
         """Test status endpoint returns system information."""
         response = client.get("/api/system/status")
-        
+
         if response.status_code == 200:
             data = response.json()
             # Status endpoint should return system info

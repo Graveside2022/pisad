@@ -254,7 +254,6 @@ class TestDataCollection:
             patch("psutil.cpu_percent", return_value=45.0),
             patch("psutil.virtual_memory") as mock_mem,
         ):
-
             mock_mem.return_value.percent = 60.0
 
             frame = await telemetry_recorder._collect_telemetry_frame()
@@ -279,7 +278,6 @@ class TestDataCollection:
             patch("psutil.virtual_memory") as mock_mem,
             patch("builtins.open", create=True) as mock_open,
         ):
-
             mock_mem.return_value.percent = 60.0
             mock_open.return_value.__enter__.return_value.read.return_value = "55000"
 
@@ -296,7 +294,6 @@ class TestDataCollection:
             patch("psutil.virtual_memory") as mock_mem,
             patch("builtins.open", side_effect=FileNotFoundError),
         ):
-
             mock_mem.return_value.percent = 60.0
 
             frame = await telemetry_recorder._collect_telemetry_frame()

@@ -1,12 +1,9 @@
 """Comprehensive tests for field test service with 60%+ coverage target."""
 
-import asyncio
 import json
 import uuid
-from dataclasses import asdict
 from datetime import UTC, datetime
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 import yaml
@@ -16,15 +13,9 @@ from src.backend.services.field_test_service import (
     FieldTestConfig,
     FieldTestService,
     FieldTestStatus,
-    TestPhase,
-    TestTypeField,
 )
 from src.backend.utils.test_logger import (
     TestLogger,
-    TestResult,
-    TestRun,
-    TestStatus,
-    TestType,
 )
 
 
@@ -51,12 +42,14 @@ def mock_mavlink_service():
     """Create mock MAVLink service."""
     mock = MagicMock()
     mock.connected = True
-    mock.get_telemetry = AsyncMock(return_value={
-        "gps_status": "3D_FIX",
-        "battery_percent": 80,
-        "position": {"lat": -35.363261, "lon": 149.165230, "alt": 50},
-        "armed": False,
-    })
+    mock.get_telemetry = AsyncMock(
+        return_value={
+            "gps_status": "3D_FIX",
+            "battery_percent": 80,
+            "position": {"lat": -35.363261, "lon": 149.165230, "alt": 50},
+            "armed": False,
+        }
+    )
     mock.upload_mission = AsyncMock(return_value=True)
     mock.start_mission = AsyncMock(return_value=True)
     return mock
@@ -76,11 +69,13 @@ def mock_signal_processor():
 def mock_safety_manager():
     """Create mock safety interlock system."""
     mock = MagicMock()
-    mock.check_all_safety_interlocks = AsyncMock(return_value={
-        "geofence_check": True,
-        "battery_check": True,
-        "signal_check": True,
-    })
+    mock.check_all_safety_interlocks = AsyncMock(
+        return_value={
+            "geofence_check": True,
+            "battery_check": True,
+            "signal_check": True,
+        }
+    )
     mock.emergency_stop = AsyncMock()
     return mock
 
@@ -156,35 +151,31 @@ class TestFieldTestServiceInit:
         assert field_test_service.detection_timestamps == []
         assert field_test_service.max_detection_timestamps == 1000
 
-    @patch("builtins.open", new_callable=mock_open, read_data=yaml.dump({
-        "profiles": {"default": {"frequency": 433.0, "power": 5}}
-    }))
+    @patch(
+        "builtins.open",
+        new_callable=mock_open,
+        read_data=yaml.dump({"profiles": {"default": {"frequency": 433.0, "power": 5}}}),
+    )
     @patch("pathlib.Path.exists", return_value=True)
     def test_load_beacon_profiles_success(self, mock_exists, mock_file):
         """Test loading beacon profiles successfully."""
-        service = FieldTestService(
-            MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
-        )
-        
+        service = FieldTestService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
         assert service.beacon_profiles == {"default": {"frequency": 433.0, "power": 5}}
 
     @patch("pathlib.Path.exists", return_value=False)
     def test_load_beacon_profiles_file_not_found(self, mock_exists):
         """Test loading beacon profiles when file doesn't exist."""
-        service = FieldTestService(
-            MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
-        )
-        
+        service = FieldTestService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
         assert service.beacon_profiles == {}
 
     @patch("builtins.open", side_effect=Exception("Read error"))
     @patch("pathlib.Path.exists", return_value=True)
     def test_load_beacon_profiles_error(self, mock_exists, mock_file):
         """Test loading beacon profiles with error."""
-        service = FieldTestService(
-            MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
-        )
-        
+        service = FieldTestService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
         assert service.beacon_profiles == {}
 
 
@@ -288,9 +279,7 @@ class TestFieldTestExecution:
             await field_test_service.start_field_test(test_config)
 
     @pytest.mark.asyncio
-    async def test_start_field_test_success(
-        self, field_test_service, test_config
-    ):
+    async def test_start_field_test_success(self, field_test_service, test_config):
         """Test successful field test start."""
         with patch.object(field_test_service, "_execute_test") as mock_execute:
             status = await field_test_service.start_field_test(test_config)
@@ -303,9 +292,7 @@ class TestFieldTestExecution:
             assert status.test_id in field_test_service.active_tests
 
     @pytest.mark.asyncio
-    async def test_execute_test_detection_range(
-        self, field_test_service, test_config
-    ):
+    async def test_execute_test_detection_range(self, field_test_service, test_config):
         """Test execute test for detection range type."""
         test_id = str(uuid.uuid4())
         field_test_service.active_tests[test_id] = FieldTestStatus(
@@ -325,9 +312,7 @@ class TestFieldTestExecution:
                 assert field_test_service.active_tests[test_id].status == "completed"
 
     @pytest.mark.asyncio
-    async def test_execute_test_approach_accuracy(
-        self, field_test_service, test_config
-    ):
+    async def test_execute_test_approach_accuracy(self, field_test_service, test_config):
         """Test execute test for approach accuracy type."""
         test_id = str(uuid.uuid4())
         test_config.test_type = "approach_accuracy"
@@ -345,9 +330,7 @@ class TestFieldTestExecution:
                 mock_approach.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_test_state_transition(
-        self, field_test_service, test_config
-    ):
+    async def test_execute_test_state_transition(self, field_test_service, test_config):
         """Test execute test for state transition type."""
         test_id = str(uuid.uuid4())
         test_config.test_type = "state_transition"
@@ -365,9 +348,7 @@ class TestFieldTestExecution:
                 mock_state.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_test_safety_validation(
-        self, field_test_service, test_config
-    ):
+    async def test_execute_test_safety_validation(self, field_test_service, test_config):
         """Test execute test for safety validation type."""
         test_id = str(uuid.uuid4())
         test_config.test_type = "safety_validation"
@@ -385,9 +366,7 @@ class TestFieldTestExecution:
                 mock_safety.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_test_exception(
-        self, field_test_service, test_config
-    ):
+    async def test_execute_test_exception(self, field_test_service, test_config):
         """Test execute test with exception."""
         test_id = str(uuid.uuid4())
         field_test_service.active_tests[test_id] = FieldTestStatus(
@@ -398,8 +377,7 @@ class TestFieldTestExecution:
         )
 
         with patch.object(
-            field_test_service, "_execute_detection_range_test",
-            side_effect=Exception("Test error")
+            field_test_service, "_execute_detection_range_test", side_effect=Exception("Test error")
         ):
             await field_test_service._execute_test(test_id, test_config)
 
@@ -432,7 +410,7 @@ class TestDetectionRangeTest:
                 environmental_conditions={},
                 safety_events=[],
                 success=False,
-            )
+            ),
         )
 
         with patch.object(field_test_service, "_configure_beacon_distance") as mock_config:
@@ -441,14 +419,14 @@ class TestDetectionRangeTest:
                 with patch.object(field_test_service, "_measure_rssi") as mock_measure:
                     with patch("asyncio.sleep", return_value=None):
                         mock_measure.return_value = -75.0
-                        
+
                         await field_test_service._execute_detection_range_test(test_id, test_config)
 
                         # Verify multiple distances were tested
                         assert mock_config.call_count == 9  # 3 distances * 3 repetitions
                         assert mock_wait.call_count == 9
                         assert mock_measure.call_count == 9
-                        
+
                         # Check RSSI samples were collected
                         assert len(field_test_service.rssi_samples) > 0
                         assert field_test_service.active_tests[test_id].current_rssi_dbm == -75.0
@@ -475,25 +453,26 @@ class TestDetectionRangeTest:
                 environmental_conditions={},
                 safety_events=[],
                 success=False,
-            )
+            ),
         )
-        
+
         # Pre-fill samples to near max
         field_test_service.rssi_samples = [-80.0] * (field_test_service.max_rssi_samples - 1)
-        
+
         with patch.object(field_test_service, "_configure_beacon_distance"):
             with patch.object(field_test_service, "_wait_for_detection", return_value=True):
                 with patch.object(field_test_service, "_measure_rssi", return_value=-75.0):
                     with patch("asyncio.sleep", return_value=None):
                         await field_test_service._execute_detection_range_test(test_id, test_config)
-                        
+
                         # Should not exceed max samples
-                        assert len(field_test_service.rssi_samples) <= field_test_service.max_rssi_samples
+                        assert (
+                            len(field_test_service.rssi_samples)
+                            <= field_test_service.max_rssi_samples
+                        )
 
     @pytest.mark.asyncio
-    async def test_wait_for_detection_success(
-        self, field_test_service, mock_signal_processor
-    ):
+    async def test_wait_for_detection_success(self, field_test_service, mock_signal_processor):
         """Test waiting for detection success."""
         mock_signal_processor.current_rssi = -75.0  # Above threshold
 
@@ -503,9 +482,7 @@ class TestDetectionRangeTest:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_wait_for_detection_timeout(
-        self, field_test_service, mock_signal_processor
-    ):
+    async def test_wait_for_detection_timeout(self, field_test_service, mock_signal_processor):
         """Test waiting for detection timeout."""
         mock_signal_processor.current_rssi = -120.0  # Below threshold
 
@@ -546,7 +523,7 @@ class TestApproachAccuracyTest:
                 environmental_conditions={},
                 safety_events=[],
                 success=False,
-            )
+            ),
         )
 
         with patch.object(field_test_service, "_configure_beacon_distance"):
@@ -555,15 +532,17 @@ class TestApproachAccuracyTest:
                 with patch.object(field_test_service, "_calculate_position_error") as mock_error:
                     mock_error.return_value = 45.0
                     with patch("asyncio.sleep", return_value=None):
-                        await field_test_service._execute_approach_accuracy_test(test_id, test_config)
+                        await field_test_service._execute_approach_accuracy_test(
+                            test_id, test_config
+                        )
 
                     assert mock_state_machine.request_transition.call_count == 3  # repetitions
-                    assert field_test_service.active_tests[test_id].metrics.approach_accuracy_m == 45.0
+                    assert (
+                        field_test_service.active_tests[test_id].metrics.approach_accuracy_m == 45.0
+                    )
 
     @pytest.mark.asyncio
-    async def test_monitor_approach_success(
-        self, field_test_service, mock_mavlink_service
-    ):
+    async def test_monitor_approach_success(self, field_test_service, mock_mavlink_service):
         """Test approach monitoring success."""
         with patch("asyncio.sleep", return_value=None):
             position = await field_test_service._monitor_approach(50.0, timeout=1.0)
@@ -573,14 +552,12 @@ class TestApproachAccuracyTest:
         assert "alt" in position
 
     @pytest.mark.asyncio
-    async def test_monitor_approach_timeout(
-        self, field_test_service, mock_mavlink_service
-    ):
+    async def test_monitor_approach_timeout(self, field_test_service, mock_mavlink_service):
         """Test approach monitoring timeout."""
         # Make telemetry return a position
-        mock_mavlink_service.get_telemetry = AsyncMock(return_value={
-            "position": {"lat": 0.0, "lon": 0.0, "alt": 0.0}
-        })
+        mock_mavlink_service.get_telemetry = AsyncMock(
+            return_value={"position": {"lat": 0.0, "lon": 0.0, "alt": 0.0}}
+        )
 
         with patch("asyncio.sleep", return_value=None):
             position = await field_test_service._monitor_approach(50.0, timeout=0.1)
@@ -619,7 +596,7 @@ class TestStateTransitionTest:
                 environmental_conditions={},
                 safety_events=[],
                 success=False,
-            )
+            ),
         )
 
         with patch.object(field_test_service, "_trigger_detection"):
@@ -662,18 +639,22 @@ class TestSafetyValidationTest:
                 environmental_conditions={},
                 safety_events=[],
                 success=False,
-            )
+            ),
         )
 
         with patch.object(field_test_service, "_test_geofence_enforcement", return_value=True):
             with patch.object(field_test_service, "_test_battery_failsafe", return_value=True):
-                with patch.object(field_test_service, "_test_signal_loss_recovery", return_value=True):
+                with patch.object(
+                    field_test_service, "_test_signal_loss_recovery", return_value=True
+                ):
                     with patch("asyncio.sleep", return_value=None):
-                        await field_test_service._execute_safety_validation_test(test_id, test_config)
+                        await field_test_service._execute_safety_validation_test(
+                            test_id, test_config
+                        )
 
                     assert mock_state_machine.request_transition.called
                     assert mock_safety_manager.emergency_stop.called
-                    
+
                     metrics = field_test_service.active_tests[test_id].metrics
                     assert "emergency_stop_success" in metrics.safety_events
                     assert "geofence_enforced" in metrics.safety_events
@@ -711,19 +692,20 @@ class TestBeaconValidation:
             mock_sdr.initialize = AsyncMock()
             mock_sdr.set_frequency = MagicMock()
             mock_sdr.config.sampleRate = 2.4e6
-            
+
             # Mock IQ samples stream
             async def mock_stream():
                 import numpy as np
+
                 for _ in range(2):
                     yield np.random.randn(1024) + 1j * np.random.randn(1024)
-            
+
             mock_sdr.stream_iq = mock_stream
             mock_sdr.shutdown = AsyncMock()
             MockSDR.return_value = mock_sdr
 
             # Mock scipy.signal to avoid import timeout
-            with patch.dict('sys.modules', {'scipy.signal': MagicMock()}):
+            with patch.dict("sys.modules", {"scipy.signal": MagicMock()}):
                 result = await field_test_service.validate_beacon_signal(beacon_config)
 
             assert "frequency_match" in result
@@ -785,7 +767,7 @@ class TestResultsManagement:
                 environmental_conditions={},
                 safety_events=["all_passed"],
                 success=True,
-            )
+            ),
         )
 
         with patch("builtins.open", mock_open()) as mock_file:
@@ -883,7 +865,7 @@ class TestResultsManagement:
     async def test_export_test_data_json(self, field_test_service):
         """Test exporting test data as JSON."""
         test_id = str(uuid.uuid4())
-        
+
         with patch.object(field_test_service, "get_test_metrics") as mock_get:
             mock_get.return_value = FieldTestMetrics(
                 test_id=test_id,
@@ -896,7 +878,7 @@ class TestResultsManagement:
                 safety_events=[],
                 success=True,
             )
-            
+
             with patch("builtins.open", mock_open()) as mock_file:
                 with patch("pathlib.Path.mkdir"):
                     result = await field_test_service.export_test_data(test_id, format="json")
@@ -909,7 +891,7 @@ class TestResultsManagement:
     async def test_export_test_data_csv(self, field_test_service):
         """Test exporting test data as CSV."""
         test_id = str(uuid.uuid4())
-        
+
         with patch.object(field_test_service, "get_test_metrics") as mock_get:
             mock_get.return_value = FieldTestMetrics(
                 test_id=test_id,
@@ -922,7 +904,7 @@ class TestResultsManagement:
                 safety_events=[],
                 success=True,
             )
-            
+
             with patch("builtins.open", mock_open()) as mock_file:
                 with patch("pathlib.Path.mkdir"):
                     result = await field_test_service.export_test_data(test_id, format="csv")
@@ -934,7 +916,7 @@ class TestResultsManagement:
     async def test_export_test_data_invalid_format(self, field_test_service):
         """Test exporting test data with invalid format."""
         test_id = str(uuid.uuid4())
-        
+
         with patch.object(field_test_service, "get_test_metrics") as mock_get:
             mock_get.return_value = FieldTestMetrics(
                 test_id=test_id,
@@ -947,7 +929,7 @@ class TestResultsManagement:
                 safety_events=[],
                 success=True,
             )
-            
+
             result = await field_test_service.export_test_data(test_id, format="xml")
 
             assert result is None
@@ -963,7 +945,7 @@ class TestResultsManagement:
     async def test_export_test_data_no_metrics(self, field_test_service):
         """Test exporting test data when metrics not found."""
         test_id = str(uuid.uuid4())
-        
+
         with patch.object(field_test_service, "get_test_metrics", return_value=None):
             result = await field_test_service.export_test_data(test_id, format="json")
 

@@ -2,12 +2,11 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import UUID, uuid4
+from unittest.mock import patch
+from uuid import UUID
 
 import pytest
 
-from src.backend.services.state_machine import SystemState
 from src.backend.utils.safety import (
     BatteryCheck,
     GeofenceCheck,
@@ -50,7 +49,7 @@ class TestSafetyEvents:
         event = SafetyEvent(
             event_type=SafetyEventType.EMERGENCY_STOP,
             trigger=SafetyTrigger.LOW_BATTERY,
-            details={"battery_voltage": 10.5}
+            details={"battery_voltage": 10.5},
         )
         assert event.event_type == SafetyEventType.EMERGENCY_STOP
         assert event.trigger == SafetyTrigger.LOW_BATTERY
@@ -70,9 +69,7 @@ class TestSafetyEvents:
     def test_safety_event_resolved(self):
         """Test SafetyEvent resolved flag."""
         event = SafetyEvent(
-            event_type=SafetyEventType.SAFETY_WARNING,
-            trigger=SafetyTrigger.TIMEOUT,
-            resolved=True
+            event_type=SafetyEventType.SAFETY_WARNING, trigger=SafetyTrigger.TIMEOUT, resolved=True
         )
         assert event.event_type == SafetyEventType.SAFETY_WARNING
         assert event.trigger == SafetyTrigger.TIMEOUT
@@ -81,33 +78,35 @@ class TestSafetyEvents:
 
 class TestSafetyCheck:
     """Test abstract SafetyCheck base class."""
-    
+
     def test_safety_check_get_status(self):
         """Test getting status from safety check."""
+
         class TestCheck(SafetyCheck):
             async def check(self) -> bool:
                 return True
-        
+
         check = TestCheck("test_check")
         status = check.get_status()
-        
+
         assert status["name"] == "test_check"
         assert status["is_safe"] is False
         assert "last_check" in status
         assert status["failure_reason"] is None
-        
+
     def test_safety_check_with_failure(self):
         """Test safety check with failure reason."""
+
         class TestCheck(SafetyCheck):
             async def check(self) -> bool:
                 self.failure_reason = "Test failure"
                 self.is_safe = False
                 return False
-        
+
         check = TestCheck("failing_check")
         check.failure_reason = "Something went wrong"
         status = check.get_status()
-        
+
         assert status["failure_reason"] == "Something went wrong"
 
 
@@ -127,7 +126,7 @@ class TestModeCheck:
         result = await mode_check.check()
         assert result is False
         assert mode_check.failure_reason == "Mode is AUTO, requires GUIDED"
-        
+
         # Test with correct mode
         mode_check.update_mode("GUIDED")
         result = await mode_check.check()
@@ -138,7 +137,7 @@ class TestModeCheck:
         """Test updating mode."""
         mode_check.update_mode("STABILIZE")
         assert mode_check.current_mode == "STABILIZE"
-        
+
         mode_check.update_mode("GUIDED")
         assert mode_check.current_mode == "GUIDED"
 
@@ -154,8 +153,8 @@ class TestModeCheck:
         """Test multiple mode transitions."""
         modes = ["AUTO", "STABILIZE", "GUIDED", "LOITER", "GUIDED"]
         expected_results = [False, False, True, False, True]
-        
-        for mode, expected in zip(modes, expected_results):
+
+        for mode, expected in zip(modes, expected_results, strict=False):
             mode_check.update_mode(mode)
             result = await mode_check.check()
             assert result == expected
@@ -176,7 +175,7 @@ class TestOperatorActivationCheck:
         result = await operator_check.check()
         assert result is False
         assert operator_check.failure_reason == "Operator has not enabled homing"
-        
+
         # Test when homing is enabled
         operator_check.enable_homing()
         result = await operator_check.check()
@@ -189,7 +188,7 @@ class TestOperatorActivationCheck:
         operator_check.enable_homing()
         assert operator_check.homing_enabled is True
         assert operator_check.activation_time is not None
-        
+
         # Test disable
         operator_check.disable_homing("Test reason")
         assert operator_check.homing_enabled is False
@@ -199,11 +198,11 @@ class TestOperatorActivationCheck:
     async def test_timeout_check(self, operator_check):
         """Test operator activation timeout."""
         operator_check.enable_homing()
-        
+
         # Mock time to be past timeout
         past_time = datetime.now(UTC) - timedelta(seconds=operator_check.timeout_seconds + 1)
         operator_check.activation_time = past_time
-        
+
         result = await operator_check.check()
         assert result is False
         assert "timed out" in operator_check.failure_reason.lower()
@@ -213,7 +212,7 @@ class TestOperatorActivationCheck:
         for i in range(3):
             operator_check.enable_homing()
             assert operator_check.homing_enabled is True
-            
+
             operator_check.disable_homing(f"Reason {i}")
             assert operator_check.homing_enabled is False
 
@@ -224,10 +223,7 @@ class TestSignalLossCheck:
     @pytest.fixture
     def signal_check(self):
         """Create SignalLossCheck instance."""
-        return SignalLossCheck(
-            snr_threshold=6.0,
-            timeout_seconds=10
-        )
+        return SignalLossCheck(snr_threshold=6.0, timeout_seconds=10)
 
     @pytest.mark.asyncio
     async def test_check_signal_present(self, signal_check):
@@ -247,7 +243,7 @@ class TestSignalLossCheck:
         # Low SNR should trigger failure
         assert result is False
         assert "SNR" in signal_check.failure_reason
-        
+
     def test_update_snr(self, signal_check):
         """Test updating SNR value."""
         signal_check.update_snr(8.5)
@@ -259,7 +255,7 @@ class TestSignalLossCheck:
         # Add many SNR values
         for i in range(150):
             signal_check.update_snr(float(i))
-        
+
         # History should be limited to 100
         assert len(signal_check.snr_history) <= 100
         assert signal_check.current_snr == 149.0
@@ -269,11 +265,11 @@ class TestSignalLossCheck:
         """Test signal timeout detection."""
         # Set good SNR initially
         signal_check.update_snr(10.0)
-        
+
         # Mock time to be past timeout
         past_time = datetime.now(UTC) - timedelta(seconds=signal_check.timeout_seconds + 1)
         signal_check.last_update = past_time
-        
+
         result = await signal_check.check()
         assert result is False
         assert "timeout" in signal_check.failure_reason.lower()
@@ -283,7 +279,7 @@ class TestSignalLossCheck:
         values = [5.0, 7.0, 9.0, 6.0, 8.0]
         for val in values:
             signal_check.update_snr(val)
-        
+
         avg = signal_check.get_average_snr()
         assert avg == 7.0
 
@@ -324,7 +320,7 @@ class TestBatteryCheck:
         """Test battery update clamping."""
         battery_check.update_battery(150.0)
         assert battery_check.current_battery_percent == 100.0
-        
+
         battery_check.update_battery(-10.0)
         assert battery_check.current_battery_percent == 0.0
 
@@ -332,7 +328,7 @@ class TestBatteryCheck:
         """Test battery check with custom threshold."""
         battery_check = BatteryCheck(threshold_percent=30.0)
         battery_check.update_battery(25.0)
-        
+
         # Should be below custom 30% threshold
         assert battery_check.current_battery_percent == 25.0
 
@@ -406,7 +402,7 @@ class TestGeofenceCheck:
     async def test_altitude_check(self, geofence_check):
         """Test altitude violation detection."""
         geofence_check.set_geofence(37.0, -122.0, 1000.0, 100.0)
-        
+
         # Test altitude too high
         geofence_check.update_position(37.0, -122.0, 150.0)
         result = await geofence_check.check()
@@ -431,7 +427,7 @@ class TestSafetyInterlockSystem:
         interlock_system.checks["signal"].update_snr(10.0)
         interlock_system.checks["battery"].update_battery(80.0)
         interlock_system.checks["geofence"].fence_enabled = False
-        
+
         results = await interlock_system.check_all_safety()
         assert all(results.values())
 
@@ -444,7 +440,7 @@ class TestSafetyInterlockSystem:
         interlock_system.checks["signal"].update_snr(10.0)  # Good
         interlock_system.checks["battery"].update_battery(80.0)  # Good
         interlock_system.checks["geofence"].fence_enabled = False  # Good
-        
+
         safe = await interlock_system.is_safe_to_proceed()
         assert safe is False  # Mode check fails
 
@@ -452,10 +448,10 @@ class TestSafetyInterlockSystem:
     async def test_emergency_stop(self, interlock_system):
         """Test emergency stop activation."""
         await interlock_system.emergency_stop("Test emergency")
-        
+
         assert interlock_system.emergency_stopped is True
         assert len(interlock_system.safety_events) > 0
-        
+
         # Check that safety checks fail during emergency
         safe = await interlock_system.is_safe_to_proceed()
         assert safe is False
@@ -465,7 +461,7 @@ class TestSafetyInterlockSystem:
         """Test resetting emergency stop."""
         await interlock_system.emergency_stop("Test")
         await interlock_system.reset_emergency_stop()
-        
+
         assert interlock_system.emergency_stopped is False
 
     @pytest.mark.asyncio
@@ -476,7 +472,7 @@ class TestSafetyInterlockSystem:
         interlock_system.checks["signal"].update_snr(10.0)
         interlock_system.checks["battery"].update_battery(80.0)
         interlock_system.checks["geofence"].fence_enabled = False
-        
+
         enabled = await interlock_system.enable_homing("test-token")
         assert enabled is True
 
@@ -485,7 +481,7 @@ class TestSafetyInterlockSystem:
         """Test enabling homing blocked by safety."""
         # Set up bad conditions
         interlock_system.checks["mode"].update_mode("AUTO")  # Wrong mode
-        
+
         enabled = await interlock_system.enable_homing()
         assert enabled is False
 
@@ -493,7 +489,7 @@ class TestSafetyInterlockSystem:
     async def test_disable_homing(self, interlock_system):
         """Test disabling homing."""
         await interlock_system.disable_homing("Test disable")
-        
+
         # Check operator activation should be disabled
         operator_check = interlock_system.checks["operator"]
         assert operator_check.homing_enabled is False
@@ -529,7 +525,7 @@ class TestSafetyInterlockSystem:
         """Test starting and stopping monitoring."""
         await interlock_system.start_monitoring()
         assert interlock_system._check_task is not None
-        
+
         await interlock_system.stop_monitoring()
         assert interlock_system._check_task.done()
 
@@ -537,17 +533,19 @@ class TestSafetyInterlockSystem:
     async def test_monitoring_loop_error_handling(self, interlock_system):
         """Test monitoring loop error handling."""
         # Mock a check to raise an error
-        with patch.object(interlock_system, 'check_all_safety', side_effect=Exception("Test error")):
+        with patch.object(
+            interlock_system, "check_all_safety", side_effect=Exception("Test error")
+        ):
             await interlock_system.start_monitoring()
             await asyncio.sleep(0.2)  # Let it run a bit
             await interlock_system.stop_monitoring()
-        
+
         # Should handle error and continue
 
     def test_get_status(self, interlock_system):
         """Test getting system status."""
         status = interlock_system.get_status()
-        
+
         assert "emergency_stopped" in status
         assert "checks" in status
         assert "events" in status
@@ -560,14 +558,16 @@ class TestSafetyInterlockSystem:
             event = SafetyEvent(
                 event_type=SafetyEventType.SAFETY_WARNING,
                 trigger=SafetyTrigger.TIMEOUT,
-                details={"index": i}
+                details={"index": i},
             )
             interlock_system.safety_events.append(event)
-        
+
         # Simulate trimming (would normally happen in _log_safety_event)
         if len(interlock_system.safety_events) > interlock_system.max_events:
-            interlock_system.safety_events = interlock_system.safety_events[-interlock_system.max_events:]
-        
+            interlock_system.safety_events = interlock_system.safety_events[
+                -interlock_system.max_events :
+            ]
+
         assert len(interlock_system.safety_events) == 1000
 
     @pytest.mark.asyncio
@@ -577,7 +577,7 @@ class TestSafetyInterlockSystem:
         await interlock_system.emergency_stop("Test")
         await interlock_system.reset_emergency_stop()
         await interlock_system.disable_homing("Test")
-        
+
         # Check events were logged
         assert len(interlock_system.safety_events) >= 3
         event_types = [e.event_type for e in interlock_system.safety_events]
@@ -589,15 +589,15 @@ class TestSafetyInterlockSystem:
         """Test mapping check names to triggers."""
         trigger = interlock_system._get_trigger_for_check("mode")
         assert trigger == SafetyTrigger.MODE_CHANGE
-        
+
         trigger = interlock_system._get_trigger_for_check("battery")
         assert trigger == SafetyTrigger.LOW_BATTERY
-        
+
         trigger = interlock_system._get_trigger_for_check("signal")
         assert trigger == SafetyTrigger.SIGNAL_LOSS
-        
+
         trigger = interlock_system._get_trigger_for_check("geofence")
         assert trigger == SafetyTrigger.GEOFENCE_VIOLATION
-        
+
         trigger = interlock_system._get_trigger_for_check("operator")
         assert trigger == SafetyTrigger.OPERATOR_DISABLE

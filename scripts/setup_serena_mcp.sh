@@ -17,7 +17,7 @@ SETTINGS_FILE="$HOME/.claude-code/settings.json"
 if [ -f "$SETTINGS_FILE" ]; then
     echo "Backing up existing settings.json to settings.json.backup"
     cp "$SETTINGS_FILE" "$SETTINGS_FILE.backup"
-    
+
     # Check if mcpServers already exists in the file
     if grep -q '"mcpServers"' "$SETTINGS_FILE"; then
         echo "mcpServers configuration already exists. Please manually add Serena server."

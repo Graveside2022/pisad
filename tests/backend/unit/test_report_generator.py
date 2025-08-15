@@ -8,16 +8,19 @@ from uuid import uuid4
 
 import pytest
 
+
 # Mock matplotlib and PIL before importing report_generator to prevent timeout
 # Create mock matplotlib that saves dummy files
 class MockPyplot:
     def figure(self, *args, **kwargs):
         return MagicMock()
-    
+
     def subplots(self, *args, **kwargs):
         fig = MagicMock()
         ax = MagicMock()
-        ax.bar = MagicMock(return_value=[MagicMock(get_height=lambda: 10.0, get_x=lambda: 0, get_width=lambda: 1)])
+        ax.bar = MagicMock(
+            return_value=[MagicMock(get_height=lambda: 10.0, get_x=lambda: 0, get_width=lambda: 1)]
+        )
         ax.set_ylabel = MagicMock()
         ax.set_title = MagicMock()
         ax.grid = MagicMock()
@@ -27,41 +30,41 @@ class MockPyplot:
         ax.legend = MagicMock()
         ax.axhline = MagicMock()
         return fig, ax
-    
+
     def subplot(self, *args, **kwargs):
         return MagicMock()
-    
+
     def bar(self, *args, **kwargs):
         pass
-    
+
     def plot(self, *args, **kwargs):
         pass
-    
+
     def title(self, *args, **kwargs):
         pass
-    
+
     def xlabel(self, *args, **kwargs):
         pass
-    
+
     def ylabel(self, *args, **kwargs):
         pass
-    
+
     def legend(self, *args, **kwargs):
         pass
-    
+
     def grid(self, *args, **kwargs):
         pass
-    
+
     def tight_layout(self, *args, **kwargs):
         pass
-    
+
     def savefig(self, path, *args, **kwargs):
         # Create an empty file when saving
         Path(path).touch()
-    
+
     def close(self, *args, **kwargs):
         pass
-    
+
     def polar(self, *args, **kwargs):
         ax = MagicMock()
         ax.plot = MagicMock()
@@ -73,18 +76,19 @@ class MockPyplot:
         ax.grid = MagicMock()
         return ax
 
-sys.modules['matplotlib'] = MagicMock()
-sys.modules['matplotlib.pyplot'] = MockPyplot()
-sys.modules['matplotlib.figure'] = MagicMock()
-sys.modules['PIL'] = MagicMock()
-sys.modules['PIL.Image'] = MagicMock()
-sys.modules['reportlab'] = MagicMock()
-sys.modules['reportlab.lib'] = MagicMock()
-sys.modules['reportlab.lib.pagesizes'] = MagicMock(letter=(612, 792))
-sys.modules['reportlab.lib.styles'] = MagicMock()
-sys.modules['reportlab.lib.units'] = MagicMock(inch=72)
-sys.modules['reportlab.platypus'] = MagicMock()
-sys.modules['reportlab.lib.enums'] = MagicMock(TA_LEFT=0, TA_CENTER=1, TA_RIGHT=2, TA_JUSTIFY=3)
+
+sys.modules["matplotlib"] = MagicMock()
+sys.modules["matplotlib.pyplot"] = MockPyplot()
+sys.modules["matplotlib.figure"] = MagicMock()
+sys.modules["PIL"] = MagicMock()
+sys.modules["PIL.Image"] = MagicMock()
+sys.modules["reportlab"] = MagicMock()
+sys.modules["reportlab.lib"] = MagicMock()
+sys.modules["reportlab.lib.pagesizes"] = MagicMock(letter=(612, 792))
+sys.modules["reportlab.lib.styles"] = MagicMock()
+sys.modules["reportlab.lib.units"] = MagicMock(inch=72)
+sys.modules["reportlab.platypus"] = MagicMock()
+sys.modules["reportlab.lib.enums"] = MagicMock(TA_LEFT=0, TA_CENTER=1, TA_RIGHT=2, TA_JUSTIFY=3)
 
 from src.backend.services.performance_analytics import MissionPerformanceMetrics
 from src.backend.services.report_generator import (

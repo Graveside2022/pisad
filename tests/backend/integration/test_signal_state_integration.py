@@ -470,6 +470,7 @@ class TestIntegratedSystem:
         self, signal_controller, command_pipeline, state_machine
     ):
         """Test that signal detection triggers appropriate commands."""
+
         # Configure state machine to trigger commands
         async def mock_detection(rssi, confidence):
             await command_pipeline.submit_command(
@@ -503,6 +504,7 @@ class TestIntegratedSystem:
         self, signal_controller, command_pipeline, state_machine, safety_system
     ):
         """Test that signal loss triggers safety response."""
+
         # Configure state machine to trigger safety on signal loss
         async def mock_signal_lost():
             await command_pipeline.submit_command(

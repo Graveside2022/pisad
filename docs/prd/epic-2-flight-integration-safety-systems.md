@@ -4,8 +4,8 @@
 
 ## Story 2.1: MAVLink Communication Foundation
 
-**As a** drone operator,  
-**I want** reliable bi-directional communication between payload and flight controller,  
+**As a** drone operator,
+**I want** reliable bi-directional communication between payload and flight controller,
 **so that** the payload can receive telemetry and send velocity commands when authorized.
 
 **Acceptance Criteria:**
@@ -20,8 +20,8 @@
 
 ## Story 2.2: Safety Interlock System
 
-**As a** safety officer,  
-**I want** multiple independent safety mechanisms,  
+**As a** safety officer,
+**I want** multiple independent safety mechanisms,
 **so that** the payload never compromises flight safety or operator control.
 
 **Acceptance Criteria:**
@@ -36,8 +36,8 @@
 
 ## Story 2.3: Operator Control Interface
 
-**As a** drone operator,  
-**I want** clear and intuitive controls for activating and monitoring homing behavior,  
+**As a** drone operator,
+**I want** clear and intuitive controls for activating and monitoring homing behavior,
 **so that** I maintain situational awareness and positive control.
 
 **Acceptance Criteria:**
@@ -52,8 +52,8 @@
 
 ## Story 2.4: Telemetry Integration & Reporting
 
-**As a** mission commander,  
-**I want** payload status visible in my primary GCS,  
+**As a** mission commander,
+**I want** payload status visible in my primary GCS,
 **so that** I have unified situational awareness without switching interfaces.
 
 **Acceptance Criteria:**
@@ -68,8 +68,8 @@
 
 ## Story 2.5: Ground Testing & Safety Validation
 
-**As a** test engineer,  
-**I want** comprehensive ground testing procedures,  
+**As a** test engineer,
+**I want** comprehensive ground testing procedures,
 **so that** I can validate all safety systems before flight testing.
 
 **Acceptance Criteria:**

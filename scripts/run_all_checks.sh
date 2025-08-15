@@ -15,7 +15,7 @@ echo "✓ Python linting complete"
 echo -e "\n2. Running Python type checking with mypy..."
 uv run mypy src/backend --ignore-missing-imports || echo "⚠ Some mypy issues found (non-blocking)"
 
-# Frontend checks  
+# Frontend checks
 echo -e "\n3. Running TypeScript compilation check..."
 cd src/frontend
 npx tsc --noEmit
@@ -39,7 +39,7 @@ echo "Code Quality Checks Complete!"
 echo "======================================"
 echo "Summary:"
 echo "✓ Python code formatted and linted"
-echo "✓ TypeScript compiles without errors" 
+echo "✓ TypeScript compiles without errors"
 echo "✓ Frontend code formatted"
 echo "⚠ Some pre-existing linting issues remain"
 echo "⚠ Some config tests fail due to default value changes"

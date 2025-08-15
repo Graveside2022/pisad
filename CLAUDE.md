@@ -203,6 +203,7 @@ Before ANY code changes:
 - **ipdb**: Interactive Python debugger
 
 ### Development Libraries
+- **pre-commit**: Git hook framework for code quality checks (installed via uv)
 - **fastapi**: Modern web API framework
 - **uvicorn**: ASGI server
 - **httpx**: HTTP client with async support
@@ -231,6 +232,7 @@ Before ANY code changes:
 
 ### Project-Specific
 - **pymavlink**: MAVLink protocol implementation
+- **pyserial**: Serial port communication (required for pymavlink)
 - **fastcrc**: Fast CRC calculations
 - **psutil**: System and process utilities
 - **lxml**: XML/HTML processing
@@ -276,7 +278,7 @@ Before ANY code changes:
    ruff check src/ --fix
    mypy src/
    pytest tests/ --cov=src --cov-report=term-missing
-   
+
    # TypeScript/JavaScript
    npx trunk check --all
    tsc --noEmit

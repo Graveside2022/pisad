@@ -1,8 +1,10 @@
 """Comprehensive tests for state API routes."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
+
 from src.backend.services.state_machine import SystemState
 
 
@@ -27,7 +29,7 @@ def mock_state_machine():
         "time_since_detection": None,
         "state_changes": 0,
         "state_duration_seconds": 10.5,
-        "state_timeout_seconds": 0
+        "state_timeout_seconds": 0,
     }
     mock.get_telemetry_metrics.return_value = {
         "total_transitions": 0,
@@ -36,13 +38,9 @@ def mock_state_machine():
         "average_transition_time_ms": 0.0,
         "current_state_duration_s": 10.5,
         "uptime_seconds": 100.0,
-        "state_entry_counts": {}
+        "state_entry_counts": {},
     }
-    mock.get_search_pattern_status.return_value = {
-        "active": False,
-        "paused": False,
-        "progress": 0
-    }
+    mock.get_search_pattern_status.return_value = {"active": False, "paused": False, "progress": 0}
     mock.transition_to = AsyncMock(return_value=True)
     mock.force_transition = AsyncMock(return_value=True)
     mock.emergency_stop = AsyncMock()
@@ -59,17 +57,18 @@ def test_client(mock_state_machine):
     """Create test client with mocked state machine."""
     # Create a minimal app for testing just the state routes
     from fastapi import FastAPI
+
     from src.backend.api.routes import state
-    
+
     app = FastAPI()
-    
+
     # Override the dependency directly
     def override_get_state_machine():
         return mock_state_machine
-    
+
     app.dependency_overrides[state.get_state_machine] = override_get_state_machine
     app.include_router(state.router)
-    
+
     with TestClient(app) as client:
         yield client
 
@@ -112,8 +111,7 @@ class TestTransitionState:
     async def test_transition_success(self, test_client, mock_state_machine):
         """Test successful state transition."""
         response = test_client.post(
-            "/api/state/transition",
-            json={"target_state": "searching", "reason": "Test transition"}
+            "/api/state/transition", json={"target_state": "searching", "reason": "Test transition"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -125,8 +123,7 @@ class TestTransitionState:
     async def test_transition_invalid_state(self, test_client):
         """Test transition with invalid state name."""
         response = test_client.post(
-            "/api/state/transition",
-            json={"target_state": "INVALID_STATE", "reason": "Test"}
+            "/api/state/transition", json={"target_state": "INVALID_STATE", "reason": "Test"}
         )
         assert response.status_code == 400
         assert "Invalid state" in response.json()["detail"]
@@ -136,8 +133,7 @@ class TestTransitionState:
         """Test transition that is not allowed."""
         mock_state_machine.transition_to.return_value = False
         response = test_client.post(
-            "/api/state/transition",
-            json={"target_state": "homing", "reason": "Test"}
+            "/api/state/transition", json={"target_state": "homing", "reason": "Test"}
         )
         assert response.status_code == 400
         assert "Invalid transition" in response.json()["detail"]
@@ -147,8 +143,7 @@ class TestTransitionState:
         """Test error handling during transition."""
         mock_state_machine.transition_to.side_effect = Exception("Transition failed")
         response = test_client.post(
-            "/api/state/transition",
-            json={"target_state": "searching", "reason": "Test"}
+            "/api/state/transition", json={"target_state": "searching", "reason": "Test"}
         )
         assert response.status_code == 500
         assert "Transition failed" in response.json()["detail"]
@@ -165,8 +160,8 @@ class TestForceTransition:
             json={
                 "target_state": "homing",
                 "reason": "Emergency override",
-                "operator_id": "test_operator"
-            }
+                "operator_id": "test_operator",
+            },
         )
         assert response.status_code == 200
         data = response.json()
@@ -180,11 +175,7 @@ class TestForceTransition:
         """Test force transition with invalid state."""
         response = test_client.post(
             "/api/state/force-transition",
-            json={
-                "target_state": "INVALID",
-                "reason": "Test",
-                "operator_id": "test"
-            }
+            json={"target_state": "INVALID", "reason": "Test", "operator_id": "test"},
         )
         assert response.status_code == 400
         assert "Invalid state" in response.json()["detail"]
@@ -195,11 +186,7 @@ class TestForceTransition:
         mock_state_machine.force_transition.side_effect = Exception("Force failed")
         response = test_client.post(
             "/api/state/force-transition",
-            json={
-                "target_state": "idle",
-                "reason": "Test",
-                "operator_id": "test"
-            }
+            json={"target_state": "idle", "reason": "Test", "operator_id": "test"},
         )
         assert response.status_code == 500
         assert "Force failed" in response.json()["detail"]
@@ -265,8 +252,7 @@ class TestStateTimeout:
     def test_set_timeout_success(self, test_client, mock_state_machine):
         """Test setting state timeout."""
         response = test_client.put(
-            "/api/state/timeout",
-            json={"state": "searching", "timeout_seconds": 30.0}
+            "/api/state/timeout", json={"state": "searching", "timeout_seconds": 30.0}
         )
         assert response.status_code == 200
         data = response.json()
@@ -278,8 +264,7 @@ class TestStateTimeout:
     def test_set_timeout_zero_to_disable(self, test_client, mock_state_machine):
         """Test disabling timeout by setting to zero."""
         response = test_client.put(
-            "/api/state/timeout",
-            json={"state": "idle", "timeout_seconds": 0}
+            "/api/state/timeout", json={"state": "idle", "timeout_seconds": 0}
         )
         assert response.status_code == 200
         data = response.json()
@@ -288,8 +273,7 @@ class TestStateTimeout:
     def test_set_timeout_invalid_state(self, test_client):
         """Test setting timeout for invalid state."""
         response = test_client.put(
-            "/api/state/timeout",
-            json={"state": "INVALID", "timeout_seconds": 10}
+            "/api/state/timeout", json={"state": "INVALID", "timeout_seconds": 10}
         )
         assert response.status_code == 400
         assert "Invalid state" in response.json()["detail"]
@@ -298,8 +282,7 @@ class TestStateTimeout:
         """Test error handling when setting timeout."""
         mock_state_machine.set_state_timeout.side_effect = Exception("Timeout error")
         response = test_client.put(
-            "/api/state/timeout",
-            json={"state": "idle", "timeout_seconds": 10}
+            "/api/state/timeout", json={"state": "idle", "timeout_seconds": 10}
         )
         assert response.status_code == 500
         assert "Timeout error" in response.json()["detail"]
@@ -312,10 +295,10 @@ class TestStateHistory:
         """Test getting state history with default limit."""
         mock_state_machine.get_state_history.return_value = [
             {"state": "IDLE", "timestamp": 1234567890},
-            {"state": "ARMING", "timestamp": 1234567900}
+            {"state": "ARMING", "timestamp": 1234567900},
         ]
         mock_state_machine._state_history = ["event1", "event2"]
-        
+
         response = test_client.get("/api/state/history")
         assert response.status_code == 200
         data = response.json()
@@ -367,7 +350,7 @@ class TestStateStatistics:
             "time_since_detection": 15.5,
             "state_changes": 10,
             "state_duration_seconds": 30.0,
-            "state_timeout_seconds": 60.0
+            "state_timeout_seconds": 60.0,
         }
         response = test_client.get("/api/state/statistics")
         assert response.status_code == 200
@@ -404,7 +387,7 @@ class TestTelemetryMetrics:
             "average_transition_time_ms": 150.5,
             "current_state_duration_s": 45.0,
             "uptime_seconds": 1000.0,
-            "state_entry_counts": {"IDLE": 20, "SEARCHING": 15}
+            "state_entry_counts": {"IDLE": 20, "SEARCHING": 15},
         }
         response = test_client.get("/api/state/telemetry")
         assert response.status_code == 200
@@ -462,7 +445,7 @@ class TestSearchPatternStatus:
             "paused": False,
             "progress": 50,
             "current_waypoint": 5,
-            "total_waypoints": 10
+            "total_waypoints": 10,
         }
         response = test_client.get("/api/state/search-pattern/status")
         assert response.status_code == 200
