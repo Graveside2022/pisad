@@ -1,70 +1,25 @@
 # Project Tasks
 
-_This file is synced with Clode Studio and Claude's native TodoWrite system._  
-_Last updated: 2025-08-14T19:50:43.584Z_
+*This file is synced with Clode Studio and Claude's native TodoWrite system.*  
+*Last updated: 2025-08-14T23:54:31.068Z*
 
-## Backlog (13)
+## Backlog (3)
 
-- [ ] **Review and commit 39 modified files with 1533+ insertions**
+- [ ] **Create comprehensive developer setup guide**
   - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Split large uncommitted changes into logical commits**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Create proper commit messages for architecture updates**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Set up CI/CD pipeline**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Document API endpoints**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Create developer setup guide**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
+  - Type: documentation
+  - Priority: low
 - [ ] **Optimize service startup times**
   - Assignee: claude
   - Type: feature
-  - Priority: medium
-- [ ] **Add performance monitoring**
+  - Priority: low
+- [ ] **Add advanced performance monitoring**
   - Assignee: claude
   - Type: feature
-  - Priority: medium
-- [ ] **Implement proper authentication system**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Set up pre-commit hooks for linting**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Configure automated testing on commit**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Add code coverage reporting**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
-- [ ] **Implement E2E test suite (currently empty)**
-  - Assignee: claude
-  - Type: feature
-  - Priority: medium
+  - Priority: low
 
 ## To Do (4)
 
-- [ ] **Story 4.4: CI/CD Pipeline & Deployment**
-  - Assignee: claude
-  - Type: feature
-  - Priority: high
-  - Description: Set up GitHub Actions CI/CD, pre-commit hooks, and deployment
 - [ ] **Story 4.5: API Documentation & Security**
   - Assignee: claude
   - Type: feature
@@ -80,17 +35,27 @@ _Last updated: 2025-08-14T19:50:43.584Z_
   - Type: feature
   - Priority: high
   - Description: Define and integrate actual SDR and flight controller hardware for Raspberry Pi to achieve complete test coverage
+- [ ] **Story 4.8: DuckDB Migration**
+  - Assignee: claude
+  - Type: feature
+  - Priority: medium
+  - Description: Full database architecture transformation from SQLite to DuckDB for advanced analytics
 
 ## In Progress (1)
 
-- [ ] **Story 4.3: Hardware Service Integration** ⏳
+- [ ] **Story 4.4: CI/CD Pipeline & Deployment** ⏳
   - Assignee: claude
   - Type: feature
   - Priority: high
-  - Description: Initialize and integrate SDR, MAVLink, state machine
+  - Description: Set up GitHub Actions CI/CD, pre-commit hooks, and deployment
 
-## Completed (3)
+## Completed (4)
 
+- [x] ~~Story 4.3: Hardware Service Integration~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: Initialize and integrate SDR, MAVLink, state machine~~
 - [x] ~~Story 4.2: Comprehensive Test Coverage~~
   - ~~Assignee: claude~~
   - ~~Type: feature~~
@@ -107,5 +72,4 @@ _Last updated: 2025-08-14T19:50:43.584Z_
   - ~~Priority: medium~~
 
 ---
-
-_To update tasks, use the Kanban board in Clode Studio, ask Claude to modify this file, or use Claude's native TodoWrite system._
+*To update tasks, use the Kanban board in Clode Studio, ask Claude to modify this file, or use Claude's native TodoWrite system.*
