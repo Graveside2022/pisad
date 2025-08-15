@@ -159,7 +159,7 @@ graph TB
     end
 
     subgraph "Hardware Interfaces"
-        SDR_HW[HackRF/USRP<br/>USB SDR]
+        SDR_HW[HackRF/USRP B205mini<br/>3.2 GHz Wideband SDR]
         FC[Flight Controller<br/>Serial MAVLink]
     end
 
@@ -193,6 +193,319 @@ graph TB
 - **Operator-Activated Control:** Explicit activation required for autonomous behaviors - _Rationale:_ Safety-first design preventing unexpected automation
 
 ## Tech Stack
+
+## Hardware Specifications
+
+### SDR Hardware Requirements
+
+**Beacon Signal Characteristics:**
+- **Center Frequency**: 3.2 GHz (software configurable 850 MHz - 6.5 GHz)
+- **Modulation Type**: FM with pulse generation
+- **Signal Pattern**: Radar-like pulses (similar to weather radar)
+- **Bandwidth**: 2-5 MHz wideband signal
+- **Beacon Source**: Software-generated for testing, manual frequency selection for operations
+- **Antenna**: Log-periodic directional antenna (850 MHz - 6500 MHz)
+
+**SDR Hardware Selection:**
+| SDR Model | Frequency Range | Sample Rate | Price | Status |
+|-----------|----------------|-------------|-------|-------------|
+| RTL-SDR v3 | 24 MHz - 1.7 GHz | 2.4 Msps | $40 | ❌ Cannot reach 3.2 GHz |
+| HackRF One | 1 MHz - 6 GHz | 20 Msps | $350 | ✅ PRIMARY - Connected (USB Bus 003) |
+| USRP B205mini | 70 MHz - 6 GHz | 30.72 Msps | $1,365 | Alternative if needed |
+
+**Minimum Requirements:**
+- Frequency coverage: 3.0 - 3.5 GHz minimum
+- Sample rate: ≥10 Msps (Nyquist for 5 MHz bandwidth)
+- USB 3.0 interface (mandatory for wideband data rates)
+- Gain control: 0-40 dB minimum
+
+### Signal Processing Implications
+
+**Pulse Detection Requirements:**
+- Fast rise time detection (<1 μs)
+- Pulse width measurement capability
+- PRF calculation from pulse timing
+- FM demodulation for pulse envelope
+- Matched filter for pulse detection
+
+**Data Rate Calculations:**
+- 5 MHz bandwidth × 2 (I+Q) × 2 bytes/sample = 20 MB/s minimum
+- 20 Msps × 2 (I+Q) × 2 bytes = 80 MB/s for HackRF
+- USB 3.0 required (USB 2.0 max ~40 MB/s insufficient)
+
+### MAVLink/Flight Controller Interface
+
+**Hardware Configuration:**
+- **Flight Controller**: Pixhawk 4 with Cube Orange+ (Connected)
+- **Connection Type**: Serial over USB (auto-discovery)
+- **Device Path**: `/dev/ttyACM0` (CubeOrange+ via USB)
+- **Baud Rate**: 115200 bps
+- **Flow Control**: None (3-wire: TX, RX, GND)
+- **MAVLink Version**: v1.0 and v2.0 (auto-detect)
+- **Python Library**: pymavlink v2.4.49 (installed via uv)
+
+**MAVLink Message Set (Required):**
+| Message | Direction | Rate | Purpose |
+|---------|-----------|------|---------|
+| HEARTBEAT | Bidirectional | 1 Hz | Connection monitoring |
+| GLOBAL_POSITION_INT | From FC | 4 Hz | GPS position |
+| ATTITUDE | From FC | 10 Hz | Orientation data |
+| VFR_HUD | From FC | 4 Hz | Speed and altitude |
+| COMMAND_LONG | To FC | As needed | Mode changes |
+| SET_POSITION_TARGET_LOCAL_NED | To FC | 10 Hz | Velocity commands |
+| STATUSTEXT | From FC | As needed | Status messages |
+| RC_CHANNELS | From FC | 2 Hz | RC override detection |
+
+**Auto-Discovery Implementation:**
+```python
+# Scan for Pixhawk on common USB serial ports
+# CubeOrange+ detected at /dev/ttyACM0 (primary and secondary)
+SERIAL_PORTS = [
+    "/dev/ttyACM0",  # CubeOrange+ primary (confirmed)
+    "/dev/ttyACM1",  # CubeOrange+ secondary (confirmed)
+    "/dev/ttyUSB0", "/dev/ttyUSB1",  # Fallback options
+    "/dev/serial/by-id/*Cube*",
+    "/dev/serial/by-id/*Pixhawk*"
+]
+```
+
+### System Timing Requirements
+
+**Safety-Critical Timing Constraints:**
+| Operation | Maximum Latency | Purpose |
+|-----------|----------------|---------|
+| Mode Change Detection | <100 ms | Detect GUIDED mode transitions |
+| Emergency Stop Response | <500 ms | Halt all autonomous movement |
+| MAVLink Heartbeat Timeout | 10 seconds | Connection loss detection |
+| Command Acknowledgment | 1000 ms | Command confirmation timeout |
+
+**Signal Processing Rates:**
+| Process | Rate | Period | Rationale |
+|---------|------|--------|-----------|
+| RSSI Sampling | 1 Hz | 1000 ms | Power efficiency, sufficient for homing |
+| Gradient Calculation | 1 Hz | 1000 ms | Matches RSSI sampling rate |
+| State Machine Update | 10 Hz | 100 ms | Responsive to mode changes |
+| MAVLink Telemetry | 4-10 Hz | 100-250 ms | Per message type requirements |
+| WebSocket Updates | 1 Hz | 1000 ms | UI responsiveness |
+
+**Beacon Pulse Parameters:**
+- **PRF**: TBD (to be determined during beacon development)
+- **Pulse Width**: TBD
+- **Detection Window**: Configurable based on beacon specs
+
+**Processing Efficiency Notes:**
+- 1 Hz RSSI processing significantly reduces CPU load on Pi 5
+- Allows more headroom for pulse detection algorithms
+- Buffer 1 second of IQ samples for batch processing
+- Use moving average for gradient smoothing
+
+### Hardware Abstraction Layer (HAL)
+
+**SDR Interface (HackRF One):**
+```python
+# Using pyhackrf library (installed via uv)
+class HackRFInterface:
+    def open(self) -> bool:
+        """Open HackRF device via USB"""
+
+    def set_freq(self, freq: float) -> bool:
+        """Set center frequency in Hz (3.2e9 for 3.2 GHz)"""
+
+    def set_sample_rate(self, rate: float) -> bool:
+        """Set sample rate in Hz (20e6 for 20 Msps)"""
+
+    def set_lna_gain(self, gain: int) -> bool:
+        """Set LNA gain 0-40 dB in 8dB steps"""
+
+    def set_vga_gain(self, gain: int) -> bool:
+        """Set VGA gain 0-62 dB in 2dB steps"""
+
+    def start_rx(self) -> bool:
+        """Start receiving IQ samples"""
+
+    def read_samples(self, num_samples: int) -> np.ndarray:
+        """Returns complex64 numpy array (complex float32)"""
+        # Format: np.complex64 with I + jQ
+        # Sample rate: 20 Msps
+        # Bandwidth: 5 MHz (filtered in software)
+```
+
+**MAVLink Interface (Cube Orange+ via pymavlink):**
+```python
+# Using pymavlink library
+class MAVLinkInterface:
+    def connect(self, device: str, baud: int = 115200):
+        """Auto-discover and connect to Cube Orange"""
+
+    def send_velocity_ned(self, vn: float, ve: float, vd: float):
+        """Send velocity in NED frame (North-East-Down)
+        Units: meters per second (m/s)
+        Frame: MAV_FRAME_LOCAL_NED (body frame)"""
+
+    def get_position(self) -> Tuple[float, float, float]:
+        """Get GPS position from GLOBAL_POSITION_INT
+        Returns: (lat, lon, alt) in degrees and meters"""
+
+    def get_battery(self) -> float:
+        """Get battery voltage from SYS_STATUS
+        Returns: Voltage in volts (6S Li-ion: 18-25.2V)"""
+```
+
+**GPS Interface (Here4 via UAVCAN):**
+```python
+# Here4 data accessed through MAVLink messages
+# UAVCAN handles low-level communication
+# We read via MAVLink GLOBAL_POSITION_INT and GPS_RAW_INT
+class GPSInterface:
+    def get_fix_type(self) -> int:
+        """0=No GPS, 1=No Fix, 2=2D, 3=3D, 4=DGPS, 5=RTK Float, 6=RTK Fixed"""
+
+    def get_satellites(self) -> int:
+        """Number of visible satellites (minimum 8 required)"""
+
+    def get_hdop(self) -> float:
+        """Horizontal dilution of precision (must be < 2.0)"""
+```
+
+### Safety Interlock System
+
+**Battery Management:**
+- **Battery Type**: 6S6P Li-ion (Amprius cells)
+- **Nominal Voltage**: 22.2V (3.7V/cell)
+- **Low Battery Threshold**: 19.2V (3.2V/cell - 20% capacity)
+- **Critical Battery**: 18.0V (3.0V/cell - emergency RTL)
+- **Full Charge**: 25.2V (4.2V/cell)
+
+**GPS/GNSS Requirements (Here4 CAN GPS):**
+- **GPS Module**: Here4 on CAN bus
+- **Minimum Satellites**: 8 (recommended by Here4)
+- **HDOP Threshold**: < 2.0 (standard for autonomous ops)
+- **3D Fix Required**: Yes (no operations in 2D fix)
+- **RTK Support**: Available if base station configured
+
+**Geofence Configuration:**
+- **Type**: ArduPilot/PX4 standard geofence
+- **Configuration**: Via Mission Planner or QGC
+- **Shape**: Cylindrical or Polygonal (per GCS selection)
+- **Action on Breach**: RTL or Land (configurable)
+- **Integration**: Read fence parameters via MAVLink
+
+**Signal Loss Handling:**
+- **Primary Action**: Switch to SEARCHING state
+- **Behavior**: Resume expanding square search pattern
+- **Operator Control**: Full manual override available
+- **Auto-Recovery**: Re-enter HOMING if signal reacquired
+- **Timeout**: After 30 seconds, prompt operator for RTL
+
+**RC Override & Mode Detection:**
+- **Manual Override Trigger**: ANY stick movement during GUIDED
+- **Mode Override**: ANY mode change from GUIDED
+- **Detection Method**: Monitor RC_CHANNELS_RAW via MAVLink
+- **Deadband**: ±50 PWM units from center (1500)
+- **Response**: Immediate transition to IDLE state
+- **Notification**: Alert operator via UI and MAVLink STATUSTEXT
+
+### Hardware Auto-Detection System
+
+**Automatic Hardware Discovery:**
+```python
+class HardwareAutoDetect:
+    async def detect_all(self) -> dict:
+        """Auto-detect all connected hardware"""
+        return {
+            "hackrf": await self.detect_hackrf(),
+            "cube_orange": await self.detect_cube(),
+            "status": "operational" if all_found else "degraded"
+        }
+
+    async def detect_hackrf(self) -> dict:
+        """Detect HackRF via USB enumeration"""
+        # Check USB Bus 003 for HackRF (idVendor=1d50, idProduct=6089)
+        # Use pyhackrf library for device access
+
+    async def detect_cube(self) -> dict:
+        """Detect Cube Orange+ via serial probe"""
+        # Primary: /dev/ttyACM0 (confirmed)
+        # Secondary: /dev/ttyACM1 (confirmed)
+        # Send HEARTBEAT and wait for response
+```
+
+**Hardware Health Monitoring:**
+- Check every 5 seconds for device presence
+- Auto-reconnect on disconnect
+- Graceful degradation if hardware unavailable
+- Alert operator of hardware status changes
+
+### Real-Time Performance Metrics
+
+**System Performance Dashboard:**
+```python
+class PerformanceMetrics:
+    """Real-time performance monitoring"""
+
+    # CPU Metrics
+    cpu_usage: float  # Current CPU usage (target <30%)
+    cpu_temp: float   # CPU temperature (°C)
+
+    # Memory Metrics
+    ram_used: float   # RAM usage in MB
+    ram_percent: float  # RAM usage percentage
+
+    # SDR Performance
+    sample_rate_actual: float  # Actual vs configured
+    sample_drops: int  # Dropped samples count
+    usb_throughput: float  # MB/s USB data rate
+
+    # Processing Performance
+    rssi_latency: float  # RSSI computation time (ms)
+    fft_time: float  # FFT processing time (ms)
+
+    # MAVLink Performance
+    mavlink_latency: float  # Command round-trip (ms)
+    mavlink_packet_loss: float  # Packet loss percentage
+
+    # WebSocket Performance
+    ws_latency: float  # WebSocket round-trip (ms)
+    ws_connections: int  # Active connections
+```
+
+**Performance Monitoring Implementation:**
+```python
+# Real-time metrics collection
+async def collect_metrics():
+    """Collect performance metrics at 1 Hz"""
+    metrics = PerformanceMetrics()
+
+    # CPU usage via psutil
+    metrics.cpu_usage = psutil.cpu_percent(interval=0.1)
+    metrics.cpu_temp = read_cpu_temp()  # Pi-specific
+
+    # Memory usage
+    mem = psutil.virtual_memory()
+    metrics.ram_used = mem.used / 1024 / 1024
+    metrics.ram_percent = mem.percent
+
+    # SDR performance from HackRF
+    metrics.sample_rate_actual = hackrf.get_sample_rate()
+    metrics.sample_drops = hackrf.get_drops()
+
+    # Processing timing
+    with Timer() as t:
+        rssi = compute_rssi(samples)
+    metrics.rssi_latency = t.elapsed_ms
+
+    return metrics
+```
+
+**Performance Targets:**
+| Metric | Target | Warning | Critical |
+|--------|--------|---------|----------|
+| CPU Usage | <30% | >50% | >80% |
+| RAM Usage | <500MB | >700MB | >900MB |
+| RSSI Latency | <100ms | >200ms | >500ms |
+| Sample Drops | 0/sec | >10/sec | >100/sec |
+| MAVLink Latency | <50ms | >100ms | >500ms |
+| USB Throughput | 80MB/s | <40MB/s | <20MB/s |
 
 ### Technology Stack Table
 
@@ -242,7 +555,8 @@ graph TB
 | -------------------- | ----------------- | ------------ | -------------------------- | ------------------------------------------------------------ |
 | SDR Hardware Support | HackRF Host Tools | git-c5d63b97 | HackRF One SDR control     | Built from source for latest features and ARM64 optimization |
 | SDR Library          | libhackrf         | 0.9          | HackRF library interface   | Core library for HackRF hardware access                      |
-| Python SDR Interface | pyrtlsdr          | 0.3.0        | RTL-SDR Python bindings    | Support for RTL-SDR dongles as alternative hardware          |
+| Python SDR Interface | pyhackrf          | 0.2.0        | HackRF Python bindings     | Primary interface installed via uv                           |
+| Python SDR Fallback  | pyrtlsdr          | 0.3.0        | RTL-SDR Python bindings    | Support for RTL-SDR dongles as alternative hardware          |
 | Signal Processing    | NumPy             | 2.2.1        | Numerical computing        | Core array operations for signal processing                  |
 | Scientific Computing | SciPy             | 1.15.1       | Advanced signal processing | FFT, filters, signal analysis algorithms                     |
 

@@ -12,7 +12,7 @@ coverage:
     patch:
       default:
         target: 60%  # New code should maintain standards
-        
+
   # Component-specific thresholds
   flags:
     backend:
@@ -28,7 +28,7 @@ comment:
   layout: "reach,diff,flags,tree"
   behavior: default
   require_changes: false
-  
+
 # Ignore hardware-dependent and generated files
 ignore:
   - "tests/"
@@ -40,7 +40,7 @@ ignore:
   - "**/*.spec.ts"
   - "**/*.test.ts"
   - "**/test_*.py"
-  
+
 # Flag definitions for component tracking
 flags:
   backend:

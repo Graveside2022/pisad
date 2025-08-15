@@ -9,7 +9,7 @@
 #### Tasks:
 1. [ ] Document exact SDR model and capabilities
    - [ ] HackRF One specifications
-   - [ ] USRP B205mini specifications  
+   - [ ] USRP B205mini specifications
    - [ ] Choose primary platform
    - [ ] Define frequency ranges
    - [ ] Define sample rates

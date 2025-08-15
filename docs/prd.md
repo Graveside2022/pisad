@@ -27,7 +27,7 @@ The RF-Homing SAR Drone addresses a critical gap in current search and rescue op
 
 ### Functional
 
-- **FR1:** The system shall autonomously detect RF beacons at minimum 500m range with >12 dB SNR threshold
+- **FR1:** The system shall autonomously detect RF beacons (850 MHz - 6.5 GHz configurable, default 3.2 GHz, 2-5 MHz BW, FM pulse) at minimum 500m range with >12 dB SNR threshold using HackRF One SDR
 - **FR2:** The drone shall execute expanding square search patterns at configurable velocities between 5-10 m/s
 - **FR3:** The system shall be capable of transitioning to HOMING behavior within 2 seconds of beacon detection when homing mode is activated by the operator
 - **FR4:** The drone shall navigate toward detected signals using RSSI gradient climbing with forward velocity and yaw-rate control
@@ -132,7 +132,8 @@ Single repository containing all components (flight control configs, SDR process
 
 - **Python 3.10+** as primary language for rapid prototyping and extensive library support
 - **AsyncIO architecture** throughout for concurrent SDR sampling and flight control
-- **SoapySDR** for hardware abstraction supporting both USRP and HackRF
+- **HackRF One** with pyhackrf library for SDR operations (850 MHz - 6.5 GHz)
+- **Pixhawk 4 with Cube Orange+** flight controller via pymavlink on /dev/ttyACM0
 - **FastAPI or Flask** for lightweight web server hosting payload UI
 - **WebSocket** for real-time UI updates without polling
 - **Docker containerization** optional but recommended for reproducible builds
@@ -184,7 +185,7 @@ Single repository containing all components (flight control configs, SDR process
 2. SDR initialization with configurable sample rate (2 Msps default), center frequency (2.437 GHz default), and gain settings
 3. Continuous IQ sample streaming implemented using async generator pattern
 4. Graceful error handling for device disconnection/reconnection
-5. Hardware abstraction validated with both HackRF One and USRP B205mini (if available)
+5. Hardware abstraction validated with HackRF One (primary) connected via USB Bus 003
 6. SDR health monitoring with periodic status checks every 5 seconds
 7. Manual test utility created for validating SDR connectivity and streaming
 

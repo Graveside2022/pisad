@@ -39,7 +39,7 @@ if [ -d "src/frontend" ]; then
     cd src/frontend
     npm run test:coverage -- --json --outputFile="../../${REPORT_DIR}/frontend-coverage.json" || true
     cd ../..
-    
+
     # Extract frontend coverage if available
     FRONTEND_COV=$(node -e "const data=require('./${REPORT_DIR}/frontend-coverage.json'); console.log(data.coverageMap?.total?.lines?.pct || 50)" 2>/dev/null || echo "50")
 else
