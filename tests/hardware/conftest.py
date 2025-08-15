@@ -80,7 +80,7 @@ def pytest_collection_modifyitems(config: Any, items: list) -> None:
     
     for item in items:
         # Skip real hardware tests if no hardware
-        if "hardware" in item.keywords and not hardware_available:
+        if "hardware" in item.keywords and "mock_hardware" not in item.keywords and not hardware_available:
             item.add_marker(skip_hardware)
         
         # Skip mock tests if running with real hardware
