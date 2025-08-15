@@ -19,6 +19,42 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    sourcemap: true,
+    sourcemap: false, // Disable sourcemaps in production for smaller bundle
+    minify: "terser", // Use terser for better minification
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console logs in production
+        drop_debugger: true, // Remove debugger statements
+        pure_funcs: ["console.log", "console.info", "console.debug"],
+      },
+      mangle: true,
+      format: {
+        comments: false, // Remove comments
+      },
+    },
+    rollupOptions: {
+      output: {
+        // Manual chunking for optimal loading
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          mui: ["@mui/material", "@mui/icons-material", "@emotion/react", "@emotion/styled"],
+          charts: ["recharts"],
+        },
+        // Optimize chunk size
+        chunkFileNames: "assets/[name]-[hash].js",
+        entryFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
+    },
+    // Optimize for ARM64/Pi 5
+    target: "es2020", // Modern target for Pi 5's browser
+    cssCodeSplit: true, // Split CSS for better caching
+    assetsInlineLimit: 4096, // Inline assets < 4kb
+    reportCompressedSize: false, // Disable gzip size reporting (slow on Pi)
+    chunkSizeWarningLimit: 1000, // Warn if chunk > 1MB (target < 5MB total)
+  },
+  optimizeDeps: {
+    // Pre-bundle dependencies for faster cold starts on Pi 5
+    include: ["react", "react-dom", "@mui/material", "@emotion/react", "@emotion/styled"],
   },
 });

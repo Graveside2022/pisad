@@ -8,9 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "tsc": "tsc",
     "test": "jest --config jest.config.cjs --passWithNoTests",
     "test:watch": "jest --config jest.config.cjs --watch",
-    "test:coverage": "jest --config jest.config.cjs --coverage"
+    "test:coverage": "jest --config jest.config.cjs --coverage --coverageThreshold='{\"global\":{\"branches\":50,\"functions\":50,\"lines\":50,\"statements\":50}}'"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.backend.core.config import get_config
 from src.backend.core.dependencies import get_service_manager
@@ -74,6 +75,57 @@ def create_app() -> FastAPI:
     from src.backend.api import websocket
 
     app.include_router(websocket.router)
+
+    # Setup Prometheus metrics
+    instrumentator = Instrumentator(
+        should_group_status_codes=True,
+        should_ignore_untemplated=True,
+        should_respect_env_var=True,
+        should_instrument_requests_inprogress=True,
+        excluded_handlers=["/metrics"],
+        env_var_name="ENABLE_METRICS",
+        inprogress_name="pisad_inprogress",
+        inprogress_labels=True,
+    )
+
+    # Add custom metrics for PISAD requirements
+    @instrumentator.add
+    def mavlink_latency(info):
+        """Track MAVLink packet latency (NFR1: <1% packet loss)"""
+        from prometheus_client import Histogram
+
+        MAVLINK_LATENCY = Histogram(
+            "pisad_mavlink_latency_seconds",
+            "MAVLink communication latency in seconds",
+            buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0),
+        )
+
+        def instrumentation(info):
+            if info.modified_handler == "/api/telemetry" or info.modified_handler == "/api/state":
+                MAVLINK_LATENCY.observe(info.modified_duration)
+
+        return instrumentation
+
+    @instrumentator.add
+    def rssi_processing_time(info):
+        """Track RSSI processing time (NFR2: <100ms latency)"""
+        from prometheus_client import Histogram
+
+        RSSI_PROCESSING = Histogram(
+            "pisad_rssi_processing_seconds",
+            "RSSI computation time in seconds",
+            buckets=(0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.25, 0.5, 1.0),
+        )
+
+        def instrumentation(info):
+            if info.modified_handler == "/api/analytics/rssi" or "signal" in info.modified_handler:
+                RSSI_PROCESSING.observe(info.modified_duration)
+
+        return instrumentation
+
+    # Instrument the app
+    instrumentator.instrument(app).expose(app, endpoint="/metrics", tags=["monitoring"])
+    logger.info("Prometheus metrics enabled at /metrics endpoint")
 
     # Mount static files for React frontend AFTER API routes
     # Frontend build directory will be at src/frontend/dist

@@ -55,6 +55,7 @@ dependencies = [
   "httpx==0.28.1",
   "reportlab>=4.4.3",
   "fastapi-mcp>=0.4.0",
+  "prometheus-fastapi-instrumentator>=7.1.0",
 ]
 
 [project.optional-dependencies]
@@ -174,7 +175,7 @@ timeout_method = "thread"
 timeout_func_only = true
 
 [tool.coverage.run]
-source = ["src/backend"]
+source = ["src"]
 omit = ["*/tests/*", "*/__init__.py", "*/migrations/*"]
 parallel = true
 branch = true
@@ -264,6 +265,8 @@ namespace_packages = true
 show_error_codes = true
 show_column_numbers = true
 pretty = true
+disallow_untyped_defs = true
+check_untyped_defs = true
 
 # Ignore missing imports for packages without type hints
 [[tool.mypy.overrides]]
