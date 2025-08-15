@@ -1,0 +1,40 @@
+# Field Test Configuration
+# Overrides for actual field testing with real hardware
+
+extends: base.yaml
+
+# Field test environment
+app:
+  env: "field_test"
+
+# Real SDR settings for field testing
+sdr:
+  frequency: 433000000  # 433 MHz for LoRa beacons
+  gain: 40              # Higher gain for field conditions
+
+# More aggressive signal detection
+signal:
+  rssi_threshold: -80.0  # More sensitive
+  averaging_window: 20   # More smoothing for outdoor
+
+# Enhanced logging for field tests
+logging:
+  level: "DEBUG"
+  file:
+    max_bytes: 52428800  # 50MB for longer tests
+
+# Enable all safety features
+safety:
+  interlock_enabled: true
+  velocity_max_mps: 3.0  # Conservative for field testing
+
+# Enable monitoring for field analysis
+monitoring:
+  enabled: true
+
+# Conservative homing for field safety
+homing:
+  velocity:
+    forward_max: 3.0
+    approach: 0.5
+  signal_loss_timeout: 10.0  # More forgiving in field

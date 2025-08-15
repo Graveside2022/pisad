@@ -1,0 +1,7 @@
+# PISAD Default Configuration
+# Inherits from base.yaml and overrides specific values for normal operation
+
+extends: base.yaml
+
+# No overrides needed for default operation
+# All values from base.yaml are used as-is

@@ -1,0 +1,43 @@
+# SITL Configuration for ArduPilot Integration Testing
+# Story 4.7 - Sprint 5: SITL Integration
+
+extends: base.yaml
+
+# SITL-specific overrides
+app:
+  env: "sitl"
+  port: 8001  # Different port to avoid conflicts
+
+# Use mock SDR for SITL testing
+development:
+  mock_sdr: true
+  debug_mode: true
+
+# SITL Connection Settings
+sitl:
+  connection:
+    primary: "tcp:127.0.0.1:5760"
+    udp: "udp:127.0.0.1:14550"
+    timeout: 10  # seconds
+    heartbeat_rate: 1  # Hz
+
+  vehicle:
+    type: "copter"
+    frame: "quad"
+
+  location:
+    lat: -35.363261
+    lon: 149.165230
+    alt: 584
+    heading: 90
+
+  mission:
+    takeoff_altitude: 10  # meters
+    max_altitude: 50
+    default_velocity: 5   # m/s
+    geofence_radius: 100  # meters
+
+# Override safety settings for SITL testing
+safety:
+  interlock_enabled: true  # Enable for testing
+  velocity_max_mps: 5.0    # Allow higher speeds in simulation

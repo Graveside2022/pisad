@@ -1,0 +1,120 @@
+# PISAD Base Configuration Template
+# This file contains all default configuration values
+# Other config files can inherit from this using 'extends: base.yaml'
+# Version: 1.0.0
+
+# Application Core Settings
+app:
+  name: "PISAD"
+  version: "1.0.0"
+  env: "development"
+  host: "0.0.0.0"
+  port: 8000
+
+# SDR Hardware Configuration
+sdr:
+  frequency: 433920000  # Hz (433.92 MHz)
+  sample_rate: 2048000  # Hz (2.048 MHz)
+  gain: 30              # dB
+  ppm_correction: 0
+  device_index: 0
+  buffer_size: 16384
+
+# Signal Processing
+signal:
+  rssi_threshold: -70.0   # dBm
+  averaging_window: 10    # samples
+  min_duration_ms: 100
+  max_gap_ms: 50
+
+# Database
+database:
+  path: "data/pisad.db"
+  pool_size: 5
+  enable_wal: true
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file:
+    path: "logs/pisad.log"
+    max_bytes: 10485760  # 10MB
+    backup_count: 5
+  console: true
+  file_enabled: true
+  journal: true
+
+# WebSocket
+websocket:
+  rssi_update_ms: 100
+  heartbeat_s: 30
+  max_connections: 10
+
+# Safety System
+safety:
+  velocity_max_mps: 2.0
+  interlock_enabled: false
+  emergency_stop_gpio: 23
+  battery:
+    low_voltage: 19.2      # V (6S Li-ion)
+    critical_voltage: 18.0 # V
+  gps:
+    min_satellites: 8
+    max_hdop: 2.0
+  rc:
+    override_threshold: 50  # PWM units
+
+# Performance
+performance:
+  worker_threads: 4
+  profiling_enabled: false
+  cache_size_mb: 100
+
+# API Settings
+api:
+  rate_limit:
+    enabled: false
+    requests_per_minute: 100
+  cors:
+    enabled: true
+    origins: ["*"]
+  auth:
+    key_enabled: false
+    key: ""
+
+# Monitoring
+monitoring:
+  enabled: false
+  port: 9090
+  interval_s: 60
+
+# Homing Algorithm
+homing:
+  velocity:
+    forward_max: 5.0     # m/s
+    approach: 1.0        # m/s
+    scale_factor: 0.1
+  yaw_rate_max: 0.5      # rad/s
+  signal_loss_timeout: 5.0  # seconds
+  algorithm_mode: "GRADIENT"
+  gradient:
+    window_size: 10
+    min_snr: 10.0        # dB
+  sampling:
+    turn_radius: 10.0    # meters
+    duration: 5.0        # seconds
+  approach_threshold: -50.0  # dBm
+  plateau_variance: 2.0
+
+# Development
+development:
+  hot_reload: true
+  debug_mode: false
+  mock_sdr: false
+
+# Interferometry (Optional)
+interferometry:
+  enabled: false
+  baseline_mm: 200
+  calibration_file: "config/calibration.yaml"
