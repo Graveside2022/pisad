@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from src.backend.core.exceptions import DatabaseError
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,9 +58,9 @@ class ConfigProfileDB:
             )
 
             conn.commit()
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error initializing database: {e}")
-            raise
+            raise DatabaseError(f"Failed to initialize config profiles database: {e}") from e
         finally:
             if conn:
                 conn.close()
@@ -103,7 +105,7 @@ class ConfigProfileDB:
         except sqlite3.IntegrityError as e:
             logger.error(f"Profile with name '{profile_data['name']}' already exists: {e}")
             return False
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error inserting profile: {e}")
             return False
         finally:
@@ -147,7 +149,7 @@ class ConfigProfileDB:
             conn.close()
             return cursor.rowcount > 0
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error updating profile: {e}")
             return False
 
@@ -167,7 +169,8 @@ class ConfigProfileDB:
 
             cursor.execute(
                 """
-                SELECT * FROM config_profiles WHERE id=?
+                SELECT id, name, description, sdr_config, signal_config, homing_config, is_default, created_at, updated_at
+                FROM config_profiles WHERE id=?
             """,
                 (profile_id,),
             )
@@ -179,7 +182,7 @@ class ConfigProfileDB:
                 return self._row_to_dict(row)
             return None
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error getting profile: {e}")
             return None
 
@@ -199,7 +202,8 @@ class ConfigProfileDB:
 
             cursor.execute(
                 """
-                SELECT * FROM config_profiles WHERE name=?
+                SELECT id, name, description, sdr_config, signal_config, homing_config, is_default, created_at, updated_at
+                FROM config_profiles WHERE name=?
             """,
                 (name,),
             )
@@ -211,7 +215,7 @@ class ConfigProfileDB:
                 return self._row_to_dict(row)
             return None
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error getting profile by name: {e}")
             return None
 
@@ -228,7 +232,8 @@ class ConfigProfileDB:
 
             cursor.execute(
                 """
-                SELECT * FROM config_profiles ORDER BY name
+                SELECT id, name, description, sdr_config, signal_config, homing_config, is_default, created_at, updated_at
+                FROM config_profiles ORDER BY name
             """
             )
 
@@ -237,7 +242,7 @@ class ConfigProfileDB:
 
             return [self._row_to_dict(row) for row in rows]
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error listing profiles: {e}")
             return []
 
@@ -265,7 +270,7 @@ class ConfigProfileDB:
             conn.close()
             return cursor.rowcount > 0
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error deleting profile: {e}")
             return False
 
@@ -301,7 +306,7 @@ class ConfigProfileDB:
             conn.close()
             return cursor.rowcount > 0
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error setting default profile: {e}")
             return False
 
@@ -394,9 +399,9 @@ class StateHistoryDB:
             )
 
             conn.commit()
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error initializing state history database: {e}")
-            raise
+            raise DatabaseError(f"Failed to initialize state history database: {e}") from e
         finally:
             if conn:
                 conn.close()
@@ -447,7 +452,7 @@ class StateHistoryDB:
             conn.commit()
             return True
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error saving state change: {e}")
             return False
         finally:
@@ -500,7 +505,7 @@ class StateHistoryDB:
             conn.commit()
             return True
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error saving current state: {e}")
             return False
         finally:
@@ -521,7 +526,8 @@ class StateHistoryDB:
 
             cursor.execute(
                 """
-                SELECT * FROM current_state WHERE id = 1
+                SELECT id, state, previous_state, homing_enabled, last_detection_time, detection_count, updated_at
+                FROM current_state WHERE id = 1
                 """
             )
 
@@ -538,7 +544,7 @@ class StateHistoryDB:
                 }
             return None
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error restoring state: {e}")
             return None
         finally:
@@ -564,7 +570,8 @@ class StateHistoryDB:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            query = "SELECT * FROM state_history WHERE 1=1"
+            query = """SELECT id, from_state, to_state, timestamp, reason, operator_id, action_duration_ms, created_at
+                     FROM state_history WHERE 1=1"""
             params: list[Any] = []
 
             if from_state:
@@ -595,7 +602,7 @@ class StateHistoryDB:
                 for row in rows
             ]
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error getting state history: {e}")
             return []
         finally:
@@ -632,7 +639,7 @@ class StateHistoryDB:
             logger.info(f"Cleaned up {deleted} old state history records")
             return deleted
 
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Error cleaning up state history: {e}")
             return 0
         finally:

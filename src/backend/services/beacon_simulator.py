@@ -20,6 +20,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from backend.models.schemas import BeaconConfiguration
 from backend.utils.logging import get_logger
+from src.backend.core.exceptions import (
+    ConfigurationError,
+    PISADException,
+)
 
 logger = get_logger(__name__)
 
@@ -61,7 +65,7 @@ class BeaconSimulator:
                     config = yaml.safe_load(f)
                     return config.get("profiles", {})
             return {}
-        except Exception as e:
+        except ConfigurationError as e:
             logger.error(f"Failed to load beacon profiles: {e}")
             return {}
 
@@ -301,7 +305,7 @@ class BeaconSimulator:
 
         except asyncio.CancelledError:
             logger.info("Beacon simulation loop cancelled")
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Beacon simulation error: {e}")
 
     def register_rssi_callback(self, callback: Callable[[float], None]):

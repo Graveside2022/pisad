@@ -1,0 +1,67 @@
+# Field Test Configuration
+# Story 4.7 Sprint 6 - Test parameters and requirements
+
+test_configuration:
+  # API endpoint for PISAD system
+  api_endpoint: "http://localhost:8080"
+
+  # MAVLink connection (optional - comment out to use API only)
+  # mavlink_connection: "/dev/ttyACM0:115200"
+
+  # Data output directory
+  output_directory: "data/field_tests"
+
+  # Logging rates (Hz)
+  logging_rates:
+    telemetry: 4      # Position, attitude, battery
+    rssi: 10          # Signal strength
+    performance: 1    # CPU, RAM, temperature
+
+# Test requirements for pass/fail evaluation
+test_requirements:
+  # Critical requirements (must pass all)
+  critical:
+    detection_range_m: 500           # Minimum detection range
+    false_positive_rate: 0.05        # Maximum 5% false positives
+    flight_time_minutes: 25          # Minimum endurance
+    emergency_stop_ms: 500           # Maximum response time
+
+  # Performance requirements
+  performance:
+    cpu_usage_percent: 30            # Maximum average CPU
+    ram_usage_mb: 500                # Maximum RAM usage
+    mavlink_latency_ms: 50          # Maximum packet latency
+    processing_latency_ms: 100      # Maximum processing cycle
+
+  # Environmental requirements
+  environmental:
+    min_gps_satellites: 8            # Minimum GPS satellites
+    max_hdop: 2.0                    # Maximum HDOP value
+    battery_low_voltage: 19.2        # 6S Li-ion low threshold
+    battery_critical_voltage: 18.0   # 6S Li-ion critical
+
+# Test metadata template
+test_metadata:
+  test_location: "Test Field Alpha"
+  pilot: "TBD"
+  observer: "TBD"
+  weather_conditions:
+    temperature_c: 0
+    wind_speed_ms: 0
+    wind_direction: "N"
+    conditions: "Clear"
+    visibility_km: 10
+
+  hardware_config:
+    sdr: "HackRF One"
+    flight_controller: "Pixhawk Cube Orange+"
+    antenna: "Log-periodic 850MHz-6.5GHz"
+    battery: "6S Li-ion"
+    drone_frame: "Quadcopter"
+
+# Safety thresholds
+safety_limits:
+  max_altitude_m: 120               # Maximum test altitude
+  max_distance_m: 500               # Maximum distance from pilot
+  max_wind_speed_ms: 15             # Maximum wind for testing
+  min_battery_voltage: 19.2         # Abort test threshold

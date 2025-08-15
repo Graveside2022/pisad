@@ -8,6 +8,10 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from src.backend.api.websocket import broadcast_message
+from src.backend.core.exceptions import (
+    ConfigurationError,
+    SDRError,
+)
 from src.backend.models.database import ConfigProfileDB
 from src.backend.models.schemas import (
     ConfigProfile,
@@ -143,7 +147,7 @@ async def list_profiles():
         logger.info(f"Found {len(profiles)} configuration profiles")
         return profiles
 
-    except Exception as e:
+    except ConfigurationError as e:
         logger.error(f"Error listing profiles: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -210,7 +214,7 @@ async def create_profile(request: ProfileCreateRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except ConfigurationError as e:
         logger.error(f"Error creating profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -285,7 +289,7 @@ async def update_profile(profile_id: str, request: ProfileUpdateRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except ConfigurationError as e:
         logger.error(f"Error updating profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -333,7 +337,7 @@ async def activate_profile(profile_id: str):
                 f"Homing Config: forwardVelocityMax={profile.homingConfig.forwardVelocityMax}, "
                 f"yawRateMax={profile.homingConfig.yawRateMax}"
             )
-        except Exception as e:
+        except SDRError as e:
             logger.warning(f"Could not apply config to SDR service: {e}")
 
         # Broadcast configuration change via WebSocket
@@ -362,7 +366,7 @@ async def activate_profile(profile_id: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except ConfigurationError as e:
         logger.error(f"Error activating profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -401,7 +405,7 @@ async def delete_profile(profile_id: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except ConfigurationError as e:
         logger.error(f"Error deleting profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

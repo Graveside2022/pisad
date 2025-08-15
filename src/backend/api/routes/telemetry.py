@@ -7,6 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from src.backend.core.config import get_config
+from src.backend.core.exceptions import (
+    ConfigurationError,
+    PISADException,
+    SignalProcessingError,
+)
 from src.backend.services.mavlink_service import MAVLinkService
 
 logger = logging.getLogger(__name__)
@@ -92,7 +97,7 @@ async def get_telemetry_config(
             statustext_severity=config.telemetry.TELEMETRY_STATUSTEXT_SEVERITY,
             max_bandwidth_kbps=config.telemetry.TELEMETRY_MAX_BANDWIDTH_KBPS,
         )
-    except Exception as e:
+    except ConfigurationError as e:
         logger.error(f"Failed to get telemetry config: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve telemetry configuration")
 
@@ -125,7 +130,7 @@ async def update_telemetry_config(
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except ConfigurationError as e:
         logger.error(f"Failed to update telemetry config: {e}")
         raise HTTPException(status_code=500, detail="Failed to update telemetry configuration")
 
@@ -164,7 +169,7 @@ async def get_telemetry_status(
                 max_bandwidth_kbps=config.telemetry.TELEMETRY_MAX_BANDWIDTH_KBPS,
             ),
         )
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get telemetry status: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve telemetry status")
 
@@ -201,7 +206,7 @@ async def test_rssi_telemetry(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except SignalProcessingError as e:
         logger.error(f"Failed to send test RSSI: {e}")
         raise HTTPException(status_code=500, detail="Failed to send test telemetry")
 
@@ -242,6 +247,6 @@ async def test_status_message(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to send test status: {e}")
         raise HTTPException(status_code=500, detail="Failed to send test message")

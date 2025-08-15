@@ -12,6 +12,10 @@ from backend.services.homing_algorithm import HomingAlgorithm, VelocityCommand
 from backend.services.mavlink_service import MAVLinkService
 from backend.services.signal_processor import SignalProcessor
 from backend.services.state_machine import StateMachine
+from src.backend.core.exceptions import (
+    DatabaseError,
+    SafetyInterlockError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +167,7 @@ class HomingController:
         except asyncio.CancelledError:
             logger.info("Homing update loop cancelled")
             raise
-        except Exception as e:
+        except DatabaseError as e:
             logger.error(f"Homing update error: {e}")
             await self.stop_homing()
 
@@ -180,7 +184,7 @@ class HomingController:
                 self.current_heading = telemetry.get("heading", 0.0)
             else:
                 logger.warning("No telemetry data available from MAVLink")
-        except Exception as e:
+        except DatabaseError as e:
             logger.error(f"Failed to update telemetry: {e}")
 
     async def _update_gradient_homing(self, rssi: float, timestamp: float) -> None:
@@ -292,7 +296,7 @@ class HomingController:
                 )
                 limited_velocity = 0.0
                 limited_yaw_rate = 0.0
-        except Exception as e:
+        except SafetyInterlockError as e:
             logger.error(f"Failed to check safety interlock: {e}")
             # Fail safe - stop if can't verify safety
             limited_velocity = 0.0

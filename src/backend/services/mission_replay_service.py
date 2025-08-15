@@ -10,6 +10,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from src.backend.core.exceptions import (
+    MAVLinkError,
+    PISADException,
+    StateTransitionError,
+)
 from src.backend.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -122,7 +127,7 @@ class MissionReplayService:
             logger.info(f"Loaded mission {mission_id} with {len(self.timeline)} events")
             return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to load mission data: {e}")
             return False
 
@@ -165,7 +170,7 @@ class MissionReplayService:
                         if key in row:
                             row[key] = row[key].lower() == "true"
                     frames.append(row)
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error loading telemetry: {e}")
             raise  # Re-raise the exception so load_mission_data can catch it
         return frames
@@ -181,7 +186,7 @@ class MissionReplayService:
                     if timestamp not in detections:
                         detections[timestamp] = []
                     detections[timestamp].append(detection)
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error loading detections: {e}")
         return detections
 
@@ -196,7 +201,7 @@ class MissionReplayService:
                     if timestamp not in state_changes:
                         state_changes[timestamp] = []
                     state_changes[timestamp].append(change)
-        except Exception as e:
+        except StateTransitionError as e:
             logger.error(f"Error loading state changes: {e}")
         return state_changes
 
@@ -288,7 +293,7 @@ class MissionReplayService:
 
         except asyncio.CancelledError:
             logger.debug("Playback loop cancelled")
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error in playback loop: {e}")
             await self.stop()
 
@@ -307,7 +312,7 @@ class MissionReplayService:
                         "total": len(self.timeline),
                     }
                 )
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Failed to send WebSocket event: {e}")
 
     def get_status(self) -> dict[str, Any]:

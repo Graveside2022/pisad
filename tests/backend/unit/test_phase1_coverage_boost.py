@@ -12,6 +12,8 @@ import pytest
 from src.backend.models.schemas import SDRConfig
 from src.backend.services.mavlink_service import (
     MAVLinkService,
+
+pytestmark = pytest.mark.serial
 )
 from src.backend.services.sdr_service import (
     SDRConfigError,

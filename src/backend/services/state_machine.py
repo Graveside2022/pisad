@@ -8,6 +8,11 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional
 
+from src.backend.core.exceptions import (
+    DatabaseError,
+    SafetyInterlockError,
+    StateTransitionError,
+)
 from src.backend.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -119,9 +124,12 @@ class StateMachine:
                 self._state_db = StateHistoryDB(db_path)
                 # Try to restore previous state
                 self._restore_state()
-            except Exception as e:
-                logger.error(f"Failed to initialize state persistence: {e}")
+            except (ImportError, DatabaseError, OSError) as e:
+                logger.error(
+                    f"Failed to initialize state persistence: {e}", extra={"db_path": db_path}
+                )
                 self._state_db = None
+                # Continue without persistence - not critical
 
         # Register default entry/exit actions
         self._register_default_actions()
@@ -203,8 +211,12 @@ class StateMachine:
             try:
                 # Enable signal processing for searching
                 pass  # Placeholder for actual signal processor initialization
-            except Exception as e:
-                logger.error(f"Failed to initialize signal processor for searching: {e}")
+            except (AttributeError, ConnectionError) as e:
+                logger.error(
+                    f"Failed to initialize signal processor for searching: {e}",
+                    extra={"state": "SEARCHING"},
+                )
+                # Signal processor issues shouldn't prevent state transition
 
     async def _on_searching_exit(self) -> None:
         """Exit action for SEARCHING state."""
@@ -221,8 +233,11 @@ class StateMachine:
             try:
                 # Increase sampling rate or sensitivity
                 pass  # Placeholder for actual signal processor configuration
-            except Exception as e:
-                logger.error(f"Failed to enhance signal processing: {e}")
+            except (AttributeError, ValueError, ConnectionError) as e:
+                logger.error(
+                    f"Failed to enhance signal processing: {e}", extra={"state": "DETECTING"}
+                )
+                # Continue with default signal processing
 
     async def _on_detecting_exit(self) -> None:
         """Exit action for DETECTING state."""
@@ -236,8 +251,9 @@ class StateMachine:
             try:
                 # Set flight mode for homing
                 pass  # Placeholder for MAVLink configuration
-            except Exception as e:
-                logger.error(f"Failed to initialize homing mode: {e}")
+            except (AttributeError, ConnectionError, SafetyInterlockError) as e:
+                logger.error(f"Failed to initialize homing mode: {e}", extra={"state": "HOMING"})
+                raise StateTransitionError(f"Cannot enter HOMING: {e}") from e
 
     async def _on_homing_exit(self) -> None:
         """Exit action for HOMING state."""
@@ -251,8 +267,9 @@ class StateMachine:
             try:
                 # Enable position hold mode
                 pass  # Placeholder for MAVLink position hold
-            except Exception as e:
-                logger.error(f"Failed to enable position hold: {e}")
+            except (AttributeError, ConnectionError, ValueError) as e:
+                logger.error(f"Failed to enable position hold: {e}", extra={"state": "HOLDING"})
+                # Continue with current flight mode
 
     async def _on_holding_exit(self) -> None:
         """Exit action for HOLDING state."""
@@ -299,8 +316,14 @@ class StateMachine:
         for action in actions:
             try:
                 await action()
-            except Exception as e:
-                logger.error(f"Error executing exit action for {state.value}: {e}")
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.error(
+                    f"Error executing exit action for {state.value}: {e}",
+                    extra={
+                        "action": action.__name__ if hasattr(action, "__name__") else str(action)
+                    },
+                )
+                # Continue with other exit actions
 
         duration_ms = (time.time() - start_time) * 1000
         if actions:
@@ -324,7 +347,7 @@ class StateMachine:
         for action in actions:
             try:
                 await action()
-            except Exception as e:
+            except StateTransitionError as e:
                 logger.error(f"Error executing entry action for {state.value}: {e}")
 
         duration_ms = (time.time() - start_time) * 1000
@@ -428,7 +451,7 @@ class StateMachine:
                 self._mavlink_service.send_telemetry(
                     duration_key, metrics["state_durations"][state.value]
                 )
-        except Exception as e:
+        except DatabaseError as e:
             logger.error(f"Failed to send telemetry update: {e}")
 
     async def transition_to(self, new_state: SystemState, reason: str | None = None) -> bool:
@@ -502,7 +525,7 @@ class StateMachine:
                     last_detection_time=self._last_detection_time,
                     detection_count=self._detection_count,
                 )
-            except Exception as e:
+            except StateTransitionError as e:
                 logger.error(f"Failed to persist state change: {e}")
 
         logger.info(
@@ -515,14 +538,14 @@ class StateMachine:
         if self._mavlink_service:
             try:
                 self._mavlink_service.send_state_change(new_state.value)
-            except Exception as e:
+            except StateTransitionError as e:
                 logger.error(f"Failed to send state change telemetry: {e}")
 
         # Notify callbacks
         for callback in self._state_callbacks:
             try:
                 await callback(old_state, new_state, reason)
-            except Exception as e:
+            except StateTransitionError as e:
                 logger.error(f"Error in state callback: {e}")
 
         return True
@@ -664,7 +687,7 @@ class StateMachine:
         if self._mavlink_service:
             try:
                 self._mavlink_service.send_detection_event(rssi, confidence)
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Failed to send detection telemetry: {e}")
 
         # Auto-transition to HOMING if enabled and confidence is high
@@ -730,7 +753,7 @@ class StateMachine:
                 logger.info(f"Restored state: {self._current_state.value} from database")
             else:
                 logger.info("No previous state found in database")
-        except Exception as e:
+        except StateTransitionError as e:
             logger.error(f"Failed to restore state from database: {e}")
 
     async def force_transition(
@@ -814,21 +837,21 @@ class StateMachine:
                     last_detection_time=self._last_detection_time,
                     detection_count=self._detection_count,
                 )
-            except Exception as e:
+            except StateTransitionError as e:
                 logger.error(f"Failed to persist forced state change: {e}")
 
         # Send telemetry if MAVLink service is available
         if self._mavlink_service:
             try:
                 self._mavlink_service.send_state_change(target_state.value)
-            except Exception as e:
+            except StateTransitionError as e:
                 logger.error(f"Failed to send forced state change telemetry: {e}")
 
         # Notify callbacks
         for callback in self._state_callbacks:
             try:
                 await callback(old_state, target_state, f"FORCED: {reason}")
-            except Exception as e:
+            except StateTransitionError as e:
                 logger.error(f"Error in state callback: {e}")
 
         return True
@@ -913,7 +936,7 @@ class StateMachine:
                 await self.send_telemetry_update()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Error in telemetry loop: {e}")
 
     async def stop(self) -> None:

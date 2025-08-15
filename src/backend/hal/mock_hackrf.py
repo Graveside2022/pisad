@@ -3,11 +3,11 @@ Mock HackRF interface for testing without hardware
 """
 
 import logging
-import numpy as np
 import threading
 import time
-from typing import Optional
 from collections.abc import Callable
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +24,11 @@ class MockHackRF:
         self.lna_gain = 16
         self.vga_gain = 20
         self.amp_enabled = False
-        self._rx_callback: Optional[Callable[[bytes], None]] = None
+        self._rx_callback: Callable[[bytes], None] | None = None
         self._running = False
         self.connected = False
         self.is_streaming = False
-        self._stream_thread: Optional[threading.Thread] = None
+        self._stream_thread: threading.Thread | None = None
 
     def open(self) -> int:
         """Open mock device."""
@@ -79,16 +79,16 @@ class MockHackRF:
             return -1
         if self.is_streaming:
             return -1  # Already streaming
-        
+
         self._rx_callback = callback
         self._running = True
         self.is_streaming = True
-        
+
         # Start streaming thread
         self._stream_thread = threading.Thread(target=self._stream_samples)
         self._stream_thread.daemon = True
         self._stream_thread.start()
-        
+
         logger.info("Mock HackRF RX started")
         return 0
 
@@ -110,30 +110,32 @@ class MockHackRF:
     def _stream_samples(self) -> None:
         """Generate and stream mock IQ samples."""
         samples_per_buffer = 16384
-        
+
         while self._running and self._rx_callback:
             try:
                 # Generate mock IQ samples (complex sinusoid with noise)
                 t = np.arange(samples_per_buffer) / self.sample_rate
                 freq_offset = 0.1  # Normalized frequency
                 signal = np.exp(2j * np.pi * freq_offset * t)
-                
+
                 # Add noise based on gain settings
                 noise_level = 0.1 * np.exp(-(self.lna_gain + self.vga_gain) / 40.0)
-                noise = (np.random.randn(samples_per_buffer) + 1j * np.random.randn(samples_per_buffer)) * noise_level
+                noise = (
+                    np.random.randn(samples_per_buffer) + 1j * np.random.randn(samples_per_buffer)
+                ) * noise_level
                 signal += noise
-                
+
                 # Convert to interleaved float32
                 iq = np.zeros(samples_per_buffer * 2, dtype=np.float32)
                 iq[0::2] = signal.real
                 iq[1::2] = signal.imag
-                
+
                 # Call callback with samples
                 self._rx_callback(iq.tobytes())
-                
+
                 # Simulate sample rate
                 time.sleep(samples_per_buffer / self.sample_rate)
-                
+
             except Exception as e:
                 logger.debug(f"Mock streaming error: {e}")
                 continue

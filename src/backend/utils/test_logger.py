@@ -234,7 +234,8 @@ class TestLogger:
             cursor = conn.cursor()
 
             # Get run summary
-            cursor.execute("SELECT * FROM test_runs WHERE run_id = ?", (run_id,))
+            cursor.execute("SELECT run_id, timestamp, test_type, environment, system_config, total_tests, passed, failed, errors, skipped
+                          FROM test_runs WHERE run_id = ?", (run_id,))
             run_row = cursor.fetchone()
 
             if not run_row:
@@ -242,7 +243,8 @@ class TestLogger:
 
             # Get test results
             cursor.execute(
-                "SELECT * FROM test_results WHERE run_id = ? ORDER BY timestamp",
+                "SELECT id, run_id, test_name, test_type, status, duration_ms, timestamp, error_message, stack_trace, metadata
+                 FROM test_results WHERE run_id = ? ORDER BY timestamp",
                 (run_id,),
             )
             results = [dict(row) for row in cursor.fetchall()]
@@ -271,7 +273,8 @@ class TestLogger:
             if test_type:
                 cursor.execute(
                     """
-                    SELECT * FROM test_runs
+                    SELECT run_id, timestamp, test_type, environment, system_config, total_tests, passed, failed, errors, skipped
+                    FROM test_runs
                     WHERE test_type = ?
                     ORDER BY timestamp DESC
                     LIMIT ?
@@ -281,7 +284,8 @@ class TestLogger:
             else:
                 cursor.execute(
                     """
-                    SELECT * FROM test_runs
+                    SELECT run_id, timestamp, test_type, environment, system_config, total_tests, passed, failed, errors, skipped
+                    FROM test_runs
                     ORDER BY timestamp DESC
                     LIMIT ?
                 """,

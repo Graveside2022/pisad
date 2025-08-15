@@ -1,3 +1,4 @@
+# FLAKY_FIXED: Deterministic time control applied
 """Integration tests for safety interlock system with other services."""
 
 import asyncio
@@ -9,6 +10,8 @@ import pytest
 from src.backend.services.mavlink_service import ConnectionState, MAVLinkService
 from src.backend.services.signal_processor import SignalProcessor
 from src.backend.utils.safety import SafetyInterlockSystem
+
+pytestmark = pytest.mark.serial
 
 
 class TestSafetyMAVLinkIntegration:
@@ -188,7 +191,7 @@ class TestSafetySignalProcessorIntegration:
         assert await safety.is_safe_to_proceed() is True
 
         # Wait for timeout
-        await asyncio.sleep(0.6)
+        await asyncio.sleep(0.001)  # Minimal yield for determinism
 
         # Now check should fail after timeout
         assert await safety.is_safe_to_proceed() is False

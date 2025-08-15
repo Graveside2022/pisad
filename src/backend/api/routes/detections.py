@@ -9,6 +9,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 
+from src.backend.core.exceptions import (
+    PISADException,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -100,7 +104,7 @@ async def get_detections(
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get detections: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -133,6 +137,6 @@ async def get_detection(detection_id: str) -> dict[str, Any]:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get detection {detection_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

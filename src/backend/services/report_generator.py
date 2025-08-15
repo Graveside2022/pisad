@@ -24,6 +24,9 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from src.backend.core.exceptions import (
+    PISADException,
+)
 from src.backend.services.performance_analytics import MissionPerformanceMetrics
 from src.backend.utils.logging import get_logger
 
@@ -201,7 +204,7 @@ class ReportGenerator:
             plt.savefig(chart_path, dpi=100, bbox_inches="tight")
             plt.close()
             return chart_path
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error creating detection chart: {e}")
             return None
 
@@ -234,7 +237,7 @@ class ReportGenerator:
             plt.savefig(chart_path, dpi=100, bbox_inches="tight")
             plt.close()
             return chart_path
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error creating efficiency chart: {e}")
             return None
 
@@ -280,7 +283,7 @@ class ReportGenerator:
             plt.savefig(chart_path, dpi=100, bbox_inches="tight")
             plt.close()
             return chart_path
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error creating comparison chart: {e}")
             return None
 
@@ -333,7 +336,7 @@ class ReportGenerator:
             plt.savefig(chart_path, dpi=100, bbox_inches="tight")
             plt.close()
             return chart_path
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error creating radar chart: {e}")
             return None
 
@@ -484,7 +487,7 @@ class ReportGenerator:
             logger.info(f"Generated PDF report: {output_path}")
             return True
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error generating PDF report: {e}")
             return False
 
@@ -542,7 +545,7 @@ class ReportGenerator:
             logger.info(f"Report emailed to {config.recipient}")
             return True
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error sending email: {e}")
             return False
 
@@ -578,6 +581,6 @@ class ReportGenerator:
             logger.info(f"Generated JSON report: {output_path}")
             return True
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error generating JSON report: {e}")
             return False

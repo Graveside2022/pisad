@@ -5,6 +5,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from src.backend.core.exceptions import (
+    DatabaseError,
+    PISADException,
+    SafetyInterlockError,
+    StateTransitionError,
+)
 from src.backend.services.state_machine import SystemState
 from src.backend.utils.logging import get_logger
 
@@ -107,7 +113,7 @@ async def get_current_state(state_machine=Depends(get_state_machine)):
             state_duration_seconds=state_machine.get_state_duration(),
             state_timeout_seconds=state_machine._state_timeouts.get(current, 0),
         )
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Failed to get current state: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -150,7 +156,7 @@ async def transition_state(
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"State transition failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -186,7 +192,7 @@ async def force_transition(
             "message": f"Forced transition to {target_state.value}",
             "warning": "This was a forced transition bypassing normal validation",
         }
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Forced transition failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -207,7 +213,7 @@ async def emergency_stop(state_machine=Depends(get_state_machine)):
             "current_state": "IDLE",
             "message": "Emergency stop executed - system returned to IDLE",
         }
-    except Exception as e:
+    except SafetyInterlockError as e:
         logger.error(f"Emergency stop failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -229,7 +235,7 @@ async def set_homing_enabled(enabled: bool, state_machine=Depends(get_state_mach
             "homing_enabled": enabled,
             "message": f"Homing {'enabled' if enabled else 'disabled'}",
         }
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to set homing enabled: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -257,7 +263,7 @@ async def set_state_timeout(request: StateTimeoutRequest, state_machine=Depends(
             "timeout_seconds": request.timeout_seconds,
             "message": f"Timeout for {target_state.value} set to {request.timeout_seconds} seconds",
         }
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Failed to set state timeout: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -277,7 +283,7 @@ async def get_state_history(limit: int = 10, state_machine=Depends(get_state_mac
         return StateHistoryResponse(
             history=history, total_transitions=len(state_machine._state_history)
         )
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Failed to get state history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -292,7 +298,7 @@ async def get_state_statistics(state_machine=Depends(get_state_machine)):
     try:
         stats = state_machine.get_statistics()
         return StateStatisticsResponse(**stats)
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get statistics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -307,7 +313,7 @@ async def get_telemetry_metrics(state_machine=Depends(get_state_machine)):
     try:
         metrics = state_machine.get_telemetry_metrics()
         return TelemetryMetricsResponse(**metrics)
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get telemetry metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -322,7 +328,7 @@ async def send_telemetry_update(state_machine=Depends(get_state_machine)):
     try:
         await state_machine.send_telemetry_update()
         return {"success": True, "message": "Telemetry update sent"}
-    except Exception as e:
+    except DatabaseError as e:
         logger.error(f"Failed to send telemetry update: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -337,7 +343,7 @@ async def get_search_pattern_status(state_machine=Depends(get_state_machine)):
     try:
         status = state_machine.get_search_pattern_status()
         return status
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get search pattern status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -362,7 +368,7 @@ async def start_search_pattern(state_machine=Depends(get_state_machine)):
         return {"success": True, "message": "Search pattern started"}
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to start search pattern: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -381,7 +387,7 @@ async def pause_search_pattern(state_machine=Depends(get_state_machine)):
         return {"success": True, "message": "Search pattern paused"}
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to pause search pattern: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -400,7 +406,7 @@ async def resume_search_pattern(state_machine=Depends(get_state_machine)):
         return {"success": True, "message": "Search pattern resumed"}
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to resume search pattern: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -419,6 +425,6 @@ async def stop_search_pattern(state_machine=Depends(get_state_machine)):
         return {"success": True, "message": "Search pattern stopped"}
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to stop search pattern: {e}")
         raise HTTPException(status_code=500, detail=str(e))

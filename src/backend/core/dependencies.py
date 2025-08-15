@@ -9,6 +9,9 @@ from datetime import datetime
 from typing import Any
 
 from src.backend.core.config import get_config
+from src.backend.core.exceptions import (
+    PISADException,
+)
 from src.backend.services.homing_controller import HomingController
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.sdr_service import SDRService
@@ -148,7 +151,7 @@ class ServiceManager:
                         await service.stop()
 
                     logger.info(f"Shutdown {service_name} service")
-                except Exception as e:
+                except PISADException as e:
                     logger.error(f"Error shutting down {service_name}: {e}")
 
         self.services.clear()
@@ -224,7 +227,7 @@ class ServiceManager:
                     if service_health.get("status") in ["unhealthy", "degraded", "error"]:
                         unhealthy_count += 1
 
-                except Exception as e:
+                except PISADException as e:
                     logger.error(f"Error getting health for {service_name}: {e}")
                     health_status["services"][service_name] = {"status": "error", "error": str(e)}
                     unhealthy_count += 1

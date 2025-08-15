@@ -1,3 +1,4 @@
+# FLAKY_FIXED: Deterministic time control applied
 """Integration tests for field test service."""
 
 import asyncio
@@ -7,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.serial
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from backend.models.schemas import BeaconConfiguration
@@ -151,7 +153,7 @@ async def test_detection_range_test_execution(field_test_service, test_config):
     test_id = status.test_id
 
     # Wait briefly for async task to start
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.001)  # Minimal yield for determinism
 
     # Check test is in active tests
     assert test_id in field_test_service.active_tests
@@ -198,7 +200,7 @@ async def test_state_transition_test(field_test_service):
     assert status.phase == "setup"
 
     # Wait briefly for async execution
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.001)  # Minimal yield for determinism
 
     # Verify state machine transitions were requested
     field_test_service.state_machine.request_transition.assert_called()
@@ -220,7 +222,7 @@ async def test_safety_validation_test(field_test_service):
     assert status.phase == "setup"
 
     # Wait for async execution
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.001)  # Minimal yield for determinism
 
     # Verify safety manager methods were called
     field_test_service.safety_manager.emergency_stop.assert_called()

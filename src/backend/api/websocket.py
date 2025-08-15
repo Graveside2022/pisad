@@ -10,6 +10,12 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.backend.core.config import get_config
+from src.backend.core.exceptions import (
+    PISADException,
+    SafetyInterlockError,
+    SignalProcessingError,
+    StateTransitionError,
+)
 from src.backend.services.mavlink_service import ConnectionState, MAVLinkService
 from src.backend.services.signal_processor_integration import SignalProcessorIntegration
 from src.backend.services.state_machine import StateMachine, SystemState
@@ -205,7 +211,7 @@ async def broadcast_telemetry_updates():
             # 2Hz update rate (500ms intervals)
             await asyncio.sleep(0.5)
 
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Error in telemetry broadcast task: {e}")
 
 
@@ -312,7 +318,7 @@ async def broadcast_state_updates():
             # 1Hz update rate
             await asyncio.sleep(1.0)
 
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Error in state broadcast task: {e}")
 
 
@@ -347,7 +353,7 @@ async def broadcast_rssi_updates():
             # Rate limiting to ensure 10Hz (100ms intervals)
             await asyncio.sleep(update_interval)
 
-    except Exception as e:
+    except SignalProcessingError as e:
         logger.error(f"Error in RSSI broadcast task: {e}")
 
 
@@ -406,7 +412,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             except WebSocketDisconnect:
                 break
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Error handling WebSocket message: {e}")
                 break
 
@@ -512,7 +518,7 @@ async def broadcast_safety_updates():
     except asyncio.CancelledError:
         logger.info("Safety broadcast task cancelled")
         raise
-    except Exception as e:
+    except SafetyInterlockError as e:
         logger.error(f"Error in safety broadcast task: {e}")
 
 
@@ -563,7 +569,7 @@ async def broadcast_homing_updates():
     except asyncio.CancelledError:
         logger.info("Homing broadcast task cancelled")
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Error in homing broadcast task: {e}")
 
 

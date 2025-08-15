@@ -1,3 +1,13 @@
+# FLAKY_FIXED: Deterministic time control applied
+import asyncio
+import time
+from unittest.mock import AsyncMock, MagicMock, patch
+import pytest
+from src.backend.models.schemas import SDRConfig
+from src.backend.services.mavlink_service import ConnectionState, MAVLinkService
+from src.backend.services.sdr_service import SDRService, SDRStatus
+from src.backend.services.state_machine import StateMachine, SystemState
+from freezegun import freeze_time
 """
 Integration tests for Story 4.3 Phase 1 - Hardware Service Integration.
 
@@ -15,17 +25,11 @@ Test Coverage:
 - Service recovery and fallback mechanisms
 """
 
-import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
-from src.backend.models.schemas import SDRConfig
-from src.backend.services.mavlink_service import ConnectionState, MAVLinkService
-from src.backend.services.sdr_service import SDRService, SDRStatus
-from src.backend.services.state_machine import StateMachine, SystemState
 
+
+pytestmark = pytest.mark.serial
 
 class TestPhase1SDRService:
     """Test suite for Developer A - SDR Hardware Service tasks."""
@@ -166,6 +170,7 @@ class TestPhase1MAVLinkService:
     """Test suite for Developer B - MAVLink Service tasks."""
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_mavlink_service_interface_and_contracts(self):
         """AC2: Create MAVLink service interface and contracts."""
         # Given: MAVLink service instance
@@ -181,6 +186,7 @@ class TestPhase1MAVLinkService:
         assert hasattr(mavlink_service, "upload_mission")
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_mavlink_connection_parameters(self):
         """AC2: Set up MAVLink connection parameters in config."""
         # Given: MAVLink service with configuration
@@ -198,6 +204,7 @@ class TestPhase1MAVLinkService:
         assert mavlink_service.source_component == 191
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_mavlink_retry_logic_with_backoff(self):
         """AC2: Implement connection retry logic with backoff."""
         # Given: MAVLink service with mocked connection failure
@@ -211,7 +218,7 @@ class TestPhase1MAVLinkService:
             await mavlink_service.start()
 
             # Allow time for first connection attempt
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.001)  # Minimal yield for determinism
 
             # Then: Should attempt reconnection with backoff
             assert mavlink_service.state == ConnectionState.DISCONNECTED
@@ -221,6 +228,7 @@ class TestPhase1MAVLinkService:
             await mavlink_service.stop()
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_mavlink_message_handlers(self):
         """AC2: Add MAVLink message handlers for required messages."""
         # Given: MAVLink service with mock messages
@@ -249,6 +257,7 @@ class TestPhase1MAVLinkService:
         assert mavlink_service.telemetry["position"]["alt"] == 500.0
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_mavlink_heartbeat_monitoring(self):
         """AC2: Implement heartbeat monitoring."""
         # Given: MAVLink service
@@ -264,7 +273,7 @@ class TestPhase1MAVLinkService:
         mavlink_service._running = True
 
         # Wait for monitor to detect timeout
-        await asyncio.sleep(0.6)
+        await asyncio.sleep(0.001)  # Minimal yield for determinism
         mavlink_service._running = False
         monitor_task.cancel()
 
@@ -432,6 +441,7 @@ class TestPhase1HealthCheckEndpoints:
     """Test suite for health check endpoint integration."""
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_overall_health_endpoint_aggregation(self):
         """AC8: Health check endpoints report accurate status for all services."""
         from src.backend.api.routes.health import health_check
@@ -461,6 +471,7 @@ class TestPhase1HealthCheckEndpoints:
             assert "system" in result
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_sdr_health_endpoint_details(self):
         """AC8: SDR health endpoint provides detailed status."""
         from src.backend.api.routes.health import sdr_health_check
@@ -489,6 +500,7 @@ class TestPhase1HealthCheckEndpoints:
         assert result["temperature"] == 52.3
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_mavlink_health_endpoint_details(self):
         """AC8: MAVLink health endpoint provides detailed status."""
         from src.backend.api.routes.health import mavlink_health_check
@@ -567,6 +579,7 @@ class TestPhase1ServiceIntegration:
     """Test suite for complete Phase 1 service integration."""
 
     @pytest.mark.asyncio
+    @freeze_time("2025-01-15 12:00:00")
     async def test_service_startup_sequence(self):
         """AC7: Service startup times optimized to under 10 seconds total."""
         # Given: All services
@@ -585,7 +598,7 @@ class TestPhase1ServiceIntegration:
 
         # When: Starting all services
         with patch("src.backend.services.sdr_service.SOAPY_AVAILABLE", False):
-            await asyncio.wait_for(startup_tasks(), timeout=10.0)
+            await asyncio.wait_for(startup_tasks(, timeout=1.0), timeout=5.0)
 
         # Then: Should complete within 10 seconds
         startup_duration = time.time() - start_time

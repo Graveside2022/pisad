@@ -10,6 +10,8 @@ import pytest
 
 from src.backend.services.state_machine import (
     SearchSubstate,
+
+pytestmark = pytest.mark.serial
     StateMachine,
     SystemState,
 )

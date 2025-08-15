@@ -11,6 +11,10 @@ from typing import Any
 
 import yaml
 
+from src.backend.core.exceptions import (
+    ConfigurationError,
+    SDRError,
+)
 from src.backend.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
@@ -278,7 +282,7 @@ class ConfigLoader:
                     yaml_config = yaml.safe_load(f)
                     self._apply_yaml_config(yaml_config)
                     logger.info(f"Loaded configuration from {self.config_path}")
-            except Exception as e:
+            except ConfigurationError as e:
                 logger.error(f"Failed to load configuration from {self.config_path}: {e}")
                 raise
         else:
@@ -336,7 +340,7 @@ class ConfigLoader:
 
             except ImportError:
                 logger.warning("Hardware detector not available, using mock configuration")
-            except Exception as e:
+            except SDRError as e:
                 logger.warning(f"Failed to load hardware config: {e}")
 
         # Fall back to mock configuration if hardware config not loaded
@@ -346,7 +350,7 @@ class ConfigLoader:
                     mock_config = yaml.safe_load(f)
                     self._apply_hardware_yaml(mock_config)
                     logger.info("Loaded mock hardware configuration for testing")
-            except Exception as e:
+            except SDRError as e:
                 logger.error(f"Failed to load mock hardware config: {e}")
 
         # Override with USE_MOCK_HARDWARE environment variable
@@ -359,7 +363,7 @@ class ConfigLoader:
                     mock_config = yaml.safe_load(f)
                     self._apply_hardware_yaml(mock_config)
                     logger.info("Forced mock hardware configuration via environment")
-            except Exception as e:
+            except ConfigurationError as e:
                 logger.error(f"Failed to load mock config: {e}")
 
     def _apply_hardware_yaml(self, hw_config: dict[str, Any]) -> None:
@@ -446,7 +450,7 @@ class ConfigLoader:
 
                 logger.info(f"Applied settings from default profile: {default_profile.name}")
 
-        except Exception as e:
+        except ConfigurationError as e:
             logger.warning(f"Could not load default profile: {e}")
 
     def _apply_yaml_config(self, yaml_config: dict[str, Any]) -> None:

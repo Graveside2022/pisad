@@ -10,6 +10,8 @@ import pytest
 
 from src.backend.services.telemetry_recorder import TelemetryFrame, TelemetryRecorder
 
+pytestmark = pytest.mark.serial
+
 
 @pytest.fixture
 def mock_mavlink_service():

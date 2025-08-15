@@ -19,6 +19,9 @@ from backend.services.mavlink_service import MAVLinkService
 from backend.services.signal_processor import SignalProcessor
 from backend.services.state_machine import StateMachine
 from backend.utils.logging import get_logger
+from src.backend.core.exceptions import (
+    PISADException,
+)
 
 logger = get_logger(__name__)
 
@@ -175,7 +178,7 @@ class TelemetryRecorder:
 
         except asyncio.CancelledError:
             logger.info("Recording loop cancelled")
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Recording error: {e}")
             self.recording = False
 
@@ -244,7 +247,7 @@ class TelemetryRecorder:
 
             return frame
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to collect telemetry frame: {e}")
             return None
 
@@ -395,13 +398,16 @@ class TelemetryRecorder:
         if output_path is None:
             output_path = self.output_dir / f"{self.session_id}_analysis.csv"
 
-        # Create analysis-friendly format
-        with open(output_path, "w", newline="") as f:
-            # Write header with units
-            f.write("# PiSAD Telemetry Data Export\n")
-            f.write(f"# Session: {self.session_id}\n")
-            f.write(f"# Frames: {len(self.telemetry_buffer)}\n")
-            f.write("#\n")
+        # Rex/Sherlock: Use async I/O to avoid blocking event loop
+        from src.backend.utils.async_io_helpers import AsyncFileIO
+
+        # Prepare header
+        header = (
+            "# PiSAD Telemetry Data Export\n"
+            f"# Session: {self.session_id}\n"
+            f"# Frames: {len(self.telemetry_buffer)}\n"
+            "#\n"
+        )
 
             # Write data
             field_names = [

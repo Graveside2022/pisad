@@ -1,7 +1,7 @@
 # Project Tasks
 
 *This file is synced with Clode Studio and Claude's native TodoWrite system.*
-*Last updated: 2025-08-15T11:02:25.120Z*
+*Last updated: 2025-08-15T17:16:38.055Z*
 
 ## Backlog (6)
 
@@ -35,11 +35,6 @@
 
 ## To Do (5)
 
-- [ ] **Story 4.6: Safety-Critical Coverage Compliance**
-  - Assignee: claude
-  - Type: feature
-  - Priority: high
-  - Description: READY - Create HAL mocks based on Story 4.7 interfaces, achieve 85%+ coverage
 - [ ] **Story 2.5: Ground Testing & Safety Validation**
   - Assignee: claude
   - Type: feature
@@ -60,17 +55,28 @@
   - Type: feature
   - Priority: low
   - Description: Maintain 90% coverage as code evolves (ongoing after 4.6 complete)
+- [ ] **Story 4.6: Safety-Critical Coverage Compliance**
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: READY - Create HAL mocks based on Story 4.7 interfaces, achieve 85%+ coverage
 
 ## In Progress (1)
 
-- [ ] **Story 4.7: Hardware Integration Testing** ⏳
+- [ ] **Story 4.9: Code Optimization and Refactoring** ⏳
   - Assignee: claude
   - Type: feature
-  - Priority: critical
-  - Description: Sprint 2 Active - HAL implemented for HackRF (pyhackrf) & Cube Orange+ (pymavlink). Next: beacon generator, auto-detection, performance metrics
+  - Priority: high
+  - Description: Sprint 6 Day 4 complete - Exception handlers refactored. 15/36 story points done (42%)
+  - Sprint 6 Status: Days 1-4 Complete, Day 5 Next
 
-## Completed (5)
+## Completed (6)
 
+- [x] ~~Story 4.7: Hardware Integration Testing~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: medium~~
+  - ~~Description: Sprint 2 Active - HAL implemented for HackRF (pyhackrf) & Cube Orange+ (pymavlink). Next: beacon generator, auto-detection, performance metrics~~
 - [x] ~~Story 4.4: CI/CD Pipeline & Deployment~~
   - ~~Assignee: claude~~
   - ~~Type: feature~~

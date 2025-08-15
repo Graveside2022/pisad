@@ -199,3 +199,34 @@ coverage/
 # Embedded repositories (should be submodules)
 bmad-method/
 clode-studio/
+
+# Field test data (contains test results) - Added by Story 4.9
+data/field_tests/*.json
+data/field_tests/*.csv
+
+# Additional Python artifacts - Added by Story 4.9
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+eggs/
+.eggs/
+
+# Test artifacts - Added by Story 4.9
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# IDE and editor files - Added by Story 4.9
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store

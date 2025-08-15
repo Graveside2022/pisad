@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient
 
 from src.backend.core.app import create_app
 
+pytestmark = pytest.mark.serial
+
 
 @pytest.fixture
 def client():

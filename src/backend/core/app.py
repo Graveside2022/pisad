@@ -15,6 +15,9 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.backend.core.config import get_config
 from src.backend.core.dependencies import get_service_manager
+from src.backend.core.exceptions import (
+    PISADException,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +164,7 @@ def create_app() -> FastAPI:
             # Update Prometheus metric
             STARTUP_TIME_GAUGE.set(startup_duration)
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to initialize services: {e}")
             raise
 
@@ -175,7 +178,7 @@ def create_app() -> FastAPI:
             service_manager = get_service_manager()
             await service_manager.shutdown_services()
             logger.info("All services shutdown successfully")
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Error during service shutdown: {e}")
 
     return app

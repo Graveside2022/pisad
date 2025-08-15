@@ -11,6 +11,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
+from src.backend.core.exceptions import (
+    PISADException,
+)
 from src.backend.services.mission_replay_service import (
     MissionReplayService,
     PlaybackSpeed,
@@ -111,7 +114,7 @@ async def get_performance_metrics(
 
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Mission data not found")
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Error retrieving metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -160,7 +163,7 @@ async def get_replay_data(mission_id: UUID) -> dict[str, Any]:
             },
         }
 
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Error getting replay data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -202,7 +205,7 @@ async def control_replay(mission_id: UUID, request: ReplayControlRequest) -> dic
 
         return replay_service.get_status()
 
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Error controlling replay: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -284,7 +287,7 @@ async def export_data(request: ExportRequest) -> Response:
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Error exporting data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -325,7 +328,7 @@ async def get_mission_report(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Error getting report: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -370,7 +373,7 @@ async def get_system_recommendations() -> dict[str, Any]:
             "recommendation_frequency": recommendation_counts,
         }
 
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Error getting recommendations: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -7,6 +7,8 @@ import pytest
 
 from src.backend.services.command_pipeline import (
     CommandPipeline,
+
+pytestmark = pytest.mark.serial
     CommandPriority,
     CommandType,
 )

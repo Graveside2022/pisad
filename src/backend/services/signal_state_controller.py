@@ -13,6 +13,9 @@ from uuid import uuid4
 
 import numpy as np
 
+from src.backend.core.exceptions import (
+    StateTransitionError,
+)
 from src.backend.models.schemas import DetectionEvent
 from src.backend.services.state_machine import StateMachine
 from src.backend.utils.logging import get_logger
@@ -250,7 +253,7 @@ class SignalStateController:
                 elif new_state == SignalState.LOST:
                     # Signal lost
                     await self.state_machine.handle_signal_lost()
-            except Exception as e:
+            except StateTransitionError as e:
                 logger.error(f"Error triggering state machine transition: {e}")
 
     def _detect_anomaly(self, snr: float) -> bool:

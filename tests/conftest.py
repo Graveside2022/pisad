@@ -16,6 +16,47 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 
+def pytest_configure(config):
+    """Register custom pytest markers for test categorization."""
+    # Test category markers
+    config.addinivalue_line(
+        "markers", "unit: mark test as a unit test (<100ms, no external dependencies)"
+    )
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test (<1s, real services)"
+    )
+    config.addinivalue_line("markers", "e2e: mark test as end-to-end test (<10s, full stack)")
+    config.addinivalue_line("markers", "sitl: mark test as SITL hardware-in-loop test (<30s)")
+    config.addinivalue_line("markers", "performance: mark test as performance benchmark (<5s)")
+    config.addinivalue_line("markers", "property: mark test as property-based test (hypothesis)")
+    config.addinivalue_line("markers", "contract: mark test as API contract test")
+
+    # Priority markers
+    config.addinivalue_line(
+        "markers", "critical: mark test as critical (safety/core functionality)"
+    )
+    config.addinivalue_line("markers", "smoke: mark test as smoke test (basic functionality)")
+
+    # Speed markers
+    config.addinivalue_line("markers", "slow: mark test as slow (>1s execution time)")
+    config.addinivalue_line("markers", "fast: mark test as fast (<100ms execution time)")
+
+    # Requirement tracing markers
+    config.addinivalue_line(
+        "markers", "safety: mark test as safety-critical (HARA hazard mitigation)"
+    )
+    config.addinivalue_line(
+        "markers", "requirement(id): mark test with requirement ID (FR/NFR/Story)"
+    )
+
+    # Environment markers
+    config.addinivalue_line(
+        "markers", "requires_hardware: mark test as requiring physical hardware"
+    )
+    config.addinivalue_line("markers", "requires_network: mark test as requiring network access")
+    config.addinivalue_line("markers", "serial: mark test to run serially (not parallelizable)")
+
+
 # Mark all tests with their appropriate group for parallel execution
 def pytest_collection_modifyitems(config, items):
     """Add markers to test items for better organization and parallel execution."""

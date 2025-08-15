@@ -20,6 +20,10 @@ except ImportError:
     SoapySDR = None
     SOAPY_AVAILABLE = False
 
+from src.backend.core.exceptions import (
+    PISADException,
+    SDRError,
+)
 from src.backend.models.schemas import SDRConfig, SDRStatus
 from src.backend.utils.logging import get_logger
 
@@ -89,7 +93,7 @@ class SDRService:
             for idx, device in enumerate(devices):
                 logger.debug(f"Device {idx}: {device}")
             return list(devices)  # Ensure it's a list
-        except Exception as e:
+        except SDRError as e:
             logger.error(f"Failed to enumerate devices: {e}")
             return []
 
@@ -347,7 +351,7 @@ class SDRService:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Health monitor error: {e}")
 
     async def _reconnect_loop(self) -> None:
@@ -372,7 +376,7 @@ class SDRService:
                 # Task was cancelled, exit gracefully
                 logger.info("Reconnection task cancelled")
                 raise
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Reconnection failed: {e}")
                 # Exponential backoff
                 backoff = min(backoff * 2, max_backoff)
@@ -450,7 +454,7 @@ class SDRService:
                     error_ppm = (actual_freq - freq) / freq * 1e6
                     freq_errors.append(error_ppm)
                     logger.debug(f"Frequency {freq/1e6:.1f} MHz: error = {error_ppm:.2f} ppm")
-                except Exception as e:
+                except PISADException as e:
                     logger.warning(f"Failed to test frequency {freq/1e6:.1f} MHz: {e}")
 
             if freq_errors:
@@ -636,7 +640,7 @@ class SDRService:
 
             return calibration_results
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Calibration failed: {e}")
             calibration_results["status"] = "failed"
             calibration_results["error"] = str(e)

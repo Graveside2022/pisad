@@ -1,0 +1,106 @@
+# SITL Configuration for ArduPilot Integration Testing
+# Story 4.7 - Sprint 5: SITL Integration
+
+sitl:
+  # Connection settings for SITL
+  connection:
+    # Primary connection for PISAD
+    primary: "tcp:127.0.0.1:5760"
+    # Alternative UDP connection
+    udp: "udp:127.0.0.1:14550"
+    # Timeout for connection attempts
+    timeout: 10  # seconds
+    # Heartbeat rate
+    heartbeat_rate: 1  # Hz
+
+  # Vehicle configuration
+  vehicle:
+    type: "copter"  # ArduCopter for multi-rotor
+    frame: "quad"   # Quadcopter frame
+
+  # Starting location (default)
+  location:
+    lat: -35.363261   # Latitude
+    lon: 149.165230   # Longitude
+    alt: 584          # Altitude (meters)
+    heading: 90       # Heading (degrees)
+
+  # Mission parameters for testing
+  mission:
+    # Takeoff altitude for tests
+    takeoff_altitude: 10  # meters
+    # Maximum test altitude
+    max_altitude: 50      # meters
+    # Default velocity
+    default_velocity: 5   # m/s
+    # Geofence radius
+    geofence_radius: 100  # meters
+
+  # Safety parameters (matching hardware config)
+  safety:
+    # Battery thresholds (6S Li-ion)
+    battery_low_voltage: 19.2     # V
+    battery_critical_voltage: 18.0 # V
+    # GPS requirements
+    gps_min_satellites: 8
+    gps_max_hdop: 2.0
+    # RC override threshold
+    rc_override_threshold: 50  # PWM units
+    # Emergency stop response time
+    emergency_stop_time: 0.5   # seconds
+
+  # Performance targets (from hardware config)
+  performance:
+    # Mode change latency
+    mode_change_latency: 0.1    # seconds (<100ms)
+    # Emergency stop latency
+    emergency_stop_latency: 0.5  # seconds (<500ms)
+    # MAVLink packet latency
+    mavlink_latency: 0.05        # seconds (<50ms)
+    # CPU usage target
+    cpu_target: 30               # percent
+    # RAM usage target
+    ram_target: 500              # MB
+
+  # Test scenarios
+  test_scenarios:
+    # Basic connection test
+    connection_test:
+      enabled: true
+      timeout: 5
+
+    # Telemetry streaming test
+    telemetry_test:
+      enabled: true
+      duration: 10  # seconds
+      expected_rate: 4  # Hz
+
+    # Command execution test
+    command_test:
+      enabled: true
+      commands:
+        - arm
+        - takeoff
+        - land
+        - disarm
+
+    # Safety validation test
+    safety_test:
+      enabled: true
+      tests:
+        - emergency_stop
+        - rc_override
+        - battery_failsafe
+        - gps_failsafe
+        - geofence_breach
+
+    # Performance validation
+    performance_test:
+      enabled: true
+      duration: 60  # seconds
+
+# Logging configuration for SITL tests
+logging:
+  level: "INFO"
+  file: "logs/sitl_test.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

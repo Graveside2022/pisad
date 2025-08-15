@@ -10,6 +10,8 @@ import yaml
 
 from src.backend.core.config import (
     AppConfig,
+
+pytestmark = pytest.mark.serial
     Config,
     ConfigLoader,
     LoggingConfig,

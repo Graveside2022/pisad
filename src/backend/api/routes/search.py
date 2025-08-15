@@ -9,6 +9,12 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from src.backend.core.exceptions import (
+    DatabaseError,
+    MAVLinkError,
+    PISADException,
+    StateTransitionError,
+)
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.search_pattern_generator import (
     CenterRadiusBoundary,
@@ -54,7 +60,7 @@ def save_pattern_state():
             json.dump(patterns_data, f)
 
         logger.debug(f"Saved {len(patterns_data)} pattern states to disk")
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Failed to save pattern state: {e}")
 
 
@@ -70,7 +76,7 @@ def load_pattern_state():
         # Note: This is simplified - in production would need to reconstruct full patterns
         logger.info(f"Loaded {len(patterns_data)} pattern states from disk")
 
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Failed to load pattern state: {e}")
 
 
@@ -102,7 +108,7 @@ async def broadcast_pattern_update(pattern: SearchPattern, event_type: str = "pa
         }
 
         await broadcast_message(message)
-    except Exception as e:
+    except DatabaseError as e:
         logger.error(f"Failed to broadcast pattern update: {e}")
 
 
@@ -266,7 +272,7 @@ async def create_search_pattern(
     except ValueError as e:
         logger.error(f"Invalid pattern parameters: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to create search pattern: {e}")
         raise HTTPException(status_code=500, detail="Failed to create search pattern")
 
@@ -323,7 +329,7 @@ async def get_pattern_preview(pattern_id: str | None = None) -> PatternPreviewRe
 
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get pattern preview: {e}")
         raise HTTPException(status_code=500, detail="Failed to get pattern preview")
 
@@ -367,7 +373,7 @@ async def get_pattern_status(pattern_id: str | None = None) -> PatternStatusResp
 
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get pattern status: {e}")
         raise HTTPException(status_code=500, detail="Failed to get pattern status")
 
@@ -434,7 +440,7 @@ async def control_pattern(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to control pattern: {e}")
         raise HTTPException(status_code=500, detail="Failed to control pattern")
 
@@ -506,7 +512,7 @@ async def import_pattern(
     except ValueError as e:
         logger.error(f"Invalid import format: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to import pattern: {e}")
         raise HTTPException(status_code=500, detail="Failed to import pattern")
 
@@ -572,7 +578,7 @@ async def upload_pattern_to_mavlink(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except MAVLinkError as e:
         logger.error(f"Failed to upload pattern to MAVLink: {e}")
         raise HTTPException(status_code=500, detail="Failed to upload pattern")
 
@@ -609,7 +615,7 @@ async def start_mavlink_mission(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except MAVLinkError as e:
         logger.error(f"Failed to start MAVLink mission: {e}")
         raise HTTPException(status_code=500, detail="Failed to start mission")
 
@@ -646,7 +652,7 @@ async def pause_mavlink_mission(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except MAVLinkError as e:
         logger.error(f"Failed to pause MAVLink mission: {e}")
         raise HTTPException(status_code=500, detail="Failed to pause mission")
 
@@ -683,7 +689,7 @@ async def resume_mavlink_mission(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except MAVLinkError as e:
         logger.error(f"Failed to resume MAVLink mission: {e}")
         raise HTTPException(status_code=500, detail="Failed to resume mission")
 
@@ -720,7 +726,7 @@ async def stop_mavlink_mission(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except MAVLinkError as e:
         logger.error(f"Failed to stop MAVLink mission: {e}")
         raise HTTPException(status_code=500, detail="Failed to stop mission")
 
@@ -754,7 +760,7 @@ async def get_mavlink_mission_progress(
             "progress_percent": progress_percent,
         }
 
-    except Exception as e:
+    except MAVLinkError as e:
         logger.error(f"Failed to get MAVLink mission progress: {e}")
         raise HTTPException(status_code=500, detail="Failed to get mission progress")
 
@@ -810,6 +816,6 @@ async def export_pattern(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to export pattern: {e}")
         raise HTTPException(status_code=500, detail="Failed to export pattern")

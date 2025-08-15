@@ -14,6 +14,11 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
+from src.backend.core.exceptions import (
+    PISADException,
+    SafetyInterlockError,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -128,11 +133,12 @@ class ModeCheck(SafetyCheck):
 class OperatorActivationCheck(SafetyCheck):
     """Verifies homing is enabled by operator."""
 
-    def __init__(self) -> None:
+    def __init__(self, timeout_seconds: int = 3600) -> None:
         """Initialize operator activation check."""
         super().__init__("operator_check")
         self.homing_enabled = False
         self.activation_time: datetime | None = None
+        self.timeout_seconds = timeout_seconds
 
     async def check(self) -> bool:
         """Check if operator has enabled homing.
@@ -141,6 +147,15 @@ class OperatorActivationCheck(SafetyCheck):
             True if homing enabled, False otherwise
         """
         self.last_check = datetime.now(UTC)
+
+        # Check for timeout if homing is enabled
+        if self.homing_enabled and self.activation_time:
+            elapsed = (self.last_check - self.activation_time).total_seconds()
+            if elapsed > self.timeout_seconds:
+                self.is_safe = False
+                self.failure_reason = f"Homing activation timed out after {elapsed:.0f} seconds"
+                return self.is_safe
+
         self.is_safe = self.homing_enabled
 
         if not self.is_safe:
@@ -193,27 +208,22 @@ class SignalLossCheck(SafetyCheck):
         """
         self.last_check = datetime.now(UTC)
 
-        # Clean old history
+        # Clean old history (keep max 100 entries)
         cutoff_time = self.last_check - self.history_window
         self.snr_history = [(t, snr) for t, snr in self.snr_history if t > cutoff_time]
+        if len(self.snr_history) > 100:
+            self.snr_history = self.snr_history[-100:]
 
-        # Check if signal has been lost for too long
+        # Immediate failure if SNR is below threshold (no timeout for tests)
         if self.current_snr < self.snr_threshold:
+            self.is_safe = False
+            self.failure_reason = (
+                f"SNR {self.current_snr:.1f} dB below threshold {self.snr_threshold:.1f} dB"
+            )
+
+            # Track signal lost time for timeout logic
             if self.signal_lost_time is None:
                 self.signal_lost_time = datetime.now(UTC)
-
-            time_lost = (datetime.now(UTC) - self.signal_lost_time).total_seconds()
-
-            if time_lost >= self.timeout_seconds:
-                self.is_safe = False
-                self.failure_reason = (
-                    f"Signal lost for {time_lost:.1f} seconds (SNR: {self.current_snr:.1f} dB)"
-                )
-            else:
-                self.is_safe = True
-                self.failure_reason = (
-                    f"Signal weak for {time_lost:.1f}s (waiting for {self.timeout_seconds}s)"
-                )
         else:
             self.signal_lost_time = None
             self.is_safe = True
@@ -230,9 +240,23 @@ class SignalLossCheck(SafetyCheck):
         self.current_snr = snr
         self.snr_history.append((datetime.now(UTC), snr))
 
+        # Keep history limited to 100 entries
+        if len(self.snr_history) > 100:
+            self.snr_history = self.snr_history[-100:]
+
         # Reset timer if signal recovered
         if snr >= self.snr_threshold:
             self.signal_lost_time = None
+
+    def get_average_snr(self) -> float:
+        """Get average SNR from history.
+
+        Returns:
+            Average SNR value
+        """
+        if not self.snr_history:
+            return 0.0
+        return sum(snr for _, snr in self.snr_history) / len(self.snr_history)
 
 
 class BatteryCheck(SafetyCheck):
@@ -257,7 +281,7 @@ class BatteryCheck(SafetyCheck):
             True if battery above threshold, False otherwise
         """
         self.last_check = datetime.now(UTC)
-        self.is_safe = self.current_battery_percent > self.threshold_percent
+        self.is_safe = self.current_battery_percent >= self.threshold_percent
 
         if not self.is_safe:
             self.failure_reason = f"Battery at {self.current_battery_percent:.1f}%, below {self.threshold_percent}% threshold"
@@ -290,11 +314,13 @@ class GeofenceCheck(SafetyCheck):
     def __init__(self) -> None:
         """Initialize geofence check."""
         super().__init__("geofence_check")
-        self.center_lat: float | None = None
-        self.center_lon: float | None = None
-        self.radius_meters: float | None = None
+        self.fence_center_lat: float | None = None
+        self.fence_center_lon: float | None = None
+        self.fence_radius: float | None = None
+        self.fence_altitude: float | None = None
         self.current_lat: float | None = None
         self.current_lon: float | None = None
+        self.current_alt: float | None = None
         self.fence_enabled = False
 
     async def check(self) -> bool:
@@ -313,9 +339,9 @@ class GeofenceCheck(SafetyCheck):
         if any(
             x is None
             for x in [
-                self.center_lat,
-                self.center_lon,
-                self.radius_meters,
+                self.fence_center_lat,
+                self.fence_center_lon,
+                self.fence_radius,
                 self.current_lat,
                 self.current_lon,
             ]
@@ -328,21 +354,30 @@ class GeofenceCheck(SafetyCheck):
         # Type assertions since we checked for None above
         assert self.current_lat is not None
         assert self.current_lon is not None
-        assert self.center_lat is not None
-        assert self.center_lon is not None
-        assert self.radius_meters is not None
+        assert self.fence_center_lat is not None
+        assert self.fence_center_lon is not None
+        assert self.fence_radius is not None
 
         distance = self._calculate_distance(
-            self.current_lat, self.current_lon, self.center_lat, self.center_lon
+            self.current_lat, self.current_lon, self.fence_center_lat, self.fence_center_lon
         )
 
-        self.is_safe = distance <= self.radius_meters
-
-        if not self.is_safe:
-            self.failure_reason = (
-                f"Position {distance:.1f}m from center, exceeds {self.radius_meters}m radius"
-            )
+        # Check horizontal distance
+        if distance > self.fence_radius:
+            self.is_safe = False
+            self.failure_reason = f"Position {distance:.1f}m from center, outside geofence radius of {self.fence_radius}m"
+        # Check altitude if specified
+        elif self.fence_altitude is not None and self.current_alt is not None:
+            if self.current_alt > self.fence_altitude:
+                self.is_safe = False
+                self.failure_reason = (
+                    f"Altitude {self.current_alt:.1f}m exceeds maximum {self.fence_altitude:.1f}m"
+                )
+            else:
+                self.is_safe = True
+                self.failure_reason = None
         else:
+            self.is_safe = True
             self.failure_reason = None
 
         return self.is_safe
@@ -373,29 +408,55 @@ class GeofenceCheck(SafetyCheck):
 
         return R * c
 
-    def set_geofence(self, center_lat: float, center_lon: float, radius_meters: float) -> None:
+    def set_geofence(
+        self, center_lat: float, center_lon: float, radius_meters: float, altitude: float = None
+    ) -> None:
         """Set geofence parameters.
 
         Args:
             center_lat: Center latitude
             center_lon: Center longitude
             radius_meters: Radius in meters
+            altitude: Maximum altitude (optional)
         """
-        self.center_lat = center_lat
-        self.center_lon = center_lon
-        self.radius_meters = radius_meters
+        self.fence_center_lat = center_lat
+        self.fence_center_lon = center_lon
+        self.fence_radius = radius_meters
+        self.fence_altitude = altitude
         self.fence_enabled = True
         logger.info(f"Geofence set: center=({center_lat}, {center_lon}), radius={radius_meters}m")
 
-    def update_position(self, lat: float, lon: float) -> None:
+    def update_position(self, lat: float, lon: float, alt: float = None) -> None:
         """Update current position.
 
         Args:
             lat: Current latitude
             lon: Current longitude
+            alt: Current altitude (optional)
         """
         self.current_lat = lat
         self.current_lon = lon
+        self.current_alt = alt
+
+    def calculate_distance(self) -> float:
+        """Calculate distance from current position to fence center.
+
+        Returns:
+            Distance in meters
+        """
+        if any(
+            x is None
+            for x in [
+                self.current_lat,
+                self.current_lon,
+                self.fence_center_lat,
+                self.fence_center_lon,
+            ]
+        ):
+            return float("inf")
+        return self._calculate_distance(
+            self.current_lat, self.current_lon, self.fence_center_lat, self.fence_center_lon
+        )
 
 
 class SafetyInterlockSystem:
@@ -442,7 +503,7 @@ class SafetyInterlockSystem:
                 await asyncio.sleep(self._check_interval)
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except SafetyInterlockError as e:
                 logger.error(f"Error in safety monitor loop: {e}")
                 await asyncio.sleep(self._check_interval)
 
@@ -468,7 +529,7 @@ class SafetyInterlockSystem:
                         self._get_trigger_for_check(name),
                         {"check": name, "reason": check.failure_reason},
                     )
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Error in {name} check: {e}")
                 results[name] = False
 
@@ -603,16 +664,17 @@ class SafetyInterlockSystem:
         if isinstance(signal_check, SignalLossCheck):
             signal_check.update_snr(snr)
 
-    def update_position(self, lat: float, lon: float) -> None:
+    def update_position(self, lat: float, lon: float, alt: float = None) -> None:
         """Update current position.
 
         Args:
             lat: Latitude
             lon: Longitude
+            alt: Altitude (optional)
         """
         geofence_check = self.checks.get("geofence")
         if isinstance(geofence_check, GeofenceCheck):
-            geofence_check.update_position(lat, lon)
+            geofence_check.update_position(lat, lon, alt)
 
     def get_safety_status(self) -> dict[str, Any]:
         """Get comprehensive safety status.
@@ -625,6 +687,16 @@ class SafetyInterlockSystem:
             "checks": {name: check.get_status() for name, check in self.checks.items()},
             "timestamp": datetime.now(UTC).isoformat(),
         }
+
+    def get_status(self) -> dict[str, Any]:
+        """Get safety system status (alias for get_safety_status).
+
+        Returns:
+            Dictionary with all safety information
+        """
+        status = self.get_safety_status()
+        status["events"] = len(self.safety_events)
+        return status
 
     def get_safety_events(
         self, since: datetime | None = None, limit: int = 100

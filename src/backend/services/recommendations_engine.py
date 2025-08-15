@@ -10,6 +10,9 @@ from uuid import UUID
 import numpy as np
 from pydantic import BaseModel
 
+from src.backend.core.exceptions import (
+    PISADException,
+)
 from src.backend.services.performance_analytics import MissionPerformanceMetrics
 from src.backend.utils.logging import get_logger
 
@@ -663,6 +666,6 @@ class RecommendationsEngine:
                 json.dump(recommendations.model_dump(), f, indent=2, default=str)
             logger.info(f"Exported recommendations to {output_path}")
             return True
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to export recommendations: {e}")
             return False

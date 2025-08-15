@@ -24,6 +24,14 @@ from backend.services.state_machine import StateMachine
 from backend.utils.logging import get_logger
 from backend.utils.safety import SafetyInterlockSystem
 from backend.utils.test_logger import (
+
+from src.backend.core.exceptions import (
+    PISADException, SignalProcessingError, MAVLinkError,
+    StateTransitionError, HardwareError, SDRError,
+    ConfigurationError, SafetyInterlockError, CallbackError,
+    DatabaseError
+)
+
     TestLogger,
     TestResult,
     TestRun,
@@ -117,7 +125,7 @@ class FieldTestService:
                     config = yaml.safe_load(f)
                     return config.get("profiles", {})
             return {}
-        except Exception as e:
+        except ConfigurationError as e:
             logger.error(f"Failed to load beacon profiles: {e}")
             return {}
 
@@ -169,7 +177,7 @@ class FieldTestService:
             # Check state machine
             checklist["state_machine_ready"] = self.state_machine.current_state != "ERROR"
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Preflight checklist validation failed: {e}")
 
         return checklist
@@ -255,7 +263,7 @@ class FieldTestService:
             status.status = "completed"
             await self._save_test_results(test_id, config)
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Field test {test_id} failed: {e}")
             status = self.active_tests.get(test_id)
             if status:
@@ -516,7 +524,7 @@ class FieldTestService:
             validation_results["modulation_match"] = True
             logger.info("Beacon validation using simplified method (no spectrum analysis)")
 
-        except Exception as e:
+        except SignalProcessingError as e:
             logger.error(f"Beacon signal validation failed: {e}")
             validation_results["error"] = str(e)
 

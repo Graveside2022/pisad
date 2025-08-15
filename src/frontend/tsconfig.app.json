@@ -21,7 +21,14 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+
+    /* Path Aliases for Optimization */
+    "baseUrl": ".",
+    "paths": {
+      "@icons": ["./src/components/icons/index.ts"],
+      "@icons/*": ["./src/components/icons/*"]
+    }
   },
   "include": ["src"]
 }

@@ -11,6 +11,8 @@ import pytest
 from src.backend.models.database import StateHistoryDB
 from src.backend.services.state_machine import StateMachine, SystemState
 
+pytestmark = pytest.mark.serial
+
 
 @pytest.fixture
 def temp_db():

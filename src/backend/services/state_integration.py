@@ -1,5 +1,10 @@
 """Integration module for connecting services with the enhanced state machine."""
 
+from src.backend.core.exceptions import (
+    MAVLinkError,
+    PISADException,
+    SignalProcessingError,
+)
 from src.backend.services.homing_controller import HomingController
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.search_pattern_generator import SearchPatternGenerator
@@ -125,7 +130,7 @@ class StateIntegration:
                     await self.mavlink_service.goto_waypoint(
                         waypoint.latitude, waypoint.longitude, waypoint.altitude
                     )
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to start searching: {e}")
 
     async def _start_homing(self) -> None:
@@ -137,7 +142,7 @@ class StateIntegration:
         try:
             # Start homing algorithm
             await self.homing_controller.start_homing()
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to start homing: {e}")
             # Return to searching on failure
             await self.state_machine.transition_to(SystemState.SEARCHING, "Homing start failed")
@@ -151,7 +156,7 @@ class StateIntegration:
         try:
             # Enable position hold mode
             await self.mavlink_service.set_mode("POSHOLD")
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to enable position hold: {e}")
 
     async def _stop_all_operations(self) -> None:
@@ -160,21 +165,21 @@ class StateIntegration:
         if self.homing_controller:
             try:
                 await self.homing_controller.stop_homing()
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Error stopping homing: {e}")
 
         # Stop search pattern if active
         if self.state_machine.get_search_pattern():
             try:
                 await self.state_machine.stop_search_pattern()
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Error stopping search pattern: {e}")
 
         # Return to loiter mode if MAVLink available
         if self.mavlink_service:
             try:
                 await self.mavlink_service.set_mode("LOITER")
-            except Exception as e:
+            except MAVLinkError as e:
                 logger.error(f"Error setting loiter mode: {e}")
 
     async def handle_waypoint_reached(self, waypoint_index: int) -> None:
@@ -212,7 +217,7 @@ class StateIntegration:
             if self.homing_controller and current_state == SystemState.HOMING:
                 try:
                     await self.homing_controller.stop_homing()
-                except Exception as e:
+                except SignalProcessingError as e:
                     logger.error(f"Error stopping homing after signal loss: {e}")
 
     async def emergency_stop(self, reason: str = "Emergency stop") -> None:
@@ -233,5 +238,5 @@ class StateIntegration:
         if self.mavlink_service:
             try:
                 await self.mavlink_service.set_mode("MANUAL")
-            except Exception as e:
+            except MAVLinkError as e:
                 logger.error(f"Failed to set manual mode: {e}")

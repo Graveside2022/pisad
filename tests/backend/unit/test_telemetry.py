@@ -8,6 +8,8 @@ import pytest
 
 from src.backend.services.mavlink_service import ConnectionState, MAVLinkService
 
+pytestmark = pytest.mark.serial
+
 
 @pytest.fixture
 def mavlink_service():

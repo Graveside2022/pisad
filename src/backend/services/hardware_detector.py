@@ -7,6 +7,9 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
+from src.backend.core.exceptions import (
+    SDRError,
+)
 from src.backend.hal.hackrf_interface import HackRFInterface, auto_detect_hackrf
 from src.backend.hal.mavlink_interface import MAVLinkInterface, auto_detect_cube_orange
 
@@ -120,7 +123,7 @@ class HardwareDetector:
 
                 await asyncio.sleep(self._retry_delay)
 
-            except Exception as e:
+            except SDRError as e:
                 logger.error(f"Hardware monitor error: {e}")
                 await asyncio.sleep(self._retry_delay)
 

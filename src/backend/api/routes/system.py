@@ -11,6 +11,13 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from src.backend.core.config import get_config
+from src.backend.core.exceptions import (
+    DatabaseError,
+    MAVLinkError,
+    PISADException,
+    SafetyInterlockError,
+    StateTransitionError,
+)
 from src.backend.services.state_machine import StateMachine
 from src.backend.services.state_machine import SystemState as StateMachineState
 from src.backend.utils.safety import SafetyInterlockSystem
@@ -136,7 +143,7 @@ async def get_system_status() -> dict[str, Any]:
                 "signal_lock": True,
             },
         }
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get system status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -190,7 +197,7 @@ async def control_homing(request: HomingRequest) -> dict[str, Any]:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to control homing: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -221,7 +228,7 @@ async def emergency_stop(request: EmergencyStopRequest) -> dict[str, Any]:
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
-    except Exception as e:
+    except SafetyInterlockError as e:
         logger.error(f"Failed to activate emergency stop: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -248,7 +255,7 @@ async def reset_emergency_stop() -> dict[str, Any]:
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
-    except Exception as e:
+    except SafetyInterlockError as e:
         logger.error(f"Failed to reset emergency stop: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -287,7 +294,7 @@ async def get_safety_events(limit: int = 100, since: datetime | None = None) -> 
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
-    except Exception as e:
+    except SafetyInterlockError as e:
         logger.error(f"Failed to get safety events: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -306,7 +313,7 @@ async def get_safety_status() -> dict[str, Any]:
     try:
         return safety_system.get_safety_status()
 
-    except Exception as e:
+    except SafetyInterlockError as e:
         logger.error(f"Failed to get safety status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -339,7 +346,7 @@ async def get_homing_parameters() -> dict[str, Any]:
             },
             "timestamp": datetime.now(UTC).isoformat(),
         }
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Failed to get homing parameters: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -421,7 +428,7 @@ async def update_homing_parameters(request: HomingParametersUpdate) -> dict[str,
             },
             "timestamp": datetime.now(UTC).isoformat(),
         }
-    except Exception as e:
+    except DatabaseError as e:
         logger.error(f"Failed to update homing parameters: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -464,7 +471,7 @@ async def toggle_debug_mode(request: DebugModeRequest) -> dict[str, Any]:
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
-    except Exception as e:
+    except MAVLinkError as e:
         logger.error(f"Failed to toggle debug mode: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -535,7 +542,10 @@ async def override_state(request: StateOverrideRequest) -> dict[str, Any]:
 
     except KeyError:
         raise HTTPException(status_code=400, detail=f"Invalid state: {request.target_state}")
-    except Exception as e:
+    except HTTPException:
+        # Re-raise HTTPExceptions without wrapping
+        raise
+    except StateTransitionError as e:
         logger.error(f"Failed to override state: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -573,7 +583,7 @@ async def get_current_state() -> dict[str, Any]:
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Failed to get state information: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -627,6 +637,6 @@ async def get_state_history(
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"Failed to get state history: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -209,7 +209,7 @@ class WaypointExporter:
 
             parts = line.split("\t")
             if len(parts) < 12:
-                continue
+                raise ValueError(f"Invalid waypoint line: {line}")
 
             try:
                 index = int(parts[0])

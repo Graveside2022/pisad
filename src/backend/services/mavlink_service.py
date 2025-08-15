@@ -9,6 +9,8 @@ from typing import Any
 
 from pymavlink import mavutil
 
+from src.backend.core.exceptions import CallbackError, MAVLinkError, SafetyInterlockError
+
 logger = logging.getLogger(__name__)
 
 
@@ -152,8 +154,11 @@ class MAVLinkService:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"Error in telemetry sender: {e}")
+            except (ConnectionError, TimeoutError, AttributeError) as e:
+                logger.error(
+                    f"Error in telemetry sender: {e}",
+                    extra={"connection_state": self.connection_state.value},
+                )
                 await asyncio.sleep(1.0)
 
     def send_named_value_float(
@@ -187,8 +192,10 @@ class MAVLinkService:
 
             logger.debug(f"NAMED_VALUE_FLOAT sent: {name}={value:.2f}")
             return True
-        except Exception as e:
-            logger.error(f"Failed to send NAMED_VALUE_FLOAT: {e}")
+        except (AttributeError, ConnectionError, ValueError) as e:
+            logger.error(
+                f"Failed to send NAMED_VALUE_FLOAT: {e}", extra={"name": name, "value": value}
+            )
             return False
 
     def send_state_change(self, state: str) -> bool:
@@ -274,8 +281,10 @@ class MAVLinkService:
             if health.get("temp", 0) > 80:
                 logger.warning(f"High CPU temperature: {health.get('temp')}°C")
 
-        except Exception as e:
-            logger.error(f"Failed to send health status: {e}")
+        except (AttributeError, KeyError, ConnectionError) as e:
+            logger.error(
+                f"Failed to send health status: {e}", extra={"error_type": type(e).__name__}
+            )
 
     def update_rssi_value(self, rssi: float) -> None:
         """Update RSSI value for telemetry streaming.
@@ -342,7 +351,7 @@ class MAVLinkService:
             for callback in self._state_callbacks:
                 try:
                     callback(new_state)
-                except Exception as e:
+                except CallbackError as e:
                     logger.error(f"Error in state callback: {e}")
 
     async def start(self) -> None:
@@ -394,7 +403,7 @@ class MAVLinkService:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except MAVLinkError as e:
                 logger.error(f"Connection manager error: {e}")
                 await asyncio.sleep(1)
 
@@ -432,9 +441,9 @@ class MAVLinkService:
                 self._reconnect_delay = 1.0  # Reset reconnect delay
                 logger.info(f"MAVLink connected to system {msg.get_srcSystem()}")
             else:
-                raise Exception("No heartbeat received")
+                raise MAVLinkError("No heartbeat received")
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to connect: {e}")
             self._set_state(ConnectionState.DISCONNECTED)
 
@@ -466,7 +475,7 @@ class MAVLinkService:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except MAVLinkError as e:
                 logger.error(f"Error sending heartbeat: {e}")
                 await asyncio.sleep(1.0)
 
@@ -485,7 +494,7 @@ class MAVLinkService:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except MAVLinkError as e:
                 logger.error(f"Error receiving message: {e}")
                 await asyncio.sleep(0.1)
 
@@ -528,7 +537,7 @@ class MAVLinkService:
             for callback in self._mode_callbacks:
                 try:
                     callback(new_mode)
-                except Exception as e:
+                except CallbackError as e:
                     logger.error(f"Error in mode callback: {e}")
 
     def _process_global_position(self, msg: Any) -> None:
@@ -544,7 +553,7 @@ class MAVLinkService:
         for callback in self._position_callbacks:
             try:
                 callback(lat, lon)
-            except Exception as e:
+            except CallbackError as e:
                 logger.error(f"Error in position callback: {e}")
 
     def _process_attitude(self, msg: Any) -> None:
@@ -571,7 +580,7 @@ class MAVLinkService:
                 for callback in self._battery_callbacks:
                     try:
                         callback(new_percentage)
-                    except Exception as e:
+                    except CallbackError as e:
                         logger.error(f"Error in battery callback: {e}")
 
     def _process_gps_raw(self, msg: Any) -> None:
@@ -632,7 +641,7 @@ class MAVLinkService:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except MAVLinkError as e:
                 logger.error(f"Connection monitor error: {e}")
                 await asyncio.sleep(1.0)
 
@@ -669,7 +678,7 @@ class MAVLinkService:
 
             logger.debug(f"STATUSTEXT sent: {text}")
             return True
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to send STATUSTEXT: {e}")
             return False
 
@@ -718,7 +727,7 @@ class MAVLinkService:
                 if not self._safety_check_callback():
                     logger.warning("Velocity command blocked by safety interlock")
                     return False
-            except Exception as e:
+            except SafetyInterlockError as e:
                 logger.error(f"Error in safety check callback: {e}")
                 return False
 
@@ -771,7 +780,7 @@ class MAVLinkService:
             )
             return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to send velocity command: {e}")
             return False
 
@@ -855,7 +864,7 @@ class MAVLinkService:
             logger.info(f"Successfully uploaded {len(waypoints)} waypoints")
             return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to upload mission: {e}")
             return False
 
@@ -914,7 +923,7 @@ class MAVLinkService:
             logger.info("Mission start command sent")
             return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to start mission: {e}")
             return False
 
@@ -947,7 +956,7 @@ class MAVLinkService:
             logger.info("Mission pause command sent")
             return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to pause mission: {e}")
             return False
 
@@ -980,7 +989,7 @@ class MAVLinkService:
             logger.info("Mission resume command sent")
             return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to resume mission: {e}")
             return False
 
@@ -1012,7 +1021,7 @@ class MAVLinkService:
             logger.info("Mission stopped, switched to LOITER/GUIDED mode")
             return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to stop mission: {e}")
             return False
 
@@ -1051,7 +1060,7 @@ class MAVLinkService:
 
             return (0, 0)
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to get mission progress: {e}")
             return (0, 0)
 

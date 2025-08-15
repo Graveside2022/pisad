@@ -9,6 +9,11 @@ from dataclasses import dataclass
 
 from pymavlink import mavutil
 
+from src.backend.core.exceptions import (
+    MAVLinkError,
+    PISADException,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,7 +135,7 @@ class MAVLinkInterface:
 
             return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to send velocity command: {e}")
             return False
 
@@ -255,7 +260,7 @@ class MAVLinkInterface:
             self.connection.mav.statustext_send(severity, text.encode("utf-8"))
             return True
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to send status text: {e}")
             return False
 
@@ -294,7 +299,7 @@ class MAVLinkInterface:
                 logger.info(f"Mode changed to {mode}")
                 return True
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Failed to set mode: {e}")
 
         return False
@@ -325,7 +330,7 @@ class MAVLinkInterface:
                 logger.info("Vehicle armed")
                 return True
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to arm: {e}")
 
         return False
@@ -356,7 +361,7 @@ class MAVLinkInterface:
                 logger.info("Vehicle disarmed")
                 return True
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to disarm: {e}")
 
         return False
@@ -411,7 +416,7 @@ async def auto_detect_cube_orange() -> MAVLinkInterface | None:
 
             return mavlink
 
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Cube Orange+ auto-detection failed: {e}")
 
     return None

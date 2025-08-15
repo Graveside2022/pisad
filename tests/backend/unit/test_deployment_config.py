@@ -15,6 +15,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
+pytestmark = pytest.mark.serial
+
 
 class TestSystemdServiceConfiguration:
     """Test systemd service configuration for pisad.service."""

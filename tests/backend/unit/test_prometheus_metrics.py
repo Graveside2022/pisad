@@ -14,6 +14,8 @@ import pytest
 from fastapi.testclient import TestClient
 from prometheus_client import CollectorRegistry, Counter, Histogram
 
+pytestmark = pytest.mark.serial
+
 
 class TestPrometheusMetricsEndpoint:
     """Test Prometheus /metrics endpoint configuration."""

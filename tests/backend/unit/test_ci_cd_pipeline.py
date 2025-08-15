@@ -1,5 +1,7 @@
 """Unit tests for CI/CD pipeline quality gates and automation.
 
+pytestmark = pytest.mark.serial
+
 This module tests Story 4.4 Phase 2 & 3 requirements:
 - trunk.io integration
 - mypy type checking

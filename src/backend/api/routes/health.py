@@ -16,6 +16,13 @@ from src.backend.core.dependencies import (
     get_signal_processor,
     get_state_machine,
 )
+from src.backend.core.exceptions import (
+    MAVLinkError,
+    PISADException,
+    SDRError,
+    SignalProcessingError,
+    StateTransitionError,
+)
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.sdr_service import SDRService
 from src.backend.services.signal_processor import SignalProcessor
@@ -74,7 +81,7 @@ async def health_check() -> dict[str, Any]:
             },
             "services": manager_health["services"],
         }
-    except Exception as e:
+    except PISADException as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -118,7 +125,7 @@ async def sdr_health_check(sdr_service: SDRService = Depends(get_sdr_service)) -
             },
             "timestamp": datetime.now(UTC).isoformat(),
         }
-    except Exception as e:
+    except SDRError as e:
         logger.error(f"SDR health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -164,7 +171,7 @@ async def mavlink_health_check(
             "telemetry_config": mavlink_service.get_telemetry_config(),
             "timestamp": datetime.now(UTC).isoformat(),
         }
-    except Exception as e:
+    except MAVLinkError as e:
         logger.error(f"MAVLink health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -203,7 +210,7 @@ async def state_machine_health_check(
             "state_history": state_machine.get_state_history(limit=5),
             "timestamp": datetime.now(UTC).isoformat(),
         }
-    except Exception as e:
+    except StateTransitionError as e:
         logger.error(f"State machine health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -244,6 +251,6 @@ async def signal_processor_health_check(
             },
             "timestamp": datetime.now(UTC).isoformat(),
         }
-    except Exception as e:
+    except SignalProcessingError as e:
         logger.error(f"Signal processor health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

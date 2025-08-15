@@ -10,6 +10,8 @@ import pytest
 
 from src.backend.services.mavlink_service import (
     ConnectionState,
+
+pytestmark = pytest.mark.serial
     LogLevel,
     MAVLinkService,
 )

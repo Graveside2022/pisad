@@ -10,6 +10,10 @@ from dataclasses import dataclass
 import numpy as np
 import yaml
 
+from src.backend.core.exceptions import (
+    MAVLinkError,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,7 +112,7 @@ class BeaconGenerator:
                 # For now, just simulate the timing
                 await asyncio.sleep(self.config.hop_dwell)
 
-        except Exception as e:
+        except MAVLinkError as e:
             logger.error(f"Beacon transmission error: {e}")
             self._running = False
             return False

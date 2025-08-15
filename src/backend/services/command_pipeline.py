@@ -19,6 +19,10 @@ from enum import Enum, IntEnum
 from typing import Any
 from uuid import uuid4
 
+from src.backend.core.exceptions import (
+    PISADException,
+    SignalProcessingError,
+)
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.utils.logging import get_logger
 from src.backend.utils.safety import SafetyInterlockSystem
@@ -298,7 +302,7 @@ class CommandPipeline:
 
         try:
             return validator(command)
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Validation error for {command.type.value}: {e}")
             return False
 
@@ -621,7 +625,7 @@ class CommandPipeline:
 
             except TimeoutError:
                 continue
-            except Exception as e:
+            except SignalProcessingError as e:
                 logger.error(f"Error in command processing loop: {e}")
 
     def get_statistics(self) -> dict[str, Any]:

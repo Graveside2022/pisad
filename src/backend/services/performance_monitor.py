@@ -7,9 +7,12 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import psutil
+
+from src.backend.core.exceptions import (
+    PISADException,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,7 @@ class PerformanceMonitor:
     def __init__(self) -> None:
         self.metrics = PerformanceMetrics()
         self._running = False
-        self._monitor_task: Optional[asyncio.Task] = None
+        self._monitor_task: asyncio.Task | None = None
         self._sdr_samples_total = 0
         self._sdr_samples_dropped = 0
         self._mavlink_messages = 0
@@ -83,7 +86,7 @@ class PerformanceMonitor:
 
                 await asyncio.sleep(self._update_interval)
 
-            except Exception as e:
+            except PISADException as e:
                 logger.error(f"Performance monitor error: {e}")
                 await asyncio.sleep(self._update_interval)
 

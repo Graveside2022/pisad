@@ -9,6 +9,10 @@ import contextlib
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from src.backend.core.exceptions import (
+    PISADException,
+    SignalProcessingError,
+)
 from src.backend.models.schemas import RSSIReading, SDRConfig
 from src.backend.services.sdr_service import SDRService
 from src.backend.services.signal_processor import SignalProcessor
@@ -57,7 +61,7 @@ class SignalProcessorIntegration:
 
             logger.info("Signal processing integration started")
 
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to start integration: {e}")
             await self.stop()
             raise
@@ -87,7 +91,7 @@ class SignalProcessorIntegration:
 
         except asyncio.CancelledError:
             logger.info("IQ processing task cancelled")
-        except Exception as e:
+        except SignalProcessingError as e:
             logger.error(f"Error in IQ processing: {e}", exc_info=True)
             self.is_running = False
 

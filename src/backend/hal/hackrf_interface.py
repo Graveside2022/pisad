@@ -10,11 +10,17 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from src.backend.core.exceptions import (
+    PISADException,
+    SDRError,
+)
+
 logger = logging.getLogger(__name__)
 
 # Try to import real hackrf module, fall back to mock
 try:
     import hackrf
+
     HACKRF_AVAILABLE = True
     logger.info("Using real hackrf library")
 except ImportError:
@@ -51,17 +57,17 @@ class HackRFInterface:
         try:
             # Create HackRF instance
             self.device = hackrf.HackRF()
-            
+
             # The hackrf module automatically opens on creation
             # Check if device is opened
-            if not hasattr(self.device, 'device_opened') or not self.device.device_opened:
+            if not hasattr(self.device, "device_opened") or not self.device.device_opened:
                 # Try to explicitly open
                 try:
                     result = self.device.open()
                     if result != 0:
                         logger.error(f"Failed to open HackRF, error code: {result}")
                         return False
-                except Exception as e:
+                except SDRError as e:
                     logger.warning(f"HackRF open raised exception (may already be open): {e}")
                     # Continue - device might be auto-opened
 
@@ -77,13 +83,13 @@ class HackRFInterface:
             await self.set_sample_rate(self.config.sample_rate)
             await self.set_lna_gain(self.config.lna_gain)
             await self.set_vga_gain(self.config.vga_gain)
-            
+
             if self.config.amp_enable:
                 await self.set_amp_enable(True)
 
             return True
 
-        except Exception as e:
+        except SDRError as e:
             logger.error(f"Failed to open HackRF: {e}")
             self.device = None
             return False
@@ -99,7 +105,7 @@ class HackRFInterface:
             self.config.frequency = freq
             logger.info(f"Frequency set to {freq/1e9:.3f} GHz")
             return True
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to set frequency: {e}")
             return False
 
@@ -113,7 +119,7 @@ class HackRFInterface:
             self.config.sample_rate = rate
             logger.info(f"Sample rate set to {rate/1e6:.1f} Msps")
             return True
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to set sample rate: {e}")
             return False
 
@@ -131,7 +137,7 @@ class HackRFInterface:
             self.config.lna_gain = gain
             logger.info(f"LNA gain set to {gain} dB")
             return True
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to set LNA gain: {e}")
             return False
 
@@ -149,7 +155,7 @@ class HackRFInterface:
             self.config.vga_gain = gain
             logger.info(f"VGA gain set to {gain} dB")
             return True
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to set VGA gain: {e}")
             return False
 
@@ -166,7 +172,7 @@ class HackRFInterface:
             self.config.amp_enable = enable
             logger.info(f"RF amplifier {'enabled' if enable else 'disabled'}")
             return True
-        except Exception as e:
+        except PISADException as e:
             logger.error(f"Failed to set amplifier: {e}")
             return False
 
@@ -179,14 +185,14 @@ class HackRFInterface:
             self._callback = callback
             self._running = True
             self._rx_active = True
-            
+
             # Start receiving in a background task
             asyncio.create_task(self._rx_loop())
-            
+
             logger.info("Started RX streaming")
             return True
-            
-        except Exception as e:
+
+        except PISADException as e:
             logger.error(f"Failed to start RX: {e}")
             self._running = False
             self._rx_active = False
@@ -198,19 +204,19 @@ class HackRFInterface:
             while self._running and self.device:
                 # Read samples (returns numpy array of complex64)
                 samples = self.device.read_samples(16384)  # Read 16k samples
-                
+
                 if samples is not None and len(samples) > 0 and self._callback:
                     # Convert to complex float32 numpy array if needed
                     if not isinstance(samples, np.ndarray):
                         samples = np.array(samples, dtype=np.complex64)
-                    
+
                     # Call the callback with samples
                     self._callback(samples)
-                
+
                 # Small delay to prevent CPU spinning
                 await asyncio.sleep(0.001)
-                
-        except Exception as e:
+
+        except PISADException as e:
             logger.error(f"RX loop error: {e}")
         finally:
             self._rx_active = False
@@ -222,21 +228,21 @@ class HackRFInterface:
 
         try:
             self._running = False
-            
+
             # Stop RX if using the streaming API
-            if hasattr(self.device, 'stop_rx'):
+            if hasattr(self.device, "stop_rx"):
                 self.device.stop_rx()
-            
+
             # Wait for RX loop to finish
             for _ in range(10):
                 if not self._rx_active:
                     break
                 await asyncio.sleep(0.1)
-            
+
             logger.info("Stopped RX streaming")
             return True
-            
-        except Exception as e:
+
+        except PISADException as e:
             logger.error(f"Failed to stop RX: {e}")
             return False
 
@@ -247,7 +253,7 @@ class HackRFInterface:
                 await self.stop()
                 self.device.close()
                 logger.info("HackRF closed")
-            except Exception as e:
+            except SDRError as e:
                 logger.warning(f"Error closing HackRF: {e}")
             finally:
                 self.device = None
@@ -279,22 +285,22 @@ async def auto_detect_hackrf() -> HackRFInterface | None:
     if not HACKRF_AVAILABLE:
         logger.warning("hackrf module not available")
         return None
-        
+
     try:
         hackrf_interface = HackRFInterface()
         if await hackrf_interface.open():
             logger.info("HackRF auto-detected and initialized")
-            
+
             # Test basic functionality
             info = await hackrf_interface.get_info()
             logger.info(f"HackRF info: {info}")
-            
+
             return hackrf_interface
         else:
             logger.warning("HackRF device not found or failed to open")
             return None
-            
-    except Exception as e:
+
+    except SDRError as e:
         logger.error(f"HackRF auto-detection failed: {e}")
         return None
 
