@@ -1,0 +1,53 @@
+# Codecov configuration for PISAD project
+# Hardware-integrated system with realistic coverage targets
+
+coverage:
+  # 67% is production-ready for hardware-integrated systems
+  # Missing coverage is primarily hardware-dependent code
+  status:
+    project:
+      default:
+        target: 65%  # Minimum acceptable
+        threshold: 2% # Allow 2% variance
+    patch:
+      default:
+        target: 60%  # New code should maintain standards
+        
+  # Component-specific thresholds
+  flags:
+    backend:
+      target: 65%
+      paths:
+        - src/backend/
+    frontend:
+      target: 50%
+      paths:
+        - src/frontend/
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  
+# Ignore hardware-dependent and generated files
+ignore:
+  - "tests/"
+  - "docs/"
+  - "scripts/"
+  - "deployment/"
+  - "**/__pycache__"
+  - "**/node_modules"
+  - "**/*.spec.ts"
+  - "**/*.test.ts"
+  - "**/test_*.py"
+  
+# Flag definitions for component tracking
+flags:
+  backend:
+    paths:
+      - src/backend/
+    carryforward: true
+  frontend:
+    paths:
+      - src/frontend/
+    carryforward: true

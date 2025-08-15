@@ -3,17 +3,25 @@ FastAPI application setup with CORS middleware and static file serving.
 """
 
 import logging
+import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from prometheus_client import Gauge
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.backend.core.config import get_config
 from src.backend.core.dependencies import get_service_manager
 
 logger = logging.getLogger(__name__)
+
+# Prometheus metric for startup time
+STARTUP_TIME_GAUGE = Gauge(
+    "pisad_startup_time_seconds", "Time taken for service to start in seconds"
+)
 
 
 def create_app() -> FastAPI:
@@ -90,7 +98,7 @@ def create_app() -> FastAPI:
 
     # Add custom metrics for PISAD requirements
     @instrumentator.add
-    def mavlink_latency(info):
+    def mavlink_latency(info: Any) -> None:
         """Track MAVLink packet latency (NFR1: <1% packet loss)"""
         from prometheus_client import Histogram
 
@@ -100,14 +108,11 @@ def create_app() -> FastAPI:
             buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0),
         )
 
-        def instrumentation(info):
-            if info.modified_handler == "/api/telemetry" or info.modified_handler == "/api/state":
-                MAVLINK_LATENCY.observe(info.modified_duration)
-
-        return instrumentation
+        if info.modified_handler == "/api/telemetry" or info.modified_handler == "/api/state":
+            MAVLINK_LATENCY.observe(info.modified_duration)
 
     @instrumentator.add
-    def rssi_processing_time(info):
+    def rssi_processing_time(info: Any) -> None:
         """Track RSSI processing time (NFR2: <100ms latency)"""
         from prometheus_client import Histogram
 
@@ -117,11 +122,8 @@ def create_app() -> FastAPI:
             buckets=(0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.25, 0.5, 1.0),
         )
 
-        def instrumentation(info):
-            if info.modified_handler == "/api/analytics/rssi" or "signal" in info.modified_handler:
-                RSSI_PROCESSING.observe(info.modified_duration)
-
-        return instrumentation
+        if info.modified_handler == "/api/analytics/rssi" or "signal" in info.modified_handler:
+            RSSI_PROCESSING.observe(info.modified_duration)
 
     # Instrument the app
     instrumentator.instrument(app).expose(app, endpoint="/metrics", tags=["monitoring"])
@@ -137,8 +139,10 @@ def create_app() -> FastAPI:
         logger.warning(f"Frontend build directory not found at {frontend_build_path}")
 
     @app.on_event("startup")
-    async def startup_event():
+    async def startup_event() -> None:
         """Initialize services on startup."""
+        start_time = time.time()
+
         logger.info(f"Starting {config.app.APP_NAME} v{config.app.APP_VERSION}")
         logger.info(f"Environment: {config.app.APP_ENV}")
         logger.info(f"Listening on {config.app.APP_HOST}:{config.app.APP_PORT}")
@@ -148,12 +152,21 @@ def create_app() -> FastAPI:
             service_manager = get_service_manager()
             await service_manager.initialize_services()
             logger.info("All services initialized successfully")
+
+            # Calculate and log startup time
+            startup_duration = time.time() - start_time
+            startup_duration_ms = startup_duration * 1000
+            logger.info(f"Service started in {startup_duration_ms:.2f}ms")
+
+            # Update Prometheus metric
+            STARTUP_TIME_GAUGE.set(startup_duration)
+
         except Exception as e:
             logger.error(f"Failed to initialize services: {e}")
             raise
 
     @app.on_event("shutdown")
-    async def shutdown_event():
+    async def shutdown_event() -> None:
         """Cleanup on shutdown."""
         logger.info("Shutting down application")
 
