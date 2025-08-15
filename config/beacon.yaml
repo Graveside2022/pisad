@@ -1,0 +1,44 @@
+# Beacon Generator Configuration
+# Software beacon for testing without physical hardware
+
+beacon:
+  # Primary frequency (Hz)
+  frequency: 3200000000  # 3.2 GHz default
+  
+  # Pulse characteristics
+  pulse_width: 0.001  # 1ms pulse duration
+  pulse_period: 0.1   # 100ms period (10 Hz PRF)
+  deviation: 5000     # 5 kHz FM deviation
+  power_dbm: -10      # Output power in dBm
+  
+  # Frequency hopping
+  hop_enabled: false  # Enable/disable hopping
+  hop_dwell: 2.0     # Seconds per frequency
+  hop_channels: 5    # Number of channels
+  
+  # Frequency range for hopping (Hz)
+  frequency_range:
+    min: 850000000   # 850 MHz
+    max: 6500000000  # 6.5 GHz
+  
+  # Specific hop frequencies (overrides range if specified)
+  hop_frequencies:
+    - 850000000   # 850 MHz  
+    - 1800000000  # 1.8 GHz
+    - 3200000000  # 3.2 GHz (primary)
+    - 5800000000  # 5.8 GHz
+    - 6500000000  # 6.5 GHz
+
+# Test modes
+test_modes:
+  continuous:
+    pulse_width: 0.001
+    pulse_period: 0.01  # 100 Hz for stress testing
+    
+  search:
+    pulse_width: 0.005  # 5ms longer pulse
+    pulse_period: 1.0   # 1 Hz slow rate
+    
+  tracking:
+    pulse_width: 0.001
+    pulse_period: 0.05  # 20 Hz for active tracking

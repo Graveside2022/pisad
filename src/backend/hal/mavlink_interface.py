@@ -372,8 +372,8 @@ class MAVLinkInterface:
             try:
                 self.connection.close()
                 logger.info("MAVLink connection closed")
-            except:
-                pass
+            except (ConnectionError, AttributeError) as e:
+                logger.warning(f"Error closing MAVLink: {e}")
             finally:
                 self.connection = None
 

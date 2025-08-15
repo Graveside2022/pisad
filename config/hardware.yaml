@@ -1,0 +1,33 @@
+# Production Hardware Configuration
+# For Raspberry Pi 5 with HackRF One and Cube Orange+
+
+sdr:
+  device: "hackrf"  # Primary SDR device
+  frequency: 3200000000  # 3.2 GHz default
+  sample_rate: 20000000  # 20 Msps
+  lna_gain: 16  # 0-40 dB in 8dB steps
+  vga_gain: 20  # 0-62 dB in 2dB steps
+  amp_enable: false  # RF amplifier
+  antenna: "log_periodic"  # 850 MHz - 6.5 GHz
+
+mavlink:
+  connection: "serial:///dev/ttyACM0:115200"  # Cube Orange+ primary
+  fallback: "serial:///dev/ttyACM1:115200"  # Cube Orange+ secondary
+  heartbeat_rate: 1  # Hz
+  timeout: 10  # seconds
+  system_id: 255
+  component_id: 190
+
+beacon:
+  mode: "software"  # software or hardware
+  frequency_min: 850000000  # 850 MHz
+  frequency_max: 6500000000  # 6.5 GHz
+  pulse_width: 0.001  # 1ms
+  pulse_period: 0.1  # 100ms PRF=10Hz
+
+performance:
+  rssi_update_rate: 1  # Hz (power efficient)
+  telemetry_rate: 4  # Hz
+  log_level: "INFO"
+  max_memory_mb: 512
+  cpu_target: 30  # Target CPU usage %

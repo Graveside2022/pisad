@@ -9,9 +9,17 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
-import pyhackrf
 
 logger = logging.getLogger(__name__)
+
+# Try to import real pyhackrf, fall back to mock
+try:
+    import pyhackrf
+
+    logger.info("Using real pyhackrf library")
+except ImportError:
+    logger.warning("pyhackrf not available, using mock for testing")
+    from src.backend.hal import mock_hackrf as pyhackrf
 
 
 @dataclass
@@ -238,8 +246,8 @@ class HackRFInterface:
             try:
                 self.device.close()
                 logger.info("HackRF closed")
-            except:
-                pass
+            except (AttributeError, Exception) as e:
+                logger.warning(f"Error closing HackRF: {e}")
             finally:
                 self.device = None
 

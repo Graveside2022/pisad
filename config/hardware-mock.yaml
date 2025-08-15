@@ -1,0 +1,51 @@
+# Mock Hardware Configuration
+# For testing without physical hardware
+
+sdr:
+  device: "mock"  # Mock SDR device for testing
+  frequency: 3200000000  # 3.2 GHz default
+  sample_rate: 2048000  # 2.048 Msps (lower for simulation)
+  lna_gain: 16  # Simulated gain
+  vga_gain: 20  # Simulated gain
+  amp_enable: false  # Not needed for mock
+  antenna: "simulated"  # Virtual antenna
+  mock_noise_floor: -100  # dBm
+  mock_signal_strength: -60  # dBm when detecting
+
+mavlink:
+  connection: "udp:127.0.0.1:14550"  # SITL connection
+  fallback: "tcp:127.0.0.1:5760"  # Alternative SITL
+  heartbeat_rate: 1  # Hz
+  timeout: 10  # seconds
+  system_id: 255
+  component_id: 190
+  sitl_enabled: true  # Use Software In The Loop
+
+beacon:
+  mode: "simulated"  # Use beacon simulator
+  frequency_min: 850000000  # 850 MHz
+  frequency_max: 6500000000  # 6.5 GHz
+  pulse_width: 0.001  # 1ms
+  pulse_period: 0.1  # 100ms PRF=10Hz
+  simulated_beacons:
+    - id: "test_beacon_1"
+      position: [0, 100, 50]  # x, y, z in meters
+      frequency: 3200000000
+      power: -10  # dBm
+    - id: "test_beacon_2"
+      position: [50, 50, 30]
+      frequency: 5800000000
+      power: -15  # dBm
+
+gpio:
+  mock_enabled: true  # Use virtual GPIO
+  status_led: 17  # Virtual pin
+  error_led: 27  # Virtual pin  
+  ready_led: 22  # Virtual pin
+
+performance:
+  rssi_update_rate: 10  # Hz (faster for testing)
+  telemetry_rate: 10  # Hz (faster for testing)
+  log_level: "DEBUG"  # More verbose for testing
+  max_memory_mb: 256  # Lower limit for CI/CD
+  cpu_target: 50  # Allow higher CPU for testing

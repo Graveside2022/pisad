@@ -159,6 +159,42 @@ class HomingConfig:
 
 
 @dataclass
+class HardwareConfig:
+    """Hardware configuration for SDR and MAVLink."""
+
+    # SDR hardware settings
+    HARDWARE_SDR_DEVICE: str = "hackrf"
+    HARDWARE_SDR_FREQUENCY: int = 3200000000
+    HARDWARE_SDR_SAMPLE_RATE: int = 20000000
+    HARDWARE_SDR_LNA_GAIN: int = 16
+    HARDWARE_SDR_VGA_GAIN: int = 20
+    HARDWARE_SDR_AMP_ENABLE: bool = False
+    HARDWARE_SDR_ANTENNA: str = "log_periodic"
+
+    # MAVLink hardware settings
+    HARDWARE_MAVLINK_CONNECTION: str = "serial:///dev/ttyACM0:115200"
+    HARDWARE_MAVLINK_FALLBACK: str = "serial:///dev/ttyACM1:115200"
+    HARDWARE_MAVLINK_HEARTBEAT_RATE: int = 1
+    HARDWARE_MAVLINK_TIMEOUT: int = 10
+    HARDWARE_MAVLINK_SYSTEM_ID: int = 255
+    HARDWARE_MAVLINK_COMPONENT_ID: int = 190
+
+    # Beacon settings
+    HARDWARE_BEACON_MODE: str = "software"
+    HARDWARE_BEACON_FREQUENCY_MIN: int = 850000000
+    HARDWARE_BEACON_FREQUENCY_MAX: int = 6500000000
+    HARDWARE_BEACON_PULSE_WIDTH: float = 0.001
+    HARDWARE_BEACON_PULSE_PERIOD: float = 0.1
+
+    # Performance settings
+    HARDWARE_PERFORMANCE_RSSI_UPDATE_RATE: int = 1
+    HARDWARE_PERFORMANCE_TELEMETRY_RATE: int = 4
+    HARDWARE_PERFORMANCE_LOG_LEVEL: str = "INFO"
+    HARDWARE_PERFORMANCE_MAX_MEMORY_MB: int = 512
+    HARDWARE_PERFORMANCE_CPU_TARGET: int = 30
+
+
+@dataclass
 class DevelopmentConfig:
     """Development settings."""
 
@@ -184,6 +220,7 @@ class Config:
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     homing: HomingConfig = field(default_factory=HomingConfig)
+    hardware: HardwareConfig = field(default_factory=HardwareConfig)
     development: DevelopmentConfig = field(default_factory=DevelopmentConfig)
 
     def to_dict(self) -> dict[str, Any]:
@@ -202,6 +239,7 @@ class Config:
             "monitoring": self.monitoring.__dict__,
             "telemetry": self.telemetry.__dict__,
             "homing": self.homing.__dict__,
+            "hardware": self.hardware.__dict__,
             "development": self.development.__dict__,
         }
 
@@ -246,6 +284,9 @@ class ConfigLoader:
         else:
             logger.warning(f"Configuration file {self.config_path} not found, using defaults")
 
+        # Load hardware configuration (with fallback to mock)
+        self._load_hardware_config()
+
         # Override with environment variables
         self._apply_env_overrides()
 
@@ -253,6 +294,127 @@ class ConfigLoader:
         self._load_default_profile()
 
         return self.config
+
+    def _load_hardware_config(self) -> None:
+        """Load hardware configuration with fallback to mock configuration."""
+        project_root = Path(__file__).parent.parent.parent.parent
+        hardware_config_path = project_root / "config" / "hardware.yaml"
+        mock_config_path = project_root / "config" / "hardware-mock.yaml"
+
+        # Try loading hardware.yaml first
+        config_loaded = False
+        if hardware_config_path.exists():
+            try:
+                # Check if we can detect hardware
+                from src.backend.services.hardware_detector import HardwareDetector
+
+                detector = HardwareDetector()
+
+                # Simple check - don't wait for full detection
+                import asyncio
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+                try:
+                    # Quick detection with timeout
+                    status = loop.run_until_complete(
+                        asyncio.wait_for(detector.detect_all(), timeout=2.0)
+                    )
+
+                    if status.sdr_connected or status.flight_controller_connected:
+                        # Hardware detected, use production config
+                        with open(hardware_config_path) as f:
+                            hw_config = yaml.safe_load(f)
+                            self._apply_hardware_yaml(hw_config)
+                            logger.info("Loaded production hardware configuration")
+                            config_loaded = True
+                except (TimeoutError, Exception):
+                    logger.info("Hardware not detected, will use mock configuration")
+                finally:
+                    loop.close()
+
+            except ImportError:
+                logger.warning("Hardware detector not available, using mock configuration")
+            except Exception as e:
+                logger.warning(f"Failed to load hardware config: {e}")
+
+        # Fall back to mock configuration if hardware config not loaded
+        if not config_loaded and mock_config_path.exists():
+            try:
+                with open(mock_config_path) as f:
+                    mock_config = yaml.safe_load(f)
+                    self._apply_hardware_yaml(mock_config)
+                    logger.info("Loaded mock hardware configuration for testing")
+            except Exception as e:
+                logger.error(f"Failed to load mock hardware config: {e}")
+
+        # Override with USE_MOCK_HARDWARE environment variable
+        if (
+            os.environ.get("USE_MOCK_HARDWARE", "").lower() in ("true", "1", "yes")
+            and mock_config_path.exists()
+        ):
+            try:
+                with open(mock_config_path) as f:
+                    mock_config = yaml.safe_load(f)
+                    self._apply_hardware_yaml(mock_config)
+                    logger.info("Forced mock hardware configuration via environment")
+            except Exception as e:
+                logger.error(f"Failed to load mock config: {e}")
+
+    def _apply_hardware_yaml(self, hw_config: dict[str, Any]) -> None:
+        """Apply hardware-specific YAML configuration."""
+        if not hw_config:
+            return
+
+        # SDR configuration
+        if "sdr" in hw_config:
+            sdr = hw_config["sdr"]
+            self.config.hardware.HARDWARE_SDR_DEVICE = sdr.get("device", "hackrf")
+            self.config.hardware.HARDWARE_SDR_FREQUENCY = sdr.get("frequency", 3200000000)
+            self.config.hardware.HARDWARE_SDR_SAMPLE_RATE = sdr.get("sample_rate", 20000000)
+            self.config.hardware.HARDWARE_SDR_LNA_GAIN = sdr.get("lna_gain", 16)
+            self.config.hardware.HARDWARE_SDR_VGA_GAIN = sdr.get("vga_gain", 20)
+            self.config.hardware.HARDWARE_SDR_AMP_ENABLE = sdr.get("amp_enable", False)
+            self.config.hardware.HARDWARE_SDR_ANTENNA = sdr.get("antenna", "log_periodic")
+
+        # MAVLink configuration
+        if "mavlink" in hw_config:
+            mav = hw_config["mavlink"]
+            self.config.hardware.HARDWARE_MAVLINK_CONNECTION = mav.get(
+                "connection", "serial:///dev/ttyACM0:115200"
+            )
+            self.config.hardware.HARDWARE_MAVLINK_FALLBACK = mav.get(
+                "fallback", "serial:///dev/ttyACM1:115200"
+            )
+            self.config.hardware.HARDWARE_MAVLINK_HEARTBEAT_RATE = mav.get("heartbeat_rate", 1)
+            self.config.hardware.HARDWARE_MAVLINK_TIMEOUT = mav.get("timeout", 10)
+            self.config.hardware.HARDWARE_MAVLINK_SYSTEM_ID = mav.get("system_id", 255)
+            self.config.hardware.HARDWARE_MAVLINK_COMPONENT_ID = mav.get("component_id", 190)
+
+        # Beacon configuration
+        if "beacon" in hw_config:
+            beacon = hw_config["beacon"]
+            self.config.hardware.HARDWARE_BEACON_MODE = beacon.get("mode", "software")
+            self.config.hardware.HARDWARE_BEACON_FREQUENCY_MIN = beacon.get(
+                "frequency_min", 850000000
+            )
+            self.config.hardware.HARDWARE_BEACON_FREQUENCY_MAX = beacon.get(
+                "frequency_max", 6500000000
+            )
+            self.config.hardware.HARDWARE_BEACON_PULSE_WIDTH = beacon.get("pulse_width", 0.001)
+            self.config.hardware.HARDWARE_BEACON_PULSE_PERIOD = beacon.get("pulse_period", 0.1)
+
+        # Performance configuration
+        if "performance" in hw_config:
+            perf = hw_config["performance"]
+            self.config.hardware.HARDWARE_PERFORMANCE_RSSI_UPDATE_RATE = perf.get(
+                "rssi_update_rate", 1
+            )
+            self.config.hardware.HARDWARE_PERFORMANCE_TELEMETRY_RATE = perf.get("telemetry_rate", 4)
+            self.config.hardware.HARDWARE_PERFORMANCE_LOG_LEVEL = perf.get("log_level", "INFO")
+            self.config.hardware.HARDWARE_PERFORMANCE_MAX_MEMORY_MB = perf.get("max_memory_mb", 512)
+            self.config.hardware.HARDWARE_PERFORMANCE_CPU_TARGET = perf.get("cpu_target", 30)
 
     def _load_default_profile(self) -> None:
         """Load the default configuration profile and apply its settings."""
@@ -321,6 +483,8 @@ class ConfigLoader:
                 setattr(self.config.telemetry, key, value)
             elif key.startswith("HOMING_"):
                 setattr(self.config.homing, key, value)
+            elif key.startswith("HARDWARE_"):
+                setattr(self.config.hardware, key, value)
             elif key.startswith("DEV_"):
                 setattr(self.config.development, key, value)
 
@@ -363,6 +527,8 @@ class ConfigLoader:
                 self._set_config_value(self.config.telemetry, config_key, env_value)
             elif config_key.startswith("HOMING_"):
                 self._set_config_value(self.config.homing, config_key, env_value)
+            elif config_key.startswith("HARDWARE_"):
+                self._set_config_value(self.config.hardware, config_key, env_value)
             elif config_key.startswith("DEV_"):
                 self._set_config_value(self.config.development, config_key, env_value)
 

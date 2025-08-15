@@ -1,7 +1,9 @@
 [Unit]
-Description=PISAD Beacon Detection Service
+Description=PISAD RF Beacon Detection Service
 After=network.target
 Wants=network-online.target
+StartLimitBurst=3
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
@@ -9,15 +11,41 @@ User=pisad
 Group=pisad
 WorkingDirectory=/home/pisad/projects/pisad
 Environment="PATH=/home/pisad/.local/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/pisad/projects/pisad"
 Environment="UV_SYSTEM_PYTHON=1"
-Environment="PYTHONPATH=/home/pisad/projects/pisad/src"
-ExecStart=/home/pisad/.local/bin/uv run uvicorn src.backend.core.app:app --host 0.0.0.0 --port 8080
+
+# Main service command using uv
+ExecStart=/home/pisad/.local/bin/uv run uvicorn src.backend.core.app:app --host 0.0.0.0 --port 8080 --workers 1
+
+# Pre-start hardware detection
+ExecStartPre=/home/pisad/.local/bin/uv run python -c "from src.backend.services.hardware_detector import HardwareDetector; import asyncio; d = HardwareDetector(); asyncio.run(d.detect_all())"
+
+# Restart policy
 Restart=on-failure
 RestartSec=5
-StartLimitBurst=3
-StartLimitInterval=60
+
+# Resource limits for Raspberry Pi 5
+MemoryLimit=512M
+CPUQuota=30%
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/pisad/projects/pisad/data
+ReadWritePaths=/home/pisad/projects/pisad/logs
+
+# Device access for hardware
+DeviceAllow=/dev/ttyACM0 rw
+DeviceAllow=/dev/ttyACM1 rw
+DeviceAllow=/dev/bus/usb rw
+SupplementaryGroups=dialout plugdev
+
+# Logging
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=pisad
 
 [Install]
 WantedBy=multi-user.target
