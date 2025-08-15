@@ -1,0 +1,69 @@
+{
+  "timestamp": "2025-08-16T01:46:49.090864",
+  "summary": {
+    "total_tests": 1519,
+    "test_value_ratio": "0.0%",
+    "hazard_coverage": "0.0%",
+    "execution_time": "0.00s"
+  },
+  "traceability": {
+    "tests_with_trace": 0,
+    "tests_with_user_story": 0,
+    "tests_with_hazard": 0,
+    "tests_with_value": 0,
+    "value_ratio": 0.0,
+    "story_coverage": 0.0,
+    "hazard_test_coverage": 0.0
+  },
+  "hazards": {
+    "defined": [
+      "HARA-GPS-001",
+      "HARA-CMD-001",
+      "HARA-PWR-001",
+      "HARA-SIG-001",
+      "HARA-VEL-001"
+    ],
+    "covered": [],
+    "uncovered": [
+      "HARA-GPS-001",
+      "HARA-CMD-001",
+      "HARA-PWR-001",
+      "HARA-SIG-001",
+      "HARA-VEL-001"
+    ],
+    "coverage_percentage": 0.0,
+    "test_mapping": {}
+  },
+  "performance": {
+    "total_runtime": 0.0,
+    "unit_test_time": 0.0,
+    "integration_test_time": 0.0,
+    "e2e_test_time": 0.0,
+    "sitl_test_time": 0.0,
+    "slowest_tests": [],
+    "peak_memory_mb": 23.875,
+    "cpu_usage_percent": 0.0
+  },
+  "quality_issues": {
+    "untraceable_tests": [
+      "tests/safety/test_hara_coverage.py::test_all_hazards_have_tests",
+      "tests/safety/test_hara_coverage.py::test_critical_hazards_have_boundary_tests",
+      "tests/safety/test_hara_coverage.py::test_all_mitigations_tested",
+      "tests/property/test_domain_invariants.py::test_sdr_config_valid_ranges",
+      "tests/property/test_domain_invariants.py::test_nyquist_invariant",
+      "tests/property/test_domain_invariants.py::test_signal_config_invariants",
+      "tests/property/test_domain_invariants.py::test_homing_config_safety_invariants",
+      "tests/property/test_domain_invariants.py::test_state_transition_invariants",
+      "tests/property/test_domain_invariants.py::test_rssi_snr_relationship",
+      "tests/property/test_domain_invariants.py::test_gradient_calculation_stability"
+    ],
+    "uncovered_hazards": [
+      "HARA-GPS-001",
+      "HARA-CMD-001",
+      "HARA-PWR-001",
+      "HARA-SIG-001",
+      "HARA-VEL-001"
+    ],
+    "slow_tests": []
+  }
+}
