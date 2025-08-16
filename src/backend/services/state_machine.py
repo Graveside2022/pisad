@@ -1275,8 +1275,30 @@ class StateMachine:
                 except Exception as e:
                     logger.error(f"Failed to send signal lost telemetry: {e}")
 
+    async def _check_signal_loss_timeout(self) -> None:
+        """Check if signal has been lost for too long.
+        
+        SAFETY: Prevents drone from continuing to search indefinitely
+        HAZARD: HARA-NAV-001 - Extended signal loss causing battery depletion
+        HAZARD: HARA-NAV-002 - Uncontrolled drift during signal loss
+        """
+        if not hasattr(self, '_signal_lost_time'):
+            return
+            
+        if self._signal_lost_time and self._homing_enabled:
+            elapsed = time.time() - self._signal_lost_time
+            
+            if elapsed > 30.0:  # 30 second timeout
+                logger.warning(f"Signal lost for {elapsed:.1f}s, disabling homing")
+                self._homing_enabled = False
+                await self.transition_to(SystemState.IDLE, "Signal loss timeout")
+    
     async def on_mode_change(self, new_mode: str) -> None:
         """Handle operation mode change.
+        
+        SAFETY: Ensures safe transition between flight modes
+        HAZARD: HARA-MODE-001 - Unsafe mode transition causing loss of control
+        HAZARD: HARA-MODE-002 - Mode confusion leading to unexpected behavior
 
         Args:
             new_mode: New operation mode (MANUAL, AUTO, GUIDED, etc.)

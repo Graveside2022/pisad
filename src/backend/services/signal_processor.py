@@ -580,6 +580,9 @@ class SignalProcessor:
 
     def compute_snr(self, samples: np.ndarray, noise_floor: float | None = None) -> float:
         """Calculate Signal-to-Noise Ratio.
+        
+        SAFETY: Accurate SNR calculation critical for reliable beacon detection
+        HAZARD: HARA-SIG-003 - Incorrect SNR leading to wrong detection decisions
 
         Args:
             samples: IQ samples
@@ -657,6 +660,9 @@ class SignalProcessor:
 
     def calculate_confidence(self, snr: float, rssi: float) -> float:
         """Calculate detection confidence score.
+        
+        SAFETY: Confidence scoring prevents acting on unreliable detections
+        HAZARD: HARA-SIG-004 - Low confidence detection causing navigation errors
 
         Args:
             snr: Signal-to-Noise Ratio in dB
@@ -688,6 +694,70 @@ class SignalProcessor:
         # Clamp to valid range
         return max(0.0, min(1.0, confidence))
 
+    def process_detection_with_debounce(self, rssi: float, noise_floor: float, threshold: float) -> bool:
+        """Process detection with debouncing logic.
+        
+        SAFETY: Prevents false positive/negative detections that could cause
+                erratic drone behavior or missed beacons
+        HAZARD: HARA-SIG-001 - False detection causing incorrect homing
+        HAZARD: HARA-SIG-002 - Missed detection leading to failed rescue
+        
+        Args:
+            rssi: Current RSSI value
+            noise_floor: Noise floor estimate
+            threshold: Detection threshold
+            
+        Returns:
+            True if signal detected (after debouncing)
+        """
+        # Initialize counters if not present
+        if not hasattr(self, 'detection_count'):
+            self.detection_count = 0
+        if not hasattr(self, 'loss_count'):
+            self.loss_count = 0
+        if not hasattr(self, 'detection_count_threshold'):
+            self.detection_count_threshold = 3
+        if not hasattr(self, 'loss_count_threshold'):
+            self.loss_count_threshold = 5
+        if not hasattr(self, 'is_detecting'):
+            self.is_detecting = False
+            
+        # Check if signal is above threshold
+        signal_present = (rssi - noise_floor) > threshold
+        
+        if signal_present:
+            # Signal detected
+            self.loss_count = 0  # Reset loss counter
+            
+            if not self.is_detecting:
+                # Need consecutive detections to confirm
+                self.detection_count += 1
+                
+                if self.detection_count >= self.detection_count_threshold:
+                    self.is_detecting = True
+                    logger.info(f"Signal detected after {self.detection_count} consecutive detections")
+                    return True
+            else:
+                # Already detecting
+                return True
+        else:
+            # Signal not detected
+            self.detection_count = 0  # Reset detection counter
+            
+            if self.is_detecting:
+                # Need consecutive losses to confirm signal loss
+                self.loss_count += 1
+                
+                if self.loss_count >= self.loss_count_threshold:
+                    self.is_detecting = False
+                    logger.info(f"Signal lost after {self.loss_count} consecutive losses")
+                    return False
+                else:
+                    # Still detecting despite temporary loss
+                    return True
+            
+        return False
+    
     def calculate_adaptive_threshold(self, noise_history: list[float] | None = None) -> float:
         """Calculate adaptive threshold based on noise floor variations.
 

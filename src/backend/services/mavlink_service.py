@@ -1252,6 +1252,58 @@ class MAVLinkService:
         except Exception as e:
             logger.error(f"Failed to send detection telemetry: {e}")
 
+    def process_gcs_command(self, command: dict[str, Any]) -> dict[str, Any]:
+        """Process command from GCS.
+        
+        SAFETY: GCS override is critical safety feature for operator control
+        HAZARD: HARA-CMD-001 - Failed override causing loss of operator control
+        HAZARD: HARA-CMD-002 - Command injection leading to unauthorized control
+        
+        Args:
+            command: Command dictionary with type and parameters
+            
+        Returns:
+            Result dictionary with status
+        """
+        result = {'status': 'unknown'}
+        
+        try:
+            cmd_type = command.get('command')
+            
+            if cmd_type == 'MANUAL_OVERRIDE':
+                # Handle manual override
+                self._control_mode = command.get('mode', 'MANUAL')
+                result['status'] = 'accepted'
+                logger.info(f"GCS override to {self._control_mode} mode")
+                
+            elif cmd_type == 'AUTO_HOMING':
+                # Check if manual override active
+                if self._control_mode == 'MANUAL':
+                    result['status'] = 'rejected'
+                    result['reason'] = 'Manual override active'
+                else:
+                    result['status'] = 'accepted'
+                    
+            else:
+                result['status'] = 'unknown_command'
+                
+        except Exception as e:
+            logger.error(f"Error processing GCS command: {e}")
+            result['status'] = 'error'
+            result['error'] = str(e)
+            
+        return result
+    
+    def get_control_mode(self) -> str:
+        """Get current control mode.
+        
+        Returns:
+            Current control mode string
+        """
+        if not hasattr(self, '_control_mode'):
+            self._control_mode = 'AUTO'
+        return self._control_mode
+    
     async def send_signal_lost_telemetry(self) -> None:
         """Send signal lost event telemetry."""
         if not self.connection or self.state != ConnectionState.CONNECTED:
