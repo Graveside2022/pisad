@@ -520,10 +520,24 @@ async def collect_metrics():
 | MAVLink Latency | <50ms | >100ms | >500ms |
 | USB Throughput | 80MB/s | <40MB/s | <20MB/s |
 
+## Hardware Dependencies
+
+### SDR Hardware Abstraction
+- **SoapySDR**: Vendor-neutral SDR interface library
+  - Provides unified API for multiple SDR devices
+  - Installed via system packages: `soapysdr-tools`, `libsoapysdr-dev`, `python3-soapysdr`
+  - Device modules: `soapysdr-module-hackrf`, `soapysdr-module-rtlsdr`
+
+### Supported SDR Devices
+- **Primary**: HackRF One (850 MHz - 6 GHz, 20 Msps)
+- **Alternative**: RTL-SDR (24 MHz - 1.7 GHz, 2.4 Msps)
+- **Future**: USRP, LimeSDR, PlutoSDR via SoapySDR modules
+
 ### Technology Stack Table
 
 | Category               | Technology                   | Version         | Purpose                                    | Rationale                                                                      |
 | ---------------------- | ---------------------------- | --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| SDR Abstraction        | SoapySDR                     | 0.8.1           | Hardware-agnostic SDR interface            | Supports multiple SDR devices through unified API                              |
 | Python Package Manager | uv                           | Latest          | Fast Python package and project management | 10-100x faster than pip, handles Python versions, modern dependency resolution |
 | Python Runner          | uvx                          | Latest          | Run Python apps in isolated environments   | Zero-config execution of Python tools and scripts                              |
 | Frontend Language      | TypeScript                   | 5.9.2           | Type-safe frontend development             | Prevents runtime errors in safety-critical UI                                  |
