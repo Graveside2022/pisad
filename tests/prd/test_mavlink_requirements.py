@@ -12,7 +12,7 @@ import time
 import pytest
 from pymavlink import mavutil
 
-from src.backend.services.mavlink_service import MAVLinkService
+from backend.services.mavlink_service import MAVLinkService
 
 
 class TestMAVLinkRequirements:

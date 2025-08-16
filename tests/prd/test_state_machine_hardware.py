@@ -8,18 +8,24 @@ import asyncio
 import os
 import sys
 import time
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
-from backend.services.mavlink_service import MAVLinkService
-from backend.services.signal_processor import SignalProcessor
-from backend.services.state_machine import StateMachine, SystemState
+# Check for hardware availability
+try:
+    from backend.services.mavlink_service import MAVLinkService
+    from backend.services.signal_processor import SignalProcessor
+    from backend.services.state_machine import StateMachine, SystemState
+
+    has_hardware = True
+except ImportError:
+    has_hardware = False
 
 
+@pytest.mark.skipif(not has_hardware, reason="Requires hardware modules to be installed")
 class TestStateMachineHardware:
     """Test state machine with real timing requirements."""
 

@@ -10,9 +10,9 @@ import time
 
 import pytest
 
-from src.backend.services.homing_controller import HomingController
-from src.backend.services.state_machine import StateMachine
-from src.backend.utils.safety import SafetyInterlockSystem
+from backend.services.homing_controller import HomingController
+from backend.services.state_machine import StateMachine
+from backend.utils.safety import SafetyInterlockSystem
 
 
 class TestStateMachineRequirements:

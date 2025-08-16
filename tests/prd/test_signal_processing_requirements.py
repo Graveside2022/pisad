@@ -11,7 +11,7 @@ import time
 import numpy as np
 import pytest
 
-from src.backend.services.signal_processor import SignalProcessor
+from backend.services.signal_processor import SignalProcessor
 
 
 class TestSignalProcessingRequirements:

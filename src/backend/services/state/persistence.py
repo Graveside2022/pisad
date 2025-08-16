@@ -41,7 +41,8 @@ class StatePersistence:
 
         try:
             with sqlite3.connect(self._db_path) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS state_history (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         state TEXT NOT NULL,
@@ -50,7 +51,8 @@ class StatePersistence:
                         reason TEXT,
                         metadata TEXT
                     )
-                """)
+                """
+                )
                 conn.commit()
                 logger.debug("State history table ensured")
         except sqlite3.Error as e:
