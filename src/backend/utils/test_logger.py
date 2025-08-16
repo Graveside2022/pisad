@@ -234,8 +234,8 @@ class TestLogger:
             cursor = conn.cursor()
 
             # Get run summary
-            cursor.execute("SELECT run_id, timestamp, test_type, environment, system_config, total_tests, passed, failed, errors, skipped
-                          FROM test_runs WHERE run_id = ?", (run_id,))
+            cursor.execute("SELECT run_id, timestamp, test_type, environment, system_config, total_tests, passed, failed, errors, skipped "
+                          "FROM test_runs WHERE run_id = ?", (run_id,))
             run_row = cursor.fetchone()
 
             if not run_row:

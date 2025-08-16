@@ -23,20 +23,12 @@ from backend.services.signal_processor import SignalProcessor
 from backend.services.state_machine import StateMachine
 from backend.utils.logging import get_logger
 from backend.utils.safety import SafetyInterlockSystem
-from backend.utils.test_logger import (
-
+from backend.utils.test_logger import TestLogger, TestResult, TestRun, TestStatus, TestType
 from src.backend.core.exceptions import (
-    PISADException, SignalProcessingError, MAVLinkError,
-    StateTransitionError, HardwareError, SDRError,
-    ConfigurationError, SafetyInterlockError, CallbackError,
-    DatabaseError
-)
-
-    TestLogger,
-    TestResult,
-    TestRun,
-    TestStatus,
-    TestType,
+    ConfigurationError,
+    MAVLinkError,
+    PISADException,
+    SignalProcessingError,
 )
 
 logger = get_logger(__name__)

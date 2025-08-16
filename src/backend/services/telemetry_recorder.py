@@ -399,7 +399,6 @@ class TelemetryRecorder:
             output_path = self.output_dir / f"{self.session_id}_analysis.csv"
 
         # Rex/Sherlock: Use async I/O to avoid blocking event loop
-        from src.backend.utils.async_io_helpers import AsyncFileIO
 
         # Prepare header
         header = (
@@ -409,19 +408,23 @@ class TelemetryRecorder:
             "#\n"
         )
 
-            # Write data
-            field_names = [
-                "timestamp",
-                "latitude",
-                "longitude",
-                "altitude_m",
-                "groundspeed_mps",
-                "heading_deg",
-                "rssi_dbm",
-                "beacon_detected",
-                "system_state",
-                "battery_percent",
-            ]
+        # Write data
+        field_names = [
+            "timestamp",
+            "latitude",
+            "longitude",
+            "altitude_m",
+            "groundspeed_mps",
+            "heading_deg",
+            "rssi_dbm",
+            "beacon_detected",
+            "system_state",
+            "battery_percent",
+        ]
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            # Write header comments
+            f.write(header)
 
             writer = csv.DictWriter(f, fieldnames=field_names)
             writer.writeheader()
