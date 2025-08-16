@@ -8,15 +8,15 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional
 
-from src.backend.core.exceptions import (
+from backend.core.exceptions import (
     DatabaseError,
     SafetyInterlockError,
     StateTransitionError,
 )
-from src.backend.utils.logging import get_logger
+from backend.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from src.backend.services.search_pattern_generator import SearchPattern
+    from backend.services.search_pattern_generator import SearchPattern
 
 logger = get_logger(__name__)
 
@@ -64,6 +64,11 @@ class StateMachine:
         self._state_history: list[StateChangeEvent] = []
         self._is_running = False
         self._homing_enabled = False
+
+        # Store persistence settings
+        self._db_path = db_path
+        self._enable_persistence = enable_persistence
+        self._state_db: Any = None
 
         # MAVLink service reference (set externally)
         self._mavlink_service: Any = None
@@ -115,11 +120,9 @@ class StateMachine:
         self._last_metrics_update = time.time()
 
         # State persistence
-        self._enable_persistence = enable_persistence
-        self._state_db: Any | None = None
         if self._enable_persistence:
             try:
-                from src.backend.models.database import StateHistoryDB
+                from backend.models.database import StateHistoryDB
 
                 self._state_db = StateHistoryDB(db_path)
                 # Try to restore previous state
@@ -156,6 +159,11 @@ class StateMachine:
 
     def get_current_state(self) -> SystemState:
         """Get current system state."""
+        return self._current_state
+
+    @property
+    def current_state(self) -> SystemState:
+        """Property for backward compatibility."""
         return self._current_state
 
     def get_state_string(self) -> str:
@@ -454,16 +462,24 @@ class StateMachine:
         except DatabaseError as e:
             logger.error(f"Failed to send telemetry update: {e}")
 
-    async def transition_to(self, new_state: SystemState, reason: str | None = None) -> bool:
+    async def transition_to(self, new_state: SystemState | str, reason: str | None = None) -> bool:
         """Transition to a new state with validation.
 
         Args:
-            new_state: Target state
+            new_state: Target state (enum or string)
             reason: Optional reason for transition
 
         Returns:
             True if transition was successful, False otherwise
         """
+        # Convert string to enum if necessary
+        if isinstance(new_state, str):
+            try:
+                new_state = SystemState(new_state)
+            except ValueError:
+                logger.error(f"Invalid state string: {new_state}")
+                return False
+
         # Validate transition
         if not self._is_valid_transition(self._current_state, new_state):
             logger.warning(
@@ -687,7 +703,7 @@ class StateMachine:
         if self._mavlink_service:
             try:
                 self._mavlink_service.send_detection_event(rssi, confidence)
-            except PISADException as e:
+            except Exception as e:
                 logger.error(f"Failed to send detection telemetry: {e}")
 
         # Auto-transition to HOMING if enabled and confidence is high
@@ -936,7 +952,7 @@ class StateMachine:
                 await self.send_telemetry_update()
             except asyncio.CancelledError:
                 break
-            except PISADException as e:
+            except Exception as e:
                 logger.error(f"Error in telemetry loop: {e}")
 
     async def stop(self) -> None:
@@ -1047,6 +1063,252 @@ class StateMachine:
 
         logger.info("Search pattern stopped")
         return True
+
+    # API Methods for Story 4.5 Implementation
+
+    async def initialize(self) -> bool:
+        """Initialize state machine and all components.
+
+        Returns:
+            True if initialization successful, False otherwise
+        """
+        try:
+            logger.info("Initializing StateMachine...")
+
+            # Set initial state
+            self._current_state = SystemState.IDLE
+            self._previous_state = SystemState.IDLE
+            self._is_running = False
+            self._homing_enabled = False
+
+            # Clear any existing state
+            self._state_history.clear()
+            self._detection_count = 0
+            self._last_detection_time = 0.0
+
+            # Initialize search pattern state
+            self._search_substate = SearchSubstate.IDLE
+            self._active_pattern = None
+            self._current_waypoint_index = 0
+            self._pattern_paused_at = None
+
+            # Register default entry/exit actions
+            self._register_default_actions()
+
+            # Initialize database if enabled
+            if self._enable_persistence:
+                try:
+                    from backend.services.state_db import StateDatabase
+
+                    self._state_db = StateDatabase(self._db_path)
+                    self._restore_state()
+                    logger.info("State persistence initialized")
+                except DatabaseError as e:
+                    logger.warning(f"State persistence unavailable: {e}")
+                    self._state_db = None
+            else:
+                self._state_db = None
+
+            # Verify MAVLink service if connected
+            if self._mavlink_service:
+                logger.info("MAVLink service connected")
+            else:
+                logger.warning("MAVLink service not connected - telemetry disabled")
+
+            # Verify signal processor if connected
+            if self._signal_processor:
+                logger.info("Signal processor connected")
+            else:
+                logger.warning("Signal processor not connected - detection disabled")
+
+            logger.info("StateMachine initialization complete")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to initialize StateMachine: {e}")
+            return False
+
+    async def shutdown(self) -> None:
+        """Gracefully shutdown state machine.
+
+        Saves current state, releases resources, and notifies connected clients.
+        """
+        logger.info("Shutting down StateMachine...")
+
+        # Stop any running operations
+        self._is_running = False
+
+        # Cancel timeout task if running
+        if hasattr(self, "_timeout_task") and self._timeout_task and not self._timeout_task.done():
+            self._timeout_task.cancel()
+            try:
+                await self._timeout_task
+            except asyncio.CancelledError:
+                pass
+
+        # Cancel telemetry task if running
+        if (
+            hasattr(self, "_telemetry_task")
+            and self._telemetry_task
+            and not self._telemetry_task.done()
+        ):
+            self._telemetry_task.cancel()
+            try:
+                await self._telemetry_task
+            except asyncio.CancelledError:
+                pass
+
+        # Stop any active search pattern
+        if self._active_pattern:
+            await self.stop_search_pattern()
+
+        # Transition to IDLE state
+        if self._current_state != SystemState.IDLE:
+            await self.transition_to(SystemState.IDLE, "System shutdown")
+
+        # Save final state if persistence enabled
+        if self._state_db:
+            try:
+                self._state_db.save_current_state(
+                    state=self._current_state.value,
+                    previous_state=self._previous_state.value,
+                    homing_enabled=self._homing_enabled,
+                    last_detection_time=self._last_detection_time,
+                    detection_count=self._detection_count,
+                )
+                logger.info("Final state saved to database")
+            except DatabaseError as e:
+                logger.error(f"Failed to save final state: {e}")
+
+        # Notify callbacks of shutdown
+        for callback in self._state_callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(SystemState.IDLE, "shutdown")
+                else:
+                    callback(SystemState.IDLE, "shutdown")
+            except Exception as e:
+                logger.error(f"Error notifying callback of shutdown: {e}")
+
+        # Clear references
+        self._mavlink_service = None
+        self._signal_processor = None
+        self._state_callbacks.clear()
+
+        logger.info("StateMachine shutdown complete")
+
+    def get_valid_transitions(self) -> list[SystemState]:
+        """Get list of valid states from current state.
+
+        Returns:
+            List of SystemState values that are valid transitions
+        """
+        valid_states = []
+
+        for state in SystemState:
+            if self._is_valid_transition(self._current_state, state):
+                valid_states.append(state)
+
+        return valid_states
+
+    async def on_signal_detected(self, detection_event: Any) -> None:
+        """Handle signal detection event.
+
+        Args:
+            detection_event: Detection event containing RSSI, SNR, confidence
+        """
+        import time
+
+        # Extract detection details
+        rssi = detection_event.rssi if hasattr(detection_event, "rssi") else -100.0
+        snr = detection_event.snr if hasattr(detection_event, "snr") else 0.0
+        confidence = detection_event.confidence if hasattr(detection_event, "confidence") else 0.0
+
+        # Update detection tracking
+        self._last_detection_time = time.time()
+        self._detection_count += 1
+
+        logger.info(
+            f"Signal detected: RSSI={rssi:.1f}dBm, SNR={snr:.1f}dB, Confidence={confidence:.1f}%"
+        )
+
+        # State-specific handling
+        if self._current_state == SystemState.SEARCHING:
+            # Transition to DETECTING state
+            await self.transition_to(
+                SystemState.DETECTING,
+                f"Signal detected at {rssi:.1f}dBm with {confidence:.1f}% confidence",
+            )
+
+        elif self._current_state == SystemState.DETECTING:
+            # Already detecting, check if we should transition to HOMING
+            if self._homing_enabled and confidence > 80.0:
+                await self.transition_to(
+                    SystemState.HOMING, f"High confidence detection ({confidence:.1f}%)"
+                )
+
+        # Send telemetry update if MAVLink connected
+        if self._mavlink_service:
+            try:
+                await self._mavlink_service.send_detection_telemetry(
+                    rssi=rssi, snr=snr, confidence=confidence, state=self._current_state.value
+                )
+            except Exception as e:
+                logger.error(f"Failed to send detection telemetry: {e}")
+
+    async def on_signal_lost(self) -> None:
+        """Handle signal loss event."""
+        logger.warning("Signal lost")
+
+        # Only react if we were actively tracking a signal
+        if self._current_state in [SystemState.DETECTING, SystemState.HOMING]:
+            # Return to searching
+            await self.transition_to(SystemState.SEARCHING, "Signal lost")
+
+            # Reset detection count
+            self._detection_count = 0
+
+            # Notify MAVLink if connected
+            if self._mavlink_service:
+                try:
+                    await self._mavlink_service.send_signal_lost_telemetry()
+                except Exception as e:
+                    logger.error(f"Failed to send signal lost telemetry: {e}")
+
+    async def on_mode_change(self, new_mode: str) -> None:
+        """Handle operation mode change.
+
+        Args:
+            new_mode: New operation mode (MANUAL, AUTO, GUIDED, etc.)
+        """
+        logger.info(f"Operation mode changed to: {new_mode}")
+
+        # Handle mode-specific logic
+        if new_mode == "MANUAL":
+            # Disable automatic features
+            self._homing_enabled = False
+            if self._current_state == SystemState.HOMING:
+                await self.transition_to(SystemState.IDLE, "Manual mode activated")
+
+        elif new_mode == "AUTO":
+            # Enable automatic features
+            self._homing_enabled = True
+
+        elif new_mode == "GUIDED":
+            # Ready for guided operations
+            if self._current_state == SystemState.DETECTING:
+                # Can transition to homing if signal is strong
+                pass
+
+        # Notify callbacks
+        for callback in self._state_callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(self._current_state, f"mode_change:{new_mode}")
+                else:
+                    callback(self._current_state, f"mode_change:{new_mode}")
+            except Exception as e:
+                logger.error(f"Error notifying callback of mode change: {e}")
 
     def update_waypoint_progress(self, waypoint_index: int) -> None:
         """Update waypoint completion progress.

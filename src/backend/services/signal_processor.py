@@ -15,18 +15,18 @@ from uuid import uuid4
 
 import numpy as np
 
-from src.backend.core.exceptions import (
+from backend.core.exceptions import (
     MAVLinkError,
     SignalProcessingError,
 )
-from src.backend.models.schemas import DetectionEvent, RSSIReading
-from src.backend.utils.circuit_breaker import (
+from backend.models.schemas import DetectionEvent, RSSIReading
+from backend.utils.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitBreakerError,
     MultiCallbackCircuitBreaker,
 )
-from src.backend.utils.logging import get_logger
-from src.backend.utils.noise_estimator import NoiseEstimator
+from backend.utils.logging import get_logger
+from backend.utils.noise_estimator import NoiseEstimator
 
 logger = get_logger(__name__)
 
@@ -493,3 +493,240 @@ class SignalProcessor:
                 logger.error(f"Error in RSSI stream: {e}", extra={"error_type": type(e).__name__})
                 # Continue processing after logging error
                 await asyncio.sleep(0.1)
+
+    def compute_rssi(self, samples: np.ndarray) -> float:
+        """Compute RSSI from IQ samples using FFT method.
+
+        Args:
+            samples: Complex IQ samples array
+
+        Returns:
+            RSSI value in dBm
+
+        Performance: <0.5ms for 1024 samples
+        """
+        start_time = time.perf_counter()
+
+        # Ensure we have samples
+        if len(samples) == 0:
+            return -120.0  # Floor value
+
+        # Handle both real and complex samples
+        if np.isrealobj(samples):
+            # For real samples, compute power directly
+            power = np.mean(samples**2)
+        else:
+            # For complex IQ samples, compute magnitude squared
+            power = np.mean(np.abs(samples) ** 2)
+
+        # Convert to dBm
+        if power > 0:
+            rssi_dbm = 10 * np.log10(power) + self.calibration_offset
+        else:
+            rssi_dbm = -120.0  # Floor value for zero power
+
+        # Verify performance requirement
+        latency_ms = (time.perf_counter() - start_time) * 1000
+        if latency_ms > 0.5:
+            logger.warning(f"RSSI computation exceeded 0.5ms: {latency_ms:.3f}ms")
+
+        return float(rssi_dbm)
+
+    def compute_rssi_fft(self, samples: np.ndarray) -> tuple[float, np.ndarray]:
+        """Compute RSSI and return FFT magnitudes.
+
+        Args:
+            samples: Complex IQ samples
+
+        Returns:
+            Tuple of (RSSI in dBm, FFT magnitude array)
+        """
+        start_time = time.perf_counter()
+
+        # Ensure we have enough samples
+        if len(samples) < self.fft_size:
+            # Pad with zeros if needed
+            samples = np.pad(samples, (0, self.fft_size - len(samples)), mode="constant")
+        elif len(samples) > self.fft_size:
+            # Take first FFT_size samples
+            samples = samples[: self.fft_size]
+
+        # Apply window function
+        windowed = samples * self._fft_window
+
+        # Compute FFT
+        if np.isrealobj(samples):
+            fft_result = np.fft.rfft(windowed)
+            # Adjust for one-sided spectrum
+            fft_magnitude = np.abs(fft_result) / self.fft_size
+            fft_magnitude[1:-1] *= 2  # Double all except DC and Nyquist
+        else:
+            fft_result = np.fft.fft(windowed, n=self.fft_size)
+            fft_magnitude = np.abs(fft_result) / self.fft_size
+
+        # Compute total power and RSSI
+        total_power = np.sum(fft_magnitude**2)
+        if total_power > 0:
+            rssi_dbm = 10 * np.log10(total_power) + self.calibration_offset
+        else:
+            rssi_dbm = -120.0
+
+        # Verify performance
+        latency_ms = (time.perf_counter() - start_time) * 1000
+        if latency_ms > 0.5:
+            logger.warning(f"FFT RSSI computation exceeded 0.5ms: {latency_ms:.3f}ms")
+
+        return float(rssi_dbm), fft_magnitude
+
+    def compute_snr(self, samples: np.ndarray, noise_floor: float | None = None) -> float:
+        """Calculate Signal-to-Noise Ratio.
+
+        Args:
+            samples: IQ samples
+            noise_floor: Estimated noise floor in dBm (uses current if not provided)
+
+        Returns:
+            SNR in dB
+        """
+        # Use provided noise floor or current estimate
+        if noise_floor is None:
+            noise_floor = self.noise_floor
+
+        # Compute signal RSSI
+        signal_rssi = self.compute_rssi(samples)
+
+        # Calculate SNR
+        snr = signal_rssi - noise_floor
+
+        # Update internal SNR tracking
+        self._current_snr = snr
+
+        return float(snr)
+
+    def estimate_noise_floor(self, rssi_history: list[float] | None = None) -> float:
+        """Estimate noise floor using 10th percentile method.
+
+        Args:
+            rssi_history: List of recent RSSI measurements (uses internal if not provided)
+
+        Returns:
+            Noise floor estimate in dBm
+        """
+        # Use provided history or internal history
+        if rssi_history is None:
+            if len(self.rssi_history) < 10:
+                # Not enough samples, return current estimate
+                return self.noise_floor
+            rssi_history = list(self.rssi_history)
+
+        if len(rssi_history) < 10:
+            # Need at least 10 samples for percentile
+            return min(rssi_history) if rssi_history else -85.0
+
+        # Calculate 10th percentile (PRD requirement)
+        sorted_rssi = sorted(rssi_history)
+        percentile_idx = int(len(sorted_rssi) * 0.1)
+        noise_floor = sorted_rssi[percentile_idx]
+
+        # Update internal noise floor
+        self.noise_floor = noise_floor
+
+        return float(noise_floor)
+
+    def is_signal_detected(
+        self, rssi: float, noise_floor: float | None = None, threshold: float = 12.0
+    ) -> bool:
+        """Check if signal is detected based on SNR threshold.
+
+        Args:
+            rssi: Current RSSI value in dBm
+            noise_floor: Noise floor estimate (uses current if not provided)
+            threshold: SNR threshold for detection (default 12.0 dB from PRD)
+
+        Returns:
+            True if signal detected, False otherwise
+        """
+        if noise_floor is None:
+            noise_floor = self.noise_floor
+
+        # Calculate SNR
+        snr = rssi - noise_floor
+
+        # Check against threshold
+        return snr > threshold
+
+    def calculate_confidence(self, snr: float, rssi: float) -> float:
+        """Calculate detection confidence score.
+
+        Args:
+            snr: Signal-to-Noise Ratio in dB
+            rssi: RSSI value in dBm
+
+        Returns:
+            Confidence score between 0.0 and 1.0
+        """
+        # Weight SNR more heavily (70%) than RSSI (30%)
+        snr_weight = 0.7
+        rssi_weight = 0.3
+
+        # Normalize SNR (0-30 dB range)
+        snr_normalized = max(0.0, min(1.0, snr / 30.0))
+
+        # Normalize RSSI (-100 to -30 dBm range)
+        rssi_normalized = max(0.0, min(1.0, (rssi + 100.0) / 70.0))
+
+        # Calculate weighted confidence
+        confidence = snr_weight * snr_normalized + rssi_weight * rssi_normalized
+
+        # Apply non-linear scaling for better discrimination
+        # Low confidence signals get reduced, high confidence boosted
+        if confidence < 0.3:
+            confidence *= 0.5  # Reduce low confidence
+        elif confidence > 0.7:
+            confidence = 0.7 + (confidence - 0.7) * 1.5  # Boost high confidence
+
+        # Clamp to valid range
+        return max(0.0, min(1.0, confidence))
+
+    def calculate_adaptive_threshold(self, noise_history: list[float] | None = None) -> float:
+        """Calculate adaptive threshold based on noise floor variations.
+
+        Args:
+            noise_history: History of noise floor measurements
+
+        Returns:
+            Dynamic threshold adjustment in dB
+        """
+        # Use internal history if not provided
+        if noise_history is None:
+            if len(self.rssi_history) < 20:
+                # Not enough history, return default threshold
+                return self.snr_threshold
+            # Extract noise samples (bottom 20% of RSSI history)
+            sorted_rssi = sorted(self.rssi_history)
+            noise_samples = sorted_rssi[: int(len(sorted_rssi) * 0.2)]
+        else:
+            noise_samples = noise_history
+
+        if len(noise_samples) < 2:
+            return self.snr_threshold
+
+        # Calculate noise floor variance
+        noise_std = np.std(noise_samples)
+
+        # Adjust threshold based on noise stability
+        # Higher variance = higher threshold to reduce false positives
+        base_threshold = self.snr_threshold
+
+        if noise_std < 1.0:
+            # Very stable noise, can use lower threshold
+            adaptive_threshold = base_threshold - 2.0
+        elif noise_std < 3.0:
+            # Moderate noise variation, use base threshold
+            adaptive_threshold = base_threshold
+        else:
+            # High noise variation, increase threshold
+            adaptive_threshold = base_threshold + min(6.0, noise_std)
+
+        # Apply bounds (6-18 dB range)
+        return max(6.0, min(18.0, adaptive_threshold))

@@ -9,7 +9,7 @@ from typing import Any
 
 from pymavlink import mavutil
 
-from src.backend.core.exceptions import CallbackError, MAVLinkError, SafetyInterlockError
+from backend.core.exceptions import CallbackError, MAVLinkError, SafetyInterlockError
 
 logger = logging.getLogger(__name__)
 
@@ -1085,3 +1085,180 @@ class MAVLinkService:
             logger.info(f"MAVLink logging filtered to: {', '.join(self.log_messages)}")
         else:
             logger.info("MAVLink logging all message types")
+
+    # API Methods for Story 4.5 Implementation
+
+    def connect(self, connection_string: str | None = None) -> bool:
+        """Establish MAVLink connection synchronously.
+
+        Args:
+            connection_string: Connection string (e.g., "tcp:127.0.0.1:5760" or "/dev/ttyACM0:57600")
+                             If None, uses device_path and baud_rate from init
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        if self.state == ConnectionState.CONNECTED:
+            logger.info("Already connected to MAVLink")
+            return True
+
+        # Parse connection string if provided
+        if connection_string:
+            if ":" in connection_string:
+                if connection_string.startswith("tcp:"):
+                    self.device_path = connection_string
+                else:
+                    # Serial connection with baud rate
+                    parts = connection_string.rsplit(":", 1)
+                    self.device_path = parts[0]
+                    try:
+                        self.baud_rate = int(parts[1])
+                    except ValueError:
+                        logger.error(f"Invalid baud rate in connection string: {parts[1]}")
+                        return False
+            else:
+                self.device_path = connection_string
+
+        try:
+            self._set_state(ConnectionState.CONNECTING)
+
+            # Determine connection type
+            if self.device_path.startswith("tcp:"):
+                # TCP connection for SITL
+                logger.info(f"Connecting to SITL at {self.device_path}")
+                self.connection = mavutil.mavlink_connection(
+                    self.device_path,
+                    source_system=self.source_system,
+                    source_component=self.source_component,
+                )
+            else:
+                # Serial connection for hardware
+                logger.info(
+                    f"Connecting to serial device {self.device_path} at {self.baud_rate} baud"
+                )
+                self.connection = mavutil.mavlink_connection(
+                    self.device_path,
+                    baud=self.baud_rate,
+                    source_system=self.source_system,
+                    source_component=self.source_component,
+                )
+
+            # Wait for heartbeat to confirm connection
+            msg = self.connection.wait_heartbeat(timeout=5)
+            if msg:
+                self.last_heartbeat_received = time.time()
+                self._set_state(ConnectionState.CONNECTED)
+                logger.info(f"MAVLink connected to system {msg.get_srcSystem()}")
+                return True
+            else:
+                raise MAVLinkError("No heartbeat received")
+
+        except Exception as e:
+            logger.error(f"Failed to connect: {e}")
+            self._set_state(ConnectionState.DISCONNECTED)
+            if self.connection:
+                self.connection.close()
+                self.connection = None
+            return False
+
+    def disconnect(self) -> None:
+        """Close MAVLink connection and clean up resources."""
+        if self.connection:
+            logger.info("Disconnecting MAVLink...")
+            try:
+                # Send final heartbeat
+                if self.state == ConnectionState.CONNECTED:
+                    self.connection.mav.heartbeat_send(
+                        mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+                        mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+                        0,
+                        0,
+                        mavutil.mavlink.MAV_STATE_POWEROFF,
+                    )
+
+                # Close connection
+                self.connection.close()
+            except Exception as e:
+                logger.error(f"Error during disconnect: {e}")
+            finally:
+                self.connection = None
+                self._set_state(ConnectionState.DISCONNECTED)
+                logger.info("MAVLink disconnected")
+
+    def send_telemetry(self, telemetry_data: dict[str, Any]) -> None:
+        """Send telemetry data via MAVLink.
+
+        Args:
+            telemetry_data: Dictionary containing telemetry values to send
+        """
+        if not self.connection or self.state != ConnectionState.CONNECTED:
+            logger.warning("Cannot send telemetry: not connected")
+            return
+
+        try:
+            # Send different telemetry types based on data keys
+            if "rssi" in telemetry_data:
+                self.send_named_value_float("RSSI", telemetry_data["rssi"])
+
+            if "snr" in telemetry_data:
+                self.send_named_value_float("SNR", telemetry_data["snr"])
+
+            if "confidence" in telemetry_data:
+                self.send_named_value_float("CONF", telemetry_data["confidence"])
+
+            if "state" in telemetry_data:
+                self.send_state_change(telemetry_data["state"])
+
+            if "detection" in telemetry_data:
+                det = telemetry_data["detection"]
+                self.send_detection_event(
+                    rssi=det.get("rssi", -100.0), confidence=det.get("confidence", 0.0)
+                )
+
+            if "status_text" in telemetry_data:
+                self.send_statustext(telemetry_data["status_text"])
+
+        except Exception as e:
+            logger.error(f"Failed to send telemetry: {e}")
+
+    async def send_detection_telemetry(
+        self, rssi: float, snr: float, confidence: float, state: str
+    ) -> None:
+        """Send detection event telemetry asynchronously.
+
+        Args:
+            rssi: Signal strength in dBm
+            snr: Signal-to-noise ratio in dB
+            confidence: Detection confidence percentage
+            state: Current system state
+        """
+        if not self.connection or self.state != ConnectionState.CONNECTED:
+            logger.warning("Cannot send detection telemetry: not connected")
+            return
+
+        try:
+            # Send multiple telemetry values
+            self.send_named_value_float("DET_RSSI", rssi)
+            self.send_named_value_float("DET_SNR", snr)
+            self.send_named_value_float("DET_CONF", confidence)
+
+            # Send status text with detection info
+            text = f"Detection: RSSI={rssi:.1f}dBm SNR={snr:.1f}dB Conf={confidence:.0f}%"
+            self.send_statustext(text, severity=6)  # INFO level
+
+            # Log detection event
+            logger.info(f"Sent detection telemetry: {text}")
+
+        except Exception as e:
+            logger.error(f"Failed to send detection telemetry: {e}")
+
+    async def send_signal_lost_telemetry(self) -> None:
+        """Send signal lost event telemetry."""
+        if not self.connection or self.state != ConnectionState.CONNECTED:
+            return
+
+        try:
+            self.send_statustext("Signal lost - returning to search", severity=5)  # NOTICE level
+            self.send_named_value_float("SIGNAL", 0.0)  # Signal indicator = 0
+        except Exception as e:
+            logger.error(f"Failed to send signal lost telemetry: {e}")

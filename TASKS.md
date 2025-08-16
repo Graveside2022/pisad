@@ -1,61 +1,7 @@
 # Project Tasks
 
 *This file is synced with Clode Studio and Claude's native TodoWrite system.*
-*Last updated: 2025-08-16T00:24:11.066Z*
-
-## 🚨 CRITICAL BLOCKER: Hardware Integration Required
-
-### BLOCKED: Real Testing Cannot Proceed Without Hardware
-**Created:** 2025-08-16 by Sentinel
-**Impact:** Blocks 70% of PRD validation tests
-**Priority:** CRITICAL - Sprint 8-10 blocked
-
-**Problem:** All NFR tests are using mock/simulated data. This violates the "no bullshit" requirement. Real hardware or SITL integration is required.
-
-**Required Hardware:**
-1. **HackRF One SDR** - Blocks FR1, FR6, FR13, NFR2, NFR7
-2. **MAVLink Connection** (Pixhawk or SITL) - Blocks FR9-11, NFR1, NFR8
-3. **Power Meter** - Blocks NFR3, NFR4
-4. **Environmental Testing** - Blocks NFR5, NFR6
-
-**Immediate Action:** Install ArduPilot SITL for partial testing capability
-
-### 📍 SITL Installation Instructions (User Action Required)
-
-**IMPORTANT:** Due to directory permissions, SITL must be installed OUTSIDE the project directory.
-
-```bash
-# Step 1: Navigate outside the pisad project
-cd ~/projects  # Or any directory outside /home/pisad/projects/pisad
-
-# Step 2: Clone ArduPilot
-git clone https://github.com/ArduPilot/ardupilot.git
-cd ardupilot
-
-# Step 3: Install prerequisites (Ubuntu/Debian)
-./Tools/environment_install/install-prereqs-ubuntu.sh -y
-
-# Step 4: Build SITL
-./waf configure --board sitl
-./waf copter
-
-# Step 5: Run SITL (for testing)
-./Tools/autotest/sim_vehicle.py -v ArduCopter --console --map
-
-# Step 6: Set environment variable for tests
-export ENABLE_SITL_TESTS=1
-export ENABLE_HARDWARE_TESTS=1
-```
-
-### 🔧 Hardware Requirements for Full Testing
-
-| Hardware | Tests Blocked | Priority | Alternative |
-|----------|--------------|----------|-------------|
-| HackRF One/RTL-SDR | FR1, FR6, FR13, NFR2 | CRITICAL | GNU Radio simulation |
-| Pixhawk/Cube Orange+ | FR9-11, NFR1, NFR8 | CRITICAL | ArduPilot SITL |
-| Power Meter | NFR3, NFR4 | MEDIUM | Estimate from battery |
-| GPS Module | FR10, NFR navigation | HIGH | SITL provides GPS |
-| Environmental Chamber | NFR5, NFR6 | LOW | Skip initially |
+*Last updated: 2025-08-16T13:52:07.438Z*
 
 ## Backlog (6)
 
@@ -87,8 +33,18 @@ export ENABLE_HARDWARE_TESTS=1
   - Priority: medium
   - Description: Full database architecture transformation from SQLite to DuckDB for advanced analytics
 
-## To Do (2)
+## To Do (4)
 
+- [ ] **Story 4.6: Safety-Critical Coverage Compliance**
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: BLOCKED by 4.5 - Create HAL mocks, achieve 85%+ coverage after APIs exist
+- [ ] **Story 4.2: Test Coverage Maintenance**
+  - Assignee: claude
+  - Type: feature
+  - Priority: medium
+  - Description: BLOCKED by 4.5 & 4.6 - Maintain 90% coverage (ongoing after APIs complete)
 - [ ] **Story 2.5: Ground Testing & Safety Validation**
   - Assignee: claude
   - Type: feature
@@ -100,31 +56,21 @@ export ENABLE_HARDWARE_TESTS=1
   - Priority: high
   - Description: READY - Real-world validation with HackRF/Cube Orange+, FAA COA needed
 
-## In Progress (3)
+## In Progress (2)
 
-- [ ] **Story 4.2: Test Coverage Maintenance** ⏳
-  - Assignee: claude
-  - Type: feature
-  - Priority: low
-  - Description: Maintain 90% coverage as code evolves (ongoing after 4.6 complete)
-- [ ] **Story 4.6: Safety-Critical Coverage Compliance** ⏳
-  - Assignee: claude
-  - Type: feature
-  - Priority: high
-  - Description: READY - Create HAL mocks based on Story 4.7 interfaces, achieve 85%+ coverage
-- [ ] **Story 4.5: API Documentation & Security** ⏳
+- [ ] **Story 4.5: API Implementation & Documentation 🎯 NEXT** ⏳
   - Assignee: claude
   - Type: feature
   - Priority: medium
-  - Description: Complete API implementations, add authentication and documentation
+  - Description: IMMEDIATE - Implement SignalProcessor, MAVLink, and StateMachine APIs to match Story 4.9 Sprint 8 test contracts
+- [ ] **Story 4.9: Code Optimization and Refactoring** ⏳
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: Sprint 8 Day 3-4 complete - PRD test contracts written (1,312 lines)
 
-## Completed (7)
+## Completed (6)
 
-- [x] ~~Story 4.9: Code Optimization and Refactoring~~
-  - ~~Assignee: claude~~
-  - ~~Type: feature~~
-  - ~~Priority: high~~
-  - ~~Description: Sprint 6 Day 4 complete - Exception handlers refactored. 15/36 story points done (42%)~~
 - [x] ~~Story 4.7: Hardware Integration Testing~~
   - ~~Assignee: claude~~
   - ~~Type: feature~~
