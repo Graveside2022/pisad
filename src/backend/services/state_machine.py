@@ -1,6 +1,7 @@
 """State machine service for managing system states and telemetry integration."""
 
 import asyncio
+import contextlib
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
@@ -1202,9 +1203,9 @@ class StateMachine:
             # Initialize database if enabled
             if self._enable_persistence:
                 try:
-                    from backend.services.state_db import StateDatabase
+                    from backend.models.database import StateHistoryDB
 
-                    self._state_db = StateDatabase(self._db_path)
+                    self._state_db = StateHistoryDB(self._db_path)
                     self._restore_state()
                     logger.info("State persistence initialized")
                 except DatabaseError as e:
@@ -1245,10 +1246,8 @@ class StateMachine:
         # Cancel timeout task if running
         if hasattr(self, "_timeout_task") and self._timeout_task and not self._timeout_task.done():
             self._timeout_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._timeout_task
-            except asyncio.CancelledError:
-                pass
 
         # Cancel telemetry task if running
         if (
@@ -1257,10 +1256,8 @@ class StateMachine:
             and not self._telemetry_task.done()
         ):
             self._telemetry_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._telemetry_task
-            except asyncio.CancelledError:
-                pass
 
         # Stop any active search pattern
         if self._active_pattern:

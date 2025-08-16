@@ -49,9 +49,27 @@ class ConfigService:
             with open(profile_path) as f:
                 data = yaml.safe_load(f)
 
+            # If data has a 'profile' key, extract its contents
+            if "profile" in data and isinstance(data["profile"], dict):
+                # This is a beacon profile, not a config profile
+                # Create a default ConfigProfile with minimal data
+                return ConfigProfile(
+                    id=str(uuid.uuid4()),
+                    name=profile_name,
+                    description=f"Profile loaded from {profile_name}.yaml",
+                    sdrConfig=SDRConfig(),
+                    signalConfig=SignalConfig(),
+                    homingConfig=HomingConfig(),
+                    isDefault=profile_name == "default",
+                    createdAt=datetime.now(UTC),
+                    updatedAt=datetime.now(UTC),
+                )
+
             # Add metadata if not present
             if "id" not in data:
                 data["id"] = str(uuid.uuid4())
+            if "name" not in data:
+                data["name"] = profile_name
             if "createdAt" not in data:
                 data["createdAt"] = datetime.now(UTC)
             else:
@@ -69,7 +87,22 @@ class ConfigService:
             if data.get("homingConfig"):
                 data["homingConfig"] = HomingConfig(**data["homingConfig"])
 
-            return ConfigProfile(**data)
+            # Filter out any unknown fields
+            valid_fields = {
+                "id",
+                "name",
+                "description",
+                "sdrConfig",
+                "signalConfig",
+                "homingConfig",
+                "geofenceConfig",
+                "isDefault",
+                "createdAt",
+                "updatedAt",
+            }
+            filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+
+            return ConfigProfile(**filtered_data)
 
         except (yaml.YAMLError, ValueError) as e:
             logger.error(f"Error loading profile {profile_name}: {e}")
