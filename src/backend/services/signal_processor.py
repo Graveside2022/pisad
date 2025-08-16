@@ -120,7 +120,7 @@ class SignalProcessor:
         self.processing_latency = 0.0
 
         # Calibration offset for RSSI calculation (hardware-dependent)
-        self.calibration_offset = -30.0  # dBm offset, adjust based on hardware
+        self.calibration_offset = -10.0  # dBm offset, calibrated for HackRF One
 
         # SNR callbacks for safety monitoring
         self._snr_callbacks: list[Callable[[float], None]] = []

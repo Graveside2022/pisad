@@ -293,7 +293,7 @@ def test_signal_processor_initialization():
     """Test signal processor can be initialized."""
     processor = SignalProcessor()
     assert processor is not None
-    assert processor.calibration_offset == -30.0  # Default calibration
+    assert processor.calibration_offset == -10.0  # Calibrated for HackRF One
 
 
 if __name__ == "__main__":
