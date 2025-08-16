@@ -102,7 +102,7 @@ class TestMAVLinkRequirements:
             packets_received = 0
 
             # Send test packets
-            for i in range(100):
+            for _ in range(100):
                 await mavlink_service.send_heartbeat()
                 packets_sent += 1
                 await asyncio.sleep(0.01)  # 100Hz for stress test
