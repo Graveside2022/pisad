@@ -104,10 +104,8 @@ class TestStateMachineHardware:
         # Change operation mode
         await state_machine.on_mode_change("MANUAL")
 
-        # Verify velocity commands stopped
-        # Verify velocity commands stopped
-        if hasattr(mavlink_service, "stop_velocity_commands"):
-            mavlink_service.stop_velocity_commands.assert_called()
+        # Verify homing is disabled (which implicitly stops velocity commands)
+        assert not state_machine._homing_enabled, "Homing should be disabled on MANUAL mode"
 
         # Verify state changed appropriately
         assert state_machine.get_current_state() != SystemState.HOMING
@@ -205,18 +203,18 @@ class TestStateMachineHardware:
         # Test that state can be set and retrieved
         # Set a state
         await state_machine.transition_to(SystemState.SEARCHING, "Test")
-        
+
         # Verify state is set
         assert state_machine.get_current_state() == SystemState.SEARCHING
-        
+
         # Save the state (implementation may save to database)
-        if hasattr(state_machine, 'save_state'):
+        if hasattr(state_machine, "save_state"):
             state_machine.save_state()
-        
+
         # State persistence is handled by database in actual implementation
         # For unit test, we just verify the state can be set and retrieved
         current_state = state_machine.get_current_state()
-        
+
         # Should maintain state
         assert (
             current_state == SystemState.SEARCHING

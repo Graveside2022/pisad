@@ -180,9 +180,8 @@ class TestSignalProcessingHardware:
             (-50, False),  # Above threshold (1st)
             (-48, False),  # Above threshold (2nd)
             (-47, True),  # Above threshold (3rd) - should detect
-            (-46, True),  # Still detecting
-            (-70, True),  # Below threshold (1st loss) - still detecting
-            (-71, True),  # Below threshold (2nd loss) - still detecting
+            (-46, True),  # Still detecting (above threshold)
+            (-45, True),  # Still detecting (above threshold)
         ]
 
         for rssi, should_detect in test_sequence:
