@@ -132,7 +132,10 @@ Single repository containing all components (flight control configs, SDR process
 
 - **Python 3.10+** as primary language for rapid prototyping and extensive library support
 - **AsyncIO architecture** throughout for concurrent SDR sampling and flight control
-- **HackRF One** with pyhackrf library for SDR operations (850 MHz - 6.5 GHz)
+- **HackRF One** with SoapySDR hardware abstraction layer for SDR operations (850 MHz - 6.5 GHz)
+  - SoapySDR provides vendor-neutral interface supporting multiple SDR devices
+  - Primary: HackRF One via soapysdr-module-hackrf driver
+  - Future: USRP, RTL-SDR, LimeSDR support through same API
 - **Pixhawk 4 with Cube Orange+** flight controller via pymavlink on /dev/ttyACM0
 - **FastAPI or Flask** for lightweight web server hosting payload UI
 - **WebSocket** for real-time UI updates without polling

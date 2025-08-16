@@ -48,6 +48,7 @@
   - [Components](./components.md)
     - [Core Service](./components.md#core-service)
     - [SDR Service](./components.md#sdr-service)
+    - [SDR Integration Architecture](./sdr-integration.md)
     - [Signal Processing Service](./components.md#signal-processing-service)
     - [MAVLink Service](./components.md#mavlink-service)
     - [State Machine Service](./components.md#state-machine-service)

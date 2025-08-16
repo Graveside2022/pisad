@@ -7,7 +7,7 @@ This guide provides step-by-step instructions for setting up the PISAD (Portable
 ### Hardware
 
 - Raspberry Pi 5 (4GB or 8GB RAM recommended)
-- RTL-SDR USB dongles (1 or 2 for interferometry)
+- HackRF One SDR (primary) or RTL-SDR USB dongles (alternative)
 - MicroSD card (32GB minimum, 64GB recommended)
 - Power supply (5V 5A USB-C)
 - Ethernet cable or WiFi connection
@@ -48,14 +48,33 @@ uv --version
 
 ### 3. SDR Driver Installation
 
-Install RTL-SDR drivers and libraries:
+Install SDR drivers and libraries based on your hardware:
+
+#### For HackRF One (Primary):
+
+```bash
+# Install HackRF tools and libraries
+sudo apt install -y hackrf libhackrf-dev
+
+# Install SoapySDR (SDR abstraction library)
+sudo apt install -y soapysdr-tools libsoapysdr-dev python3-soapysdr
+
+# Install SoapySDR HackRF module
+sudo apt install -y soapysdr-module-hackrf
+
+# Test HackRF detection
+hackrf_info
+SoapySDRUtil --find="driver=hackrf"
+```
+
+#### For RTL-SDR (Alternative):
 
 ```bash
 # Install RTL-SDR tools
 sudo apt install -y rtl-sdr librtlsdr-dev
 
-# Install SoapySDR (SDR abstraction library)
-sudo apt install -y soapysdr-tools python3-soapysdr
+# Install SoapySDR RTL-SDR module
+sudo apt install -y soapysdr-module-rtlsdr
 
 # Blacklist DVB-T drivers to prevent conflicts
 echo 'blacklist dvb_usb_rtl28xxu' | sudo tee /etc/modprobe.d/blacklist-rtl.conf
@@ -63,6 +82,23 @@ sudo modprobe -r dvb_usb_rtl28xxu
 
 # Test RTL-SDR detection
 rtl_test -t
+SoapySDRUtil --find="driver=rtlsdr"
+```
+
+#### Python Integration with uv:
+
+Since SoapySDR Python bindings are installed system-wide, you need to make them available in your uv environment:
+
+```bash
+# Create virtual environment with system site packages access
+uv venv --system-site-packages --python=3.11
+
+# Or if venv already exists, create symlinks
+ln -sf /usr/lib/python3/dist-packages/SoapySDR.py .venv/lib/python*/site-packages/
+ln -sf /usr/lib/python3/dist-packages/_SoapySDR.*.so .venv/lib/python*/site-packages/
+
+# Test Python import
+uv run python -c "import SoapySDR; print(SoapySDR.Device.enumerate())"
 ```
 
 ### 4. Project Setup
