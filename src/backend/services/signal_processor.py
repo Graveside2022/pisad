@@ -695,9 +695,9 @@ class SignalProcessor:
         return max(0.0, min(1.0, confidence))
 
     def process_detection_with_debounce(
-        self, rssi: float, noise_floor: float, threshold: float
+        self, rssi: float, noise_floor: float, threshold: float = 12.0, drop_threshold: float = 6.0
     ) -> bool:
-        """Process detection with debouncing logic.
+        """Process detection with debouncing logic and hysteresis.
 
         SAFETY: Prevents false positive/negative detections that could cause
                 erratic drone behavior or missed beacons
@@ -707,10 +707,11 @@ class SignalProcessor:
         Args:
             rssi: Current RSSI value
             noise_floor: Noise floor estimate
-            threshold: Detection threshold
+            threshold: Detection trigger threshold (default 12dB per FR7)
+            drop_threshold: Signal drop threshold (default 6dB per FR7)
 
         Returns:
-            True if signal detected (after debouncing)
+            True if signal detected (after debouncing with hysteresis)
         """
         # Initialize counters if not present
         if not hasattr(self, "detection_count"):
@@ -724,10 +725,19 @@ class SignalProcessor:
         if not hasattr(self, "is_detecting"):
             self.is_detecting = False
 
-        # Check if signal is above threshold
-        signal_present = (rssi - noise_floor) > threshold
+        # Calculate SNR
+        snr = rssi - noise_floor
 
-        if signal_present:
+        # Implement hysteresis: different thresholds for trigger and drop
+        # FR7: trigger at 12dB, drop at 6dB
+        if not self.is_detecting:
+            # Not currently detecting - use trigger threshold
+            signal_above_threshold = snr > threshold
+        else:
+            # Currently detecting - use drop threshold (hysteresis)
+            signal_above_threshold = snr > drop_threshold
+
+        if signal_above_threshold:
             # Signal detected
             self.loss_count = 0  # Reset loss counter
 

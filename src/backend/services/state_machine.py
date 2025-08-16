@@ -29,6 +29,7 @@ class SystemState(Enum):
     DETECTING = "DETECTING"
     HOMING = "HOMING"
     HOLDING = "HOLDING"
+    EMERGENCY = "EMERGENCY"  # Emergency stop state
 
 
 class SearchSubstate(Enum):
@@ -96,6 +97,10 @@ class StateMachine:
         self._exit_actions: dict[SystemState, list[Callable[[], Coroutine[Any, Any, None]]]] = {
             state: [] for state in SystemState
         }
+
+        # Add default HOMING entry action
+        self._entry_actions[SystemState.HOMING] = [self._on_homing_entry]
+        self._exit_actions[SystemState.HOMING] = [self._on_homing_exit]
 
         # State timeout configurations (seconds)
         self._state_timeouts: dict[SystemState, float] = {
@@ -578,11 +583,27 @@ class StateMachine:
         """
         # Define valid transitions with guard conditions
         valid_transitions = {
-            SystemState.IDLE: [SystemState.SEARCHING],
-            SystemState.SEARCHING: [SystemState.IDLE, SystemState.DETECTING],
-            SystemState.DETECTING: [SystemState.SEARCHING, SystemState.HOMING, SystemState.IDLE],
-            SystemState.HOMING: [SystemState.HOLDING, SystemState.SEARCHING, SystemState.IDLE],
-            SystemState.HOLDING: [SystemState.HOMING, SystemState.SEARCHING, SystemState.IDLE],
+            SystemState.IDLE: [SystemState.SEARCHING, SystemState.EMERGENCY],
+            SystemState.SEARCHING: [SystemState.IDLE, SystemState.DETECTING, SystemState.EMERGENCY],
+            SystemState.DETECTING: [
+                SystemState.SEARCHING,
+                SystemState.HOMING,
+                SystemState.IDLE,
+                SystemState.EMERGENCY,
+            ],
+            SystemState.HOMING: [
+                SystemState.HOLDING,
+                SystemState.SEARCHING,
+                SystemState.IDLE,
+                SystemState.EMERGENCY,
+            ],
+            SystemState.HOLDING: [
+                SystemState.HOMING,
+                SystemState.SEARCHING,
+                SystemState.IDLE,
+                SystemState.EMERGENCY,
+            ],
+            SystemState.EMERGENCY: [SystemState.IDLE],  # Can only return to IDLE from EMERGENCY
         }
 
         # Allow transition to same state (no-op)
@@ -879,14 +900,97 @@ class StateMachine:
             List of allowed target states
         """
         valid_transitions = {
-            SystemState.IDLE: [SystemState.SEARCHING],
-            SystemState.SEARCHING: [SystemState.IDLE, SystemState.DETECTING],
-            SystemState.DETECTING: [SystemState.SEARCHING, SystemState.HOMING, SystemState.IDLE],
-            SystemState.HOMING: [SystemState.HOLDING, SystemState.SEARCHING, SystemState.IDLE],
-            SystemState.HOLDING: [SystemState.HOMING, SystemState.SEARCHING, SystemState.IDLE],
+            SystemState.IDLE: [SystemState.SEARCHING, SystemState.EMERGENCY],
+            SystemState.SEARCHING: [SystemState.IDLE, SystemState.DETECTING, SystemState.EMERGENCY],
+            SystemState.DETECTING: [
+                SystemState.SEARCHING,
+                SystemState.HOMING,
+                SystemState.IDLE,
+                SystemState.EMERGENCY,
+            ],
+            SystemState.HOMING: [
+                SystemState.HOLDING,
+                SystemState.SEARCHING,
+                SystemState.IDLE,
+                SystemState.EMERGENCY,
+            ],
+            SystemState.HOLDING: [
+                SystemState.HOMING,
+                SystemState.SEARCHING,
+                SystemState.IDLE,
+                SystemState.EMERGENCY,
+            ],
+            SystemState.EMERGENCY: [SystemState.IDLE],  # Can only return to IDLE from EMERGENCY
         }
 
         return valid_transitions.get(self._current_state, [])
+
+    def save_state(self) -> dict[str, Any]:
+        """Save current state for persistence.
+
+        Returns:
+            Dict containing state information
+        """
+        return {
+            "current_state": self._current_state.value,
+            "previous_state": self._previous_state.value,
+            "homing_enabled": self._homing_enabled,
+            "detection_count": self._detection_count,
+            "search_substate": self._search_substate.value,
+            "current_waypoint_index": self._current_waypoint_index,
+        }
+
+    def restore_state(self, saved_state: dict[str, Any]) -> None:
+        """Restore state from saved data.
+
+        Args:
+            saved_state: Dict containing saved state information
+        """
+        if "current_state" in saved_state:
+            self._current_state = SystemState(saved_state["current_state"])
+        if "previous_state" in saved_state:
+            self._previous_state = SystemState(saved_state["previous_state"])
+        if "homing_enabled" in saved_state:
+            self._homing_enabled = saved_state["homing_enabled"]
+        if "detection_count" in saved_state:
+            self._detection_count = saved_state["detection_count"]
+        if "search_substate" in saved_state:
+            self._search_substate = SearchSubstate(saved_state["search_substate"])
+        if "current_waypoint_index" in saved_state:
+            self._current_waypoint_index = saved_state["current_waypoint_index"]
+
+        logger.info(f"State restored to {self._current_state.value}")
+
+    async def emergency_stop(self) -> bool:
+        """Trigger emergency stop - immediately transition to safe state.
+
+        Returns:
+            True if emergency stop was successful
+        """
+        logger.warning("EMERGENCY STOP triggered!")
+        # Disable homing immediately
+        self._homing_enabled = False
+        # Transition to EMERGENCY state
+        result = await self.transition_to(SystemState.EMERGENCY, reason="Emergency Stop")
+        # Stop any velocity commands if MAVLink service available
+        if self._mavlink_service:
+            try:
+                await self._mavlink_service.stop_velocity_commands()
+            except Exception as e:
+                logger.error(f"Error stopping velocity commands: {e}")
+        return result
+
+    async def _on_homing_entry(self) -> None:
+        """Entry action for HOMING state."""
+        logger.info("Entering HOMING state")
+        # Enable homing mode
+        self._homing_enabled = True
+
+    async def _on_homing_exit(self) -> None:
+        """Exit action for HOMING state."""
+        logger.info("Exiting HOMING state")
+        # Disable homing mode
+        self._homing_enabled = False
 
     def get_state_history(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent state change history.
@@ -1293,7 +1397,9 @@ class StateMachine:
                 self._homing_enabled = False
                 await self.transition_to(SystemState.IDLE, "Signal loss timeout")
 
-    async def on_mode_change(self, new_mode: str) -> None:
+    async def on_mode_change(
+        self, old_mode: str | None = None, new_mode: str | None = None
+    ) -> None:
         """Handle operation mode change.
 
         SAFETY: Ensures safe transition between flight modes
@@ -1301,8 +1407,13 @@ class StateMachine:
         HAZARD: HARA-MODE-002 - Mode confusion leading to unexpected behavior
 
         Args:
+            old_mode: Previous operation mode (optional)
             new_mode: New operation mode (MANUAL, AUTO, GUIDED, etc.)
         """
+        # Handle backward compatibility - if only one arg passed, it's the new_mode
+        if new_mode is None and old_mode is not None:
+            new_mode = old_mode
+            old_mode = None
         logger.info(f"Operation mode changed to: {new_mode}")
 
         # Handle mode-specific logic

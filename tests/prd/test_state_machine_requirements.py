@@ -11,6 +11,8 @@ import time
 import pytest
 
 from backend.services.homing_controller import HomingController
+from backend.services.mavlink_service import MAVLinkService
+from backend.services.signal_processor import SignalProcessor
 from backend.services.state_machine import StateMachine
 from backend.utils.safety import SafetyInterlockSystem
 
@@ -20,16 +22,22 @@ class TestStateMachineRequirements:
 
     @pytest.fixture
     async def state_machine(self):
-        """Create state machine instance."""
+        """Create state machine instance with required dependencies."""
         sm = StateMachine()
+        # Add signal processor to allow IDLE -> SEARCHING transition
+        sm._signal_processor = SignalProcessor()
+        # Add MAVLink service for velocity commands
+        sm._mavlink_service = MAVLinkService()
         await sm.initialize()
         yield sm
         await sm.shutdown()
 
     @pytest.fixture
-    async def homing_controller(self):
-        """Create homing controller instance."""
-        controller = HomingController()
+    async def homing_controller(self, state_machine):
+        """Create homing controller instance with required dependencies."""
+        mavlink_service = MAVLinkService()
+        signal_processor = SignalProcessor()
+        controller = HomingController(mavlink_service, signal_processor, state_machine)
         yield controller
 
     @pytest.fixture
@@ -392,7 +400,9 @@ class TestStateTransitionTiming:
         """
         sm = StateMachine()
         await sm.initialize()
-        controller = HomingController()
+        mavlink_service = MAVLinkService()
+        signal_processor = SignalProcessor()
+        controller = HomingController(mavlink_service, signal_processor, sm)
 
         # Enable homing
         controller.enable_homing()
