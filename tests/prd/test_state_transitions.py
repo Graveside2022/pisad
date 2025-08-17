@@ -415,4 +415,3 @@ class TestStateEntryExitActions:
             "enter_homing",
             "exit_homing",
         ], f"Expected entry then exit, got {executed_actions}"
-
