@@ -1,9 +1,9 @@
 # Project Tasks
 
 *This file is synced with Clode Studio and Claude's native TodoWrite system.*  
-*Last updated: 2025-08-16T17:32:10.162Z*
+*Last updated: 2025-08-16T22:52:50.976Z*
 
-## Backlog (6)
+## Backlog (8)
 
 - [ ] **Create comprehensive developer setup guide**
   - Assignee: claude
@@ -32,8 +32,18 @@
   - Type: feature
   - Priority: medium
   - Description: Full database architecture transformation from SQLite to DuckDB for advanced analytics
+- [ ] **Story 2.5: Ground Testing & Safety Validation**
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: READY - Test HackRF & Cube Orange+ safety interlocks with real hardware
+- [ ] **Story 3.4: Field Testing Campaign**
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: READY - Real-world validation with HackRF/Cube Orange+, FAA COA needed
 
-## To Do (4)
+## To Do (2)
 
 - [ ] **Story 4.6: Safety-Critical Coverage Compliance**
   - Assignee: claude
@@ -45,16 +55,6 @@
   - Type: feature
   - Priority: medium
   - Description: BLOCKED by 4.5 & 4.6 - Maintain 90% coverage (ongoing after APIs complete)
-- [ ] **Story 2.5: Ground Testing & Safety Validation**
-  - Assignee: claude
-  - Type: feature
-  - Priority: high
-  - Description: READY - Test HackRF & Cube Orange+ safety interlocks with real hardware
-- [ ] **Story 3.4: Field Testing Campaign**
-  - Assignee: claude
-  - Type: feature
-  - Priority: high
-  - Description: READY - Real-world validation with HackRF/Cube Orange+, FAA COA needed
 
 ## In Progress (1)
 

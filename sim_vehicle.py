@@ -1,0 +1,1 @@
+/home/pisad/projects/ardupilot/Tools/autotest/sim_vehicle.py

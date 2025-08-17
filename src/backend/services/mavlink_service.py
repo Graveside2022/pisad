@@ -784,6 +784,28 @@ class MAVLinkService:
             logger.error(f"Failed to send velocity command: {e}")
             return False
 
+    async def send_heartbeat(self) -> bool:
+        """Send heartbeat message for performance testing.
+
+        Returns:
+            bool: True if heartbeat sent successfully, False otherwise
+        """
+        if not self.connection:
+            return False
+
+        try:
+            self.connection.mav.heartbeat_send(
+                mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+                mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+                0,
+                0,
+                0,
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send heartbeat: {e}")
+            return False
+
     def get_gps_status_string(self) -> str:
         """Get GPS status as string."""
         fix_type = self.telemetry["gps"]["fix_type"]

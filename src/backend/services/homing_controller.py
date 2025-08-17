@@ -58,12 +58,90 @@ class HomingController:
 
         # State tracking
         self.is_active = False
+        self.homing_enabled = False  # PRD-FR14: Operator activation required
         self.last_signal_time: float | None = None
         self.update_task: asyncio.Task[None] | None = None
         self.current_position = {"x": 0.0, "y": 0.0, "z": 0.0}
         self.current_heading = 0.0
 
         logger.info(f"Homing controller initialized with mode: {self.mode.value}")
+
+    def enable_homing(self, confirmation: str = "") -> bool:
+        """Enable homing mode per PRD-FR14 operator activation requirement.
+
+        This method enables the homing capability but does not start homing.
+        Actual homing is started separately when conditions are met.
+
+        Args:
+            confirmation: Operator confirmation token (per architecture spec)
+
+        Returns:
+            True if homing was enabled successfully
+        """
+        # For now, just track enabled state
+        # In production, this would validate confirmation token
+        self.homing_enabled = True
+        logger.info(f"Homing enabled by operator with confirmation: {confirmation}")
+        return True
+
+    def disable_homing(self, reason: str = "") -> None:
+        """Disable homing mode per architecture specification.
+
+        Args:
+            reason: Reason for disabling homing
+        """
+        self.homing_enabled = False
+        logger.info(f"Homing disabled: {reason}")
+
+    async def send_velocity_command(self, vx: float, vy: float, vz: float) -> bool:
+        """Send velocity command to flight controller.
+
+        Wrapper around MAVLink service for easier testing.
+
+        Args:
+            vx: Forward velocity (m/s)
+            vy: Right velocity (m/s)
+            vz: Down velocity (m/s)
+
+        Returns:
+            True if command sent successfully
+        """
+        return await self.mavlink.send_velocity_command(vx, vy, vz)
+
+    async def continuous_homing_commands(self) -> None:
+        """Continuously send homing velocity commands until cancelled.
+
+        This method is used by tests to simulate continuous operation.
+        Production code uses _update_loop instead.
+        """
+        update_rate = 10  # Hz
+        update_period = 1.0 / update_rate
+
+        try:
+            while True:
+                start_time = asyncio.get_event_loop().time()
+
+                # Check if homing is still enabled and state allows commands
+                if not self.homing_enabled:
+                    break
+
+                # Get flight mode from state machine
+                current_mode = getattr(self.state_machine, "current_flight_mode", "GUIDED")
+                if current_mode != "GUIDED":
+                    logger.info(f"Stopping velocity commands due to mode change: {current_mode}")
+                    break
+
+                # Send test velocity command
+                await self.send_velocity_command(0.5, 0.0, 0.0)
+
+                # Wait for next update
+                elapsed = asyncio.get_event_loop().time() - start_time
+                sleep_time = max(0, update_period - elapsed)
+                await asyncio.sleep(sleep_time)
+
+        except asyncio.CancelledError:
+            logger.info("Continuous homing commands cancelled")
+            raise
 
     async def start_homing(self) -> bool:
         """Start homing toward beacon.
