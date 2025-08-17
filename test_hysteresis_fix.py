@@ -3,32 +3,34 @@
 Test for validating hysteresis fix for FR7 - Debounced Transitions
 CRITICAL: This tests REAL behavior, no mocks
 """
+
 import sys
-import numpy as np
-sys.path.append('src')
+
+sys.path.append("src")
 
 from backend.services.signal_processor import SignalProcessor
+
 
 def test_hysteresis_implementation():
     """
     TDD Test: Verify proper hysteresis behavior per FR7 requirements:
     - Trigger at 12dB threshold
-    - Drop at 6dB threshold  
+    - Drop at 6dB threshold
     - Proper state transitions with debouncing
     """
     signal_processor = SignalProcessor()
-    
+
     # Reset state
     signal_processor.is_detecting = False
     signal_processor.detection_count = 0
     signal_processor.loss_count = 0
     signal_processor.detection_count_threshold = 3
     signal_processor.loss_count_threshold = 3
-    
+
     trigger_threshold = 12.0  # dB
     drop_threshold = 6.0  # dB
     noise_floor = -80.0  # dBm
-    
+
     # Test sequence: low -> high -> hysteresis zone -> low
     test_cases = [
         # (rssi, expected_state, description)
@@ -43,7 +45,7 @@ def test_hysteresis_implementation():
         (-75, True, "Below drop - second loss"),
         (-75, False, "Below drop - third loss - DROPPED!"),
     ]
-    
+
     print("\n=== Testing Hysteresis State Machine ===")
     for i, (rssi, expected, desc) in enumerate(test_cases):
         result = signal_processor.process_detection_with_debounce(
@@ -51,17 +53,20 @@ def test_hysteresis_implementation():
         )
         snr = rssi - noise_floor
         status = "✓" if result == expected else "✗"
-        print(f"Step {i+1}: SNR={snr:5.1f}dB | Expected={expected:5} | Got={result:5} | {status} | {desc}")
-        
+        print(
+            f"Step {i+1}: SNR={snr:5.1f}dB | Expected={expected:5} | Got={result:5} | {status} | {desc}"
+        )
+
         if result != expected:
             print(f"FAILURE at step {i+1}: {desc}")
             print(f"  Current state: is_detecting={signal_processor.is_detecting}")
             print(f"  Detection count: {signal_processor.detection_count}")
             print(f"  Loss count: {signal_processor.loss_count}")
             return False
-    
+
     print("\n✅ Hysteresis test PASSED!")
     return True
+
 
 if __name__ == "__main__":
     success = test_hysteresis_implementation()

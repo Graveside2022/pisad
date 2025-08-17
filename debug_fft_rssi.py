@@ -2,16 +2,19 @@
 """
 Debug FFT RSSI calculation to understand the discrepancy
 """
+
 import sys
+
 import numpy as np
-sys.path.append('src')
+
+sys.path.append("src")
 
 from backend.services.signal_processor import SignalProcessor
 
 # Test parameters from the failing test
 block_size = 1024
 sample_rate = 2e6
-freq = 250e3  # 250 kHz  
+freq = 250e3  # 250 kHz
 amplitude = 2.0
 
 # Generate the same signal
@@ -32,9 +35,11 @@ print(f"Computed FFT RSSI: {rssi:.2f} dBm")
 # What the test expects
 expected_power_raw = 20 * np.log10(amplitude) + 10
 expected_with_offset = expected_power_raw + processor.calibration_offset
-print(f"\nTest expected calculation:")
+print("\nTest expected calculation:")
 print(f"  Raw power: 20*log10({amplitude}) + 10 = {expected_power_raw:.2f} dB")
-print(f"  With offset: {expected_power_raw:.2f} + {processor.calibration_offset} = {expected_with_offset:.2f} dBm")
+print(
+    f"  With offset: {expected_power_raw:.2f} + {processor.calibration_offset} = {expected_with_offset:.2f} dBm"
+)
 
 # Manual calculation of what we actually get
 # For complex signal, total power is sum of |FFT|^2 / N
@@ -43,10 +48,12 @@ fft_magnitude = np.abs(fft_result) / block_size
 total_power = np.sum(fft_magnitude**2)
 manual_rssi = 10 * np.log10(total_power) + processor.calibration_offset
 
-print(f"\nManual calculation:")
+print("\nManual calculation:")
 print(f"  Total power (linear): {total_power:.6f}")
 print(f"  Power in dB: 10*log10({total_power:.6f}) = {10*np.log10(total_power):.2f} dB")
-print(f"  With offset: {10*np.log10(total_power):.2f} + {processor.calibration_offset} = {manual_rssi:.2f} dBm")
+print(
+    f"  With offset: {10*np.log10(total_power):.2f} + {processor.calibration_offset} = {manual_rssi:.2f} dBm"
+)
 
 print(f"\nDiscrepancy: {abs(rssi - expected_with_offset):.2f} dB")
 

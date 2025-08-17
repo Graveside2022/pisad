@@ -35,62 +35,62 @@
    - Must read /pisad/docs/architecture.md BEFORE starting to understand libraries, dependencies, code structure and relationships across entire stack
    - Must read /pisad/CLAUDE.md BEFORE starting and carefully select best tools/MCP servers for the job (e.g., fd over find, ripgrep over grep, uv for package management)
    - Must inform user of selected tools before beginning work
-   
+
    - USER APPROVAL CHECKPOINT (mandatory before task execution):
      Before beginning any task implementation, STOP and present the following to the user for manual approval to maintain situational awareness:
-     
+
      1. **Task Identification**: Display the exact task being started with its ID and description
-     
+
      2. **Pre-Task Requirements Summary**: Present all requirements analysis for user review
-     
+
      3. **Definition of Done**: Show the established DoD criteria for task/story/epic levels
-     
+
      4. **Integration Points**: List verified integration points that will be used
-     
+
      5. **Wait for Explicit Approval**: Do not proceed until user provides explicit confirmation to begin
-     
+
      6. **Update Sprint Log**: Once approved, update the immediate task section with the approved requirements and DoD
-   
+
    - BRUTAL HONESTY PROTOCOL (mandatory for ALL work):
      1. **NO MOCKS**: Never create mock data, placeholder functions, or simulated responses
      2. **NO THEATER**: If something doesn't work, say it immediately - don't pretend with elaborate non-functional code
      3. **REALITY CHECK**: Before implementing anything, verify the actual integration points exist and work
      4. **ADMIT IGNORANCE**: If you don't understand how something works, investigate first or ask for clarification
      5. **STOP WHEN STUCK**: Don't write more code to fix understanding problems - investigate the real system instead
-   
+
    - PRE-TASK REQUIREMENTS (mandatory presentation to user before ANY task execution):
      Before starting any task, document and present these essential requirements for user approval:
-     
+
      1. **Hardware Requirements**: List any physical hardware needed (GPS modules, USB adapters, sensors, etc.) and their availability status if the task requires it. If no hardware required, explicitly state "None required"
-     
+
      2. **Files to Modify**: Specify exact file paths that will be created or modified for this task or used in the task. Critical: DO NOT CREATE DUPLICATE FILES, functions, or tests. ALWAYS check if functionality already exists. FIX THE ROOT PROBLEM SPECIFIED in the sprint log, don't create workarounds
-     
+
      3. **Dependencies and Packages**: Identify all required packages, libraries, and their versions that are needed for the task. Verify these are not already installed before adding
-     
+
      4. **Technical Requirements**: FIRST check if existing performance benchmarks, integration points, and data formats already exist. If they exist, reference them. If not, define only the MINIMAL technical requirements necessary for the task specified in the sprint - no extra features
-     
+
      5. **Functional Requirements**: ALWAYS refer to the prd.md for the functional requirements. Quote the specific section and requirements that apply to this task
-     
+
      6. **Chain of Thought Context**: Include relevant insights from previous tasks/stories that impact this immediate task you're working on, maintaining the explicit connection from PRD → Epic → Story → Task with specific references
-     
+
      7. **Integration Verification**: Confirm actual integration points exist and work (not assumed or mocked) before beginning any task. Show evidence of verification (file existence, API availability, etc.)
-   
+
    - DEFINITION OF DONE (establish and present to user BEFORE starting work):
-     
-     1. **Task-Level DoD**: 
+
+     1. **Task-Level DoD**:
         - Tests written and passing with real system integration
         - Code working in actual Test-Driven environment (no mocks)
         - Integration verified with actual system components (hardware etc) where applicable
         - Documentation updated with what ACTUALLY works
         - Edge cases tested with aggressive validation - IMPORTANT: only test edge cases that are relevant to the PRD, Epic and Story. NO SCOPE CREEP ALLOWED
         - Clear error messages for failure conditions
-     
+
      2. **Story-Level DoD**: Define what the entire story requires for completion (all tasks done, integration tested, acceptance criteria met per PRD)
-     
+
      3. **Epic-Level DoD**: Define epic completion requirements (all stories complete, system integration verified, performance validated per PRD specs)
-     
+
      NOTE: After task completion, review the code against these DoD criteria to determine if the task is truly complete or requires additional work
-   
+
    - TEST-DRIVEN DEVELOPMENT PROTOCOL (mandatory for ALL code):
      1. RED PHASE: Write a failing test FIRST that defines the desired functionality
         - Test must fail for the right reason (not compilation/import error)
@@ -107,28 +107,28 @@
      4. NEVER write production code before writing a test
      5. NEVER write tests after implementation - tests come FIRST
      6. Test in real environment, not just unit tests
-   
+
    - ONE FEATURE AT A TIME PROTOCOL:
      1. **SINGLE FOCUS**: Complete one feature entirely before moving to next
      2. **NO FEATURE CREEP**: Resist adding "nice to have" additions
      3. **SMALL CHANGES**: Keep changes small and focused
      4. **FREQUENT TESTING**: Run tests every few lines of code
      5. **COMPLETE BEFORE CONTINUE**: Feature must be fully done before starting next
-   
+
    - FAIL FAST PROTOCOL:
      1. **AGGRESSIVE VALIDATION**: Check every input, every integration point
      2. **LOUD ERRORS**: When something breaks, make it obvious with clear messages
      3. **TEST EDGE CASES**: Deliberately try to break your own code (within PRD scope)
      4. **IMMEDIATE FAILURE**: Make code fail immediately when assumptions are wrong
      5. **NO SILENT FAILURES**: Never hide problems with try-catch without logging
-   
+
    - OPTIMIZATION PROTOCOL:
      1. **MAKE IT WORK**: First priority is functioning code with real integration
      2. **MAKE IT RIGHT**: Clean up and refactor with tests as safety net
      3. **MAKE IT FAST**: Only optimize after profiling shows real bottlenecks
      4. **MEASURE FIRST**: Never optimize based on assumptions
      5. **PROFILE BEFORE OPTIMIZE**: Use actual performance data, not guesses
-   
+
    - RED FLAGS TO AVOID:
      🚫 Creating elaborate structures without testing integration
      🚫 Writing 100+ lines without running anything
@@ -139,7 +139,7 @@
      🚫 Pretending something works when it doesn't
      🚫 Creating duplicate files/functions/tests instead of fixing root problems
      🚫 Adding features not specified in PRD
-   
+
    - REALITY CHECK QUESTIONS (ask frequently):
      1. "Have I tested this with the real system?"
      2. "Am I building what's needed per PRD or what I think is cool?"
@@ -149,10 +149,10 @@
      6. "Have I verified the integration points actually exist?"
      7. "Am I fixing the root problem or creating a workaround?"
      8. "Does this already exist in the codebase?"
-   
+
    - MANDATORY DOCUMENT STRUCTURE (enforced after EVERY update):
      The story.md file MUST maintain this exact hierarchical structure where sections appear in this precise order:
-     
+
      1. **ACTIVE TODO TASKS** (ALWAYS at document top, line 1):
         - This section must be the FIRST thing visible when opening the file
         - Contains all uncompleted tasks ordered by execution priority
@@ -172,7 +172,7 @@
         - Tasks grouped by immediate executability: unblocked tasks first
         - Within each group, maintain PRD priority ordering (P0 > P1 > P2)
         - Maximum of 10 tasks shown in primary view
-     
+
      2. **CURRENT BLOCKERS** (immediately following TODO tasks):
         - Position directly after active tasks for immediate visibility
         - Format: `### 🚨 BLOCKER-XXX: [Type] Brief Description`
@@ -185,7 +185,7 @@
           * Next action required: Specific step needed for resolution
           * Owner: Person responsible for resolution
         - Order blockers by severity then by affected task count
-     
+
      3. **COMPLETED WORK** (historical record following blockers):
         - Subsections organized by completion date (most recent first)
         - Each completed entry shows:
@@ -198,7 +198,7 @@
           * `    Root Problem Fixed: [Confirmation no duplicates/workarounds created]`
           * `    Impact: [Brief summary of ACTUAL changes that WORK]`
           * `    Files Modified: [List of changed files]`
-     
+
      4. **SUPPLEMENTARY INFORMATION** (contextual data at document bottom):
         - Sprint Velocity Metrics
         - PRD Coverage Analysis
@@ -210,7 +210,7 @@
         - Change Log
         - Technical Debt Register
         - Chain of Thought Documentation (Epic → Story → Task relationships)
-   
+
    - Dynamic update workflow sequence with user approval and TDD enforcement:
      1. Read PRD, architecture.md, and CLAUDE.md for context
      2. Identify task from story.md Active TODO section
@@ -240,7 +240,7 @@
      26. Reorder remaining tasks based on new state
      27. Update metrics and chain of thought documentation
      28. Commit with descriptive message including test coverage and integration verification
-   
+
    - All code must be production-quality with NO mock, simulated, or placeholder components
    - Must not deviate from PRD specifications or assigned sprint plan tasks
    - Test-First Development is mandatory - no production code without failing test first
