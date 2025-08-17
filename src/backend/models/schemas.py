@@ -148,6 +148,7 @@ class RSSIReading:
     timestamp: datetime  # Microsecond precision timestamp
     rssi: float  # Signal strength in dBm
     noise_floor: float  # Estimated noise floor in dBm
+    snr: float = 0.0  # Signal-to-noise ratio in dB
     detection_id: str | None = None  # Associated detection event (nullable)
 
 

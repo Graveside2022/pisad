@@ -15,9 +15,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
 # Check for hardware availability
 try:
-    from backend.services.mavlink_service import MAVLinkService
-    from backend.services.signal_processor import SignalProcessor
-    from backend.services.state_machine import StateMachine, SystemState
+    from src.backend.services.mavlink_service import MAVLinkService
+    from src.backend.services.signal_processor import SignalProcessor
+    from src.backend.services.state_machine import StateMachine, SystemState
 
     has_hardware = True
 except ImportError:

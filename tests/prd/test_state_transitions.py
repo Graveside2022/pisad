@@ -19,8 +19,8 @@ import time
 
 import pytest
 
-from backend.models.schemas import ConfigProfile
-from backend.services.state_machine import StateMachine, SystemState
+from src.backend.models.schemas import ConfigProfile
+from src.backend.services.state_machine import StateMachine, SystemState
 
 
 class TestBasicStateTransitions:
@@ -30,8 +30,8 @@ class TestBasicStateTransitions:
     async def state_machine(self):
         """Create clean state machine instance for testing."""
         # TDD GREEN PHASE: Add required dependencies for state transitions
-        from backend.services.mavlink_service import MAVLinkService
-        from backend.services.signal_processor import SignalProcessor
+        from src.backend.services.mavlink_service import MAVLinkService
+        from src.backend.services.signal_processor import SignalProcessor
 
         sm = StateMachine(enable_persistence=False)  # Disable DB for isolation
 
@@ -121,8 +121,8 @@ class TestConfigProfileIntegration:
     @pytest.fixture
     async def state_machine(self):
         """Create state machine for ConfigProfile testing."""
-        from backend.services.mavlink_service import MAVLinkService
-        from backend.services.signal_processor import SignalProcessor
+        from src.backend.services.mavlink_service import MAVLinkService
+        from src.backend.services.signal_processor import SignalProcessor
 
         sm = StateMachine(enable_persistence=False)
 
@@ -194,8 +194,8 @@ class TestStatePersistence:
     @pytest.fixture
     async def persistent_state_machine(self):
         """Create state machine with persistence enabled for testing."""
-        from backend.services.mavlink_service import MAVLinkService
-        from backend.services.signal_processor import SignalProcessor
+        from src.backend.services.mavlink_service import MAVLinkService
+        from src.backend.services.signal_processor import SignalProcessor
 
         sm = StateMachine(db_path=":memory:", enable_persistence=True)  # In-memory DB for testing
 
@@ -245,8 +245,8 @@ class TestThreadSafety:
     @pytest.fixture
     async def state_machine(self):
         """Create state machine for thread safety testing."""
-        from backend.services.mavlink_service import MAVLinkService
-        from backend.services.signal_processor import SignalProcessor
+        from src.backend.services.mavlink_service import MAVLinkService
+        from src.backend.services.signal_processor import SignalProcessor
 
         sm = StateMachine(enable_persistence=False)
 
@@ -300,8 +300,8 @@ class TestTimingRequirements:
     @pytest.fixture
     async def state_machine(self):
         """Create state machine for timing tests."""
-        from backend.services.mavlink_service import MAVLinkService
-        from backend.services.signal_processor import SignalProcessor
+        from src.backend.services.mavlink_service import MAVLinkService
+        from src.backend.services.signal_processor import SignalProcessor
 
         sm = StateMachine(enable_persistence=False)
 
@@ -363,8 +363,8 @@ class TestStateEntryExitActions:
     @pytest.fixture
     async def state_machine(self):
         """Create state machine for entry/exit action testing."""
-        from backend.services.mavlink_service import MAVLinkService
-        from backend.services.signal_processor import SignalProcessor
+        from src.backend.services.mavlink_service import MAVLinkService
+        from src.backend.services.signal_processor import SignalProcessor
 
         sm = StateMachine(enable_persistence=False)
 

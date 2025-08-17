@@ -18,8 +18,8 @@ import time
 import numpy as np
 import pytest
 
-from backend.services.sdr_service import SDRService
-from backend.services.signal_processor import SignalProcessor
+from src.backend.services.sdr_service import SDRService
+from src.backend.services.signal_processor import SignalProcessor
 
 
 class TestProcessingLatencies:
@@ -166,7 +166,7 @@ class TestStateTransitionLatencies:
     async def test_state_machine_transition_latency(self):
         """Test state machine transitions meet timing requirements"""
         # GREEN PHASE: Setup proper dependencies for state transitions
-        from backend.services.state_machine import StateMachine
+        from src.backend.services.state_machine import StateMachine
 
         state_machine = StateMachine()
 
@@ -219,7 +219,7 @@ class TestEndToEndLatency:
         rssi_result = signal_processor.compute_rssi(test_samples)
 
         # Step 2: State machine processing (simulate detection)
-        from backend.services.state_machine import StateMachine
+        from src.backend.services.state_machine import StateMachine
 
         state_machine = StateMachine()
 

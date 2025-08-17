@@ -11,9 +11,9 @@ from dataclasses import dataclass
 
 import pytest
 
-from backend.models.schemas import BeaconConfiguration
-from backend.services.beacon_simulator import BeaconSimulator
-from backend.services.homing_algorithm import HomingAlgorithm, RSSISample
+from src.backend.models.schemas import BeaconConfiguration
+from src.backend.services.beacon_simulator import BeaconSimulator
+from src.backend.services.homing_algorithm import HomingAlgorithm, RSSISample
 
 
 @dataclass

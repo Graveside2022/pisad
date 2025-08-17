@@ -14,8 +14,8 @@ import pytest
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
-from backend.services.sdr_service import SDRService
-from backend.services.signal_processor import EWMAFilter, SignalProcessor
+from src.backend.services.sdr_service import SDRService
+from src.backend.services.signal_processor import EWMAFilter, SignalProcessor
 
 
 class TestSignalProcessingHardware:

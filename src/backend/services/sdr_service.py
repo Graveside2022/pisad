@@ -20,12 +20,12 @@ except ImportError:
     SoapySDR = None
     SOAPY_AVAILABLE = False
 
-from backend.core.exceptions import (
+from src.backend.core.exceptions import (
     PISADException,
     SDRError,
 )
-from backend.models.schemas import SDRConfig, SDRStatus
-from backend.utils.logging import get_logger
+from src.backend.models.schemas import SDRConfig, SDRStatus
+from src.backend.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

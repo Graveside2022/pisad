@@ -8,8 +8,8 @@ import asyncio
 
 import pytest
 
-from backend.services.mavlink_service import ConnectionState, MAVLinkService
-from backend.services.search_pattern_generator import (
+from src.backend.services.mavlink_service import ConnectionState, MAVLinkService
+from src.backend.services.search_pattern_generator import (
     CenterRadiusBoundary,
     PatternType,
     SearchPatternGenerator,

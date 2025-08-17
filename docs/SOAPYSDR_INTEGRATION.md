@@ -8,7 +8,7 @@ This document summarizes the SoapySDR hardware abstraction layer integration int
 
 ### 1. Product Requirements Document (`docs/prd.md`)
 - **Section Updated**: Technical Assumptions
-- **Changes**: 
+- **Changes**:
   - Replaced "pyhackrf library" with "SoapySDR hardware abstraction layer"
   - Added vendor-neutral SDR support capabilities
   - Listed supported devices: HackRF (primary), USRP, RTL-SDR, LimeSDR (future)

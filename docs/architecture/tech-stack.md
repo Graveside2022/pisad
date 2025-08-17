@@ -10,7 +10,7 @@
 | Frontend Framework     | React                        | 18.3.1          | UI component framework                     | Proven reliability, extensive ecosystem                                        |
 | UI Component Library   | MUI (Material-UI)            | 7.3.1           | Pre-built components with Grid             | Professional emergency services aesthetic, accessibility, modern Grid system   |
 | State Management       | React Context + useReducer   | Built-in        | Local state management                     | Minimal overhead for Pi 5, no Redux complexity                                 |
-| Backend Language       | Python                       | 3.11-3.13       | Backend services and signal processing     | AsyncIO support, extensive SDR libraries, managed by uv                        |
+| Backend Language       | Python                       | 3.13.5          | Backend services and signal processing     | AsyncIO support, extensive SDR libraries, managed by uv **UPDATED**           |
 | Backend Framework      | FastAPI                      | 0.116.1         | REST API and WebSocket server              | High performance async, automatic OpenAPI docs                                 |
 | ASGI Server            | Uvicorn                      | 0.35.0          | ASGI web server for FastAPI                | Production-ready, supports HTTP/1.1 and WebSockets                             |
 | HTTP Client            | HTTPX                        | 0.28.1          | Async HTTP client for backend              | Modern async/await support, HTTP/2, connection pooling                         |
@@ -33,3 +33,14 @@
 | Monitoring             | Custom logging + Prometheus  | 3.5.0 LTS       | Metrics and logging                        | Lightweight, local metrics                                                     |
 | Logging                | Python logging + systemd     | Built-in        | Structured logging                         | Integrated with systemd journal                                                |
 | CSS Framework          | MUI sx prop                  | 7.3.1           | Styling via sx prop                        | 95% MUI, 5% custom CSS for performance                                         |
+| **Hardware Integration** | **ADDED v3.0**            |                 |                                            |                                                                                 |
+| SDR Hardware           | HackRF One                   | Hardware        | RF signal processing hardware              | 1MHz-6GHz, 20Msps, USB 3.0, validated with production system **NEW**         |
+| Flight Controller      | Cube Orange+                 | Hardware        | Autonomous flight control                  | ArduPilot compatible, MAVLink 2.0, production validated **NEW**               |
+| SDR Software           | SoapySDR                     | Latest          | Hardware abstraction for SDR              | Multi-vendor SDR support, async streaming **NEW**                              |
+| MAVLink Library        | pymavlink                    | Latest          | MAVLink protocol implementation            | ArduPilot communication, SITL support **NEW**                                  |
+| **Testing Framework**  | **ENHANCED v3.0**            |                 |                                            |                                                                                 |
+| Test Runner            | pytest                       | 8.4.1           | Python testing framework                   | 1,388 tests with PRD traceability **ENHANCED**                                 |
+| Coverage               | pytest-cov                   | 5.0.0           | Test coverage measurement                  | Safety-critical component validation **NEW**                                   |
+| Performance Testing    | pytest-benchmark             | 5.1.0           | Performance benchmarking                   | Latency and throughput validation **NEW**                                      |
+| Hardware Testing       | Custom HAL Mocks             | Internal        | Hardware abstraction testing               | HackRF One and MAVLink mocking **NEW**                                         |
+| SITL Testing           | ArduPilot SITL               | Latest          | Software-in-the-Loop testing              | Flight simulation without hardware **NEW**                                     |

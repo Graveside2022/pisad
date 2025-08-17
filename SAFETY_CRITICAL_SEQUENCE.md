@@ -147,7 +147,7 @@
 
 ## Critical Path
 
-```
+```text
 4.7 (Hardware) → 4.6 (Coverage) → 2.5 (Safety) → 3.4 (Field)
 ```
 

@@ -15,9 +15,9 @@ import numpy as np
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
-from backend.services.mavlink_service import MAVLinkService
-from backend.services.signal_processor import SignalProcessor
-from backend.services.state_machine import StateMachine
+from src.backend.services.mavlink_service import MAVLinkService
+from src.backend.services.signal_processor import SignalProcessor
+from src.backend.services.state_machine import StateMachine
 
 
 class PerformanceBenchmark:

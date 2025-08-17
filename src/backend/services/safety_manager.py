@@ -14,8 +14,10 @@ from enum import Enum
 from typing import Any
 
 from src.backend.core.exceptions import (
+    MAVLinkError,
     PISADException,
     SafetyInterlockError,
+    SDRError,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,7 +58,7 @@ class SafetyManager:
         self.active_violations: list[SafetyViolation] = []
         self.watchdog_commands: dict[str, float] = {}
         self.watchdog_timeout = 5.0  # seconds
-        self.monitoring_task: asyncio.Task | None = None
+        self.monitoring_task: asyncio.Task[None] | None = None
         self.state = "IDLE"
         self.last_signal_time = time.time()
 
@@ -94,12 +96,21 @@ class SafetyManager:
                 "priority": "CRITICAL",
             }
 
-        except SafetyInterlockError as e:
+        except (SafetyInterlockError, MAVLinkError, SDRError, Exception) as e:
             logger.error(f"Emergency stop failed: {e}")
+            # Always attempt fallback when primary method fails
+            try:
+                success = self._force_motor_stop()
+                logger.info("Emergency fallback executed successfully")
+            except Exception as fallback_error:
+                logger.critical(f"Emergency fallback failed: {fallback_error}")
+                success = False
+
             return {
-                "success": False,
+                "success": success,
                 "error": str(e),
                 "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                "fallback_attempted": True,
             }
 
     def is_rc_override_active(self) -> bool:

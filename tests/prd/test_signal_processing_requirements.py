@@ -11,7 +11,7 @@ import time
 import numpy as np
 import pytest
 
-from backend.services.signal_processor import SignalProcessor
+from src.backend.services.signal_processor import SignalProcessor
 
 
 class TestSignalProcessingRequirements:
@@ -283,17 +283,19 @@ class TestSignalProcessingRequirements:
         # The FFT will show a peak at the signal frequency
         # Total power depends on the window function and signal characteristics
         # For this specific test signal, we verify RSSI is in reasonable range
-        
+
         # RSSI should be in a reasonable range for a 2.0 amplitude signal
         # Typical range: -20 to 0 dBm for strong signals
-        assert -20 < rssi < 0, f"FFT RSSI {rssi:.1f} dBm is outside reasonable range for amplitude={amplitude} signal"
-        
+        assert (
+            -20 < rssi < 0
+        ), f"FFT RSSI {rssi:.1f} dBm is outside reasonable range for amplitude={amplitude} signal"
+
         # More importantly, verify relative measurements work correctly
         # A stronger signal should give higher RSSI
         weaker_signal = 0.5 * signal_samples  # Half amplitude
         rssi_weak, _ = signal_processor.compute_rssi_fft(weaker_signal)
         rssi_diff = rssi - rssi_weak
-        
+
         # Power scales with amplitude squared, so 0.5x amplitude = 0.25x power = -6dB
         # Should see approximately 6dB difference (10*log10((2.0/0.5)^2) = 10*log10(4) = 6.02 dB)
         expected_diff = 10 * np.log10(4)  # 6.02 dB
@@ -306,15 +308,21 @@ class TestSignalProcessingRequirements:
         freqs = [100e3, 250e3, 400e3]
 
         for f in freqs:
-            signal_multi += amplitude * np.exp(1j * 2 * np.pi * f * t)  # Use same amplitude per tone
+            signal_multi += amplitude * np.exp(
+                1j * 2 * np.pi * f * t
+            )  # Use same amplitude per tone
 
         rssi_multi, fft_mags_multi = signal_processor.compute_rssi_fft(signal_multi)
 
         # Multiple tones with same amplitude each should have higher total power
         # 3 tones at amplitude A each -> total power ~3x higher -> ~4.77 dB more
         expected_increase = 10 * np.log10(len(freqs))  # 4.77 dB for 3 tones
-        assert rssi_multi > rssi, f"Multiple tones should have higher RSSI: {rssi_multi:.1f} vs {rssi:.1f} dBm"
-        assert abs((rssi_multi - rssi) - expected_increase) < 2.0, f"RSSI increase {rssi_multi - rssi:.1f}dB should be close to {expected_increase:.1f}dB"
+        assert (
+            rssi_multi > rssi
+        ), f"Multiple tones should have higher RSSI: {rssi_multi:.1f} vs {rssi:.1f} dBm"
+        assert (
+            abs((rssi_multi - rssi) - expected_increase) < 2.0
+        ), f"RSSI increase {rssi_multi - rssi:.1f}dB should be close to {expected_increase:.1f}dB"
 
     @pytest.mark.asyncio
     async def test_concurrent_processing(self, signal_processor):

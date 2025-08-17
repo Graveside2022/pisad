@@ -23,7 +23,7 @@ except ImportError:
     has_mavlink = False
 
 if has_mavlink:
-    from backend.services.mavlink_service import ConnectionState, MAVLinkService
+    from src.backend.services.mavlink_service import ConnectionState, MAVLinkService
 
 
 @pytest.mark.skipif(not has_mavlink, reason="Requires pymavlink and MAVLink hardware/SITL")

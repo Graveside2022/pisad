@@ -168,7 +168,7 @@ uv run pre-commit autoupdate
 ### Commit Messages
 
 Follow conventional commits format:
-```
+```text
 type(scope): subject
 
 body (optional)

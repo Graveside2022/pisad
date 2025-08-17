@@ -10,11 +10,11 @@ import time
 
 import pytest
 
-from backend.services.homing_controller import HomingController
-from backend.services.mavlink_service import MAVLinkService
-from backend.services.signal_processor import SignalProcessor
-from backend.services.state_machine import StateMachine
-from backend.utils.safety import SafetyInterlockSystem
+from src.backend.services.homing_controller import HomingController
+from src.backend.services.mavlink_service import MAVLinkService
+from src.backend.services.signal_processor import SignalProcessor
+from src.backend.services.state_machine import StateMachine
+from src.backend.utils.safety import SafetyInterlockSystem
 
 
 class TestStateMachineRequirements:

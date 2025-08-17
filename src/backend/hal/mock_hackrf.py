@@ -30,9 +30,18 @@ class MockHackRF:
         self.is_streaming = False
         self._stream_thread: threading.Thread | None = None
 
+        # Enhanced failure injection capabilities
+        self.device_opened = False
+        self.failure_mode = None  # "freq_fail", "rate_fail", "gain_fail", "serial_fail"
+        self.error_count = 0
+        self.max_errors = 0
+
     def open(self) -> int:
         """Open mock device."""
+        if self.failure_mode == "open_fail":
+            return -1  # Failure
         self.connected = True
+        self.device_opened = True
         return 0
 
     def close(self) -> int:
@@ -73,6 +82,16 @@ class MockHackRF:
         self.amp_enabled = enable
         return 0
 
+    def enable_amp(self) -> int:
+        """Enable RF amplifier."""
+        self.amp_enabled = True
+        return 0
+
+    def disable_amp(self) -> int:
+        """Disable RF amplifier."""
+        self.amp_enabled = False
+        return 0
+
     def start_rx(self, callback: Callable[[bytes], None]) -> int:
         """Start receiving IQ samples."""
         if not callback:
@@ -107,12 +126,34 @@ class MockHackRF:
         """Legacy stop method."""
         self.stop()
 
+    def read_samples(self, num_samples: int = 16384) -> np.ndarray:
+        """Read IQ samples - compatible with hackrf interface."""
+        if not self.connected or not self.is_streaming:
+            return np.array([], dtype=np.complex64)
+
+        # Generate mock IQ samples (complex sinusoid with noise)
+        t = np.arange(num_samples) / self.sample_rate
+        freq_offset = 0.1  # Normalized frequency
+        signal = np.exp(2j * np.pi * freq_offset * t)
+
+        # Add noise based on gain settings
+        noise_level = 0.1 * np.exp(-(self.lna_gain + self.vga_gain) / 40.0)
+        noise = (np.random.randn(num_samples) + 1j * np.random.randn(num_samples)) * noise_level
+        signal += noise
+
+        return signal.astype(np.complex64)
+
     def _stream_samples(self) -> None:
         """Generate and stream mock IQ samples."""
         samples_per_buffer = 16384
 
         while self._running and self._rx_callback:
             try:
+                # Check if still connected
+                if not self.connected:
+                    logger.warning("Mock HackRF disconnected during streaming")
+                    break
+
                 # Generate mock IQ samples (complex sinusoid with noise)
                 t = np.arange(samples_per_buffer) / self.sample_rate
                 freq_offset = 0.1  # Normalized frequency
@@ -140,6 +181,12 @@ class MockHackRF:
                 logger.debug(f"Mock streaming error: {e}")
                 continue
 
+    def get_serial_no(self) -> str:
+        """Get serial number with failure injection."""
+        if self.failure_mode == "serial_fail":
+            raise RuntimeError("Failed to get serial number")
+        return "MOCK123456"
+
     def get_device_info(self) -> dict:
         """Get device information."""
         return {
@@ -149,6 +196,12 @@ class MockHackRF:
             "api_version": "1.0",
             "status": "connected" if self.connected else "disconnected",
         }
+
+    def set_failure_mode(self, mode: str, max_errors: int = 1):
+        """Set failure injection mode."""
+        self.failure_mode = mode
+        self.max_errors = max_errors
+        self.error_count = 0
 
 
 def pyhackrf_init() -> None:

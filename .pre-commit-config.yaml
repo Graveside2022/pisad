@@ -49,6 +49,15 @@ repos:
 
   - repo: local
     hooks:
+      - id: trunk-check
+        name: Trunk Check (Meta-linter)
+        entry: npx trunk check --filter=-markdownlint --no-fix
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+        description: Run trunk.io meta-linter for comprehensive code quality
+
       - id: pytest
         name: pytest
         entry: uv run pytest -m "not hardware and not sitl and not slow" --timeout=30
