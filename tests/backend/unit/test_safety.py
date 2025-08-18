@@ -512,3 +512,502 @@ class TestSafetyInterlockSystem:
         assert len(event_types) == len(expected_types)
         for event_type in expected_types:
             assert event_type in event_types
+
+
+# NEW TDD TESTS FOR 90%+ SAFETY UTILS COVERAGE
+
+class TestOperatorActivationCheck:
+    """Test OperatorActivationCheck implementation."""
+
+    @pytest.fixture
+    def operator_check(self):
+        """Provide OperatorActivationCheck instance."""
+        from src.backend.utils.safety import OperatorActivationCheck
+        return OperatorActivationCheck(timeout_seconds=10)
+
+    @pytest.mark.asyncio
+    async def test_operator_check_initialization(self, operator_check):
+        """Test OperatorActivationCheck initialization."""
+        assert operator_check.name == "operator_check"
+        assert operator_check.homing_enabled is False
+        assert operator_check.activation_time is None
+        assert operator_check.timeout_seconds == 10
+        assert operator_check.is_safe is False
+
+    @pytest.mark.asyncio
+    async def test_operator_check_homing_disabled(self, operator_check):
+        """Test operator check fails when homing disabled."""
+        result = await operator_check.check()
+        
+        assert result is False
+        assert operator_check.is_safe is False
+        assert "Operator has not enabled homing" in operator_check.failure_reason
+
+    @pytest.mark.asyncio
+    async def test_operator_check_homing_enabled(self, operator_check):
+        """Test operator check passes when homing enabled."""
+        operator_check.enable_homing()
+        
+        result = await operator_check.check()
+        
+        assert result is True
+        assert operator_check.is_safe is True
+        assert operator_check.failure_reason is None
+        assert operator_check.activation_time is not None
+
+    @pytest.mark.asyncio
+    async def test_operator_check_timeout(self, operator_check):
+        """Test operator check times out after configured duration."""
+        from datetime import UTC, datetime, timedelta
+        
+        operator_check.enable_homing()
+        # Simulate old activation time
+        operator_check.activation_time = datetime.now(UTC) - timedelta(seconds=15)
+        
+        result = await operator_check.check()
+        
+        assert result is False
+        assert operator_check.is_safe is False
+        assert "timed out after" in operator_check.failure_reason
+
+    def test_enable_homing(self, operator_check):
+        """Test homing enablement."""
+        operator_check.enable_homing()
+        
+        assert operator_check.homing_enabled is True
+        assert operator_check.activation_time is not None
+
+    def test_disable_homing(self, operator_check):
+        """Test homing disablement."""
+        operator_check.enable_homing()
+        assert operator_check.homing_enabled is True
+        
+        operator_check.disable_homing("Test disable")
+        
+        assert operator_check.homing_enabled is False
+        assert operator_check.activation_time is None
+
+
+class TestSignalLossCheck:
+    """Test SignalLossCheck implementation."""
+
+    @pytest.fixture
+    def signal_check(self):
+        """Provide SignalLossCheck instance."""
+        from src.backend.utils.safety import SignalLossCheck
+        return SignalLossCheck(snr_threshold=6.0, timeout_seconds=5)
+
+    @pytest.mark.asyncio
+    async def test_signal_check_initialization(self, signal_check):
+        """Test SignalLossCheck initialization."""
+        assert signal_check.name == "signal_check"
+        assert signal_check.snr_threshold == 6.0
+        assert signal_check.timeout_seconds == 5
+        assert signal_check.current_snr == 0.0
+        assert signal_check.signal_lost_time is None
+        assert len(signal_check.snr_history) == 0
+
+    @pytest.mark.asyncio
+    async def test_signal_check_good_snr(self, signal_check):
+        """Test signal check passes with good SNR."""
+        signal_check.update_snr(10.0)  # Above threshold
+        
+        result = await signal_check.check()
+        
+        assert result is True
+        assert signal_check.is_safe is True
+        assert signal_check.failure_reason is None
+        assert signal_check.signal_lost_time is None
+
+    @pytest.mark.asyncio
+    async def test_signal_check_poor_snr(self, signal_check):
+        """Test signal check fails with poor SNR."""
+        signal_check.update_snr(3.0)  # Below threshold
+        
+        result = await signal_check.check()
+        
+        assert result is False
+        assert signal_check.is_safe is False
+        assert "SNR 3.0 dB below threshold" in signal_check.failure_reason
+        assert signal_check.signal_lost_time is not None
+
+    def test_update_snr_history(self, signal_check):
+        """Test SNR history management."""
+        # Add multiple SNR values
+        for snr in [5.0, 7.0, 6.5, 8.0]:
+            signal_check.update_snr(snr)
+        
+        assert len(signal_check.snr_history) == 4
+        assert signal_check.current_snr == 8.0
+        
+        # Test history limit (100 entries)
+        for i in range(100):
+            signal_check.update_snr(10.0)
+        
+        assert len(signal_check.snr_history) <= 100
+
+    def test_get_average_snr(self, signal_check):
+        """Test average SNR calculation."""
+        # Initially no history
+        assert signal_check.get_average_snr() == 0.0
+        
+        # Add test values
+        signal_check.update_snr(5.0)
+        signal_check.update_snr(7.0)
+        signal_check.update_snr(8.0)
+        
+        average = signal_check.get_average_snr()
+        assert abs(average - (5.0 + 7.0 + 8.0) / 3) < 0.01
+
+    @pytest.mark.asyncio
+    async def test_signal_check_history_cleanup(self, signal_check):
+        """Test old history cleanup during check."""
+        # Add some SNR values
+        signal_check.update_snr(8.0)
+        
+        # Run check to trigger cleanup
+        await signal_check.check()
+        
+        # History should still contain recent entry
+        assert len(signal_check.snr_history) >= 1
+
+
+class TestBatteryCheck:
+    """Test BatteryCheck implementation."""
+
+    @pytest.fixture
+    def battery_check(self):
+        """Provide BatteryCheck instance."""
+        from src.backend.utils.safety import BatteryCheck
+        return BatteryCheck(threshold_percent=20.0)
+
+    @pytest.mark.asyncio
+    async def test_battery_check_initialization(self, battery_check):
+        """Test BatteryCheck initialization."""
+        assert battery_check.name == "battery_check"
+        assert battery_check.threshold_percent == 20.0
+        assert battery_check.current_battery_percent == 100.0
+        assert battery_check.warning_levels == [30.0, 25.0, 20.0]
+        assert battery_check.last_warning_level is None
+
+    @pytest.mark.asyncio
+    async def test_battery_check_normal_level(self, battery_check):
+        """Test battery check passes with normal level."""
+        battery_check.update_battery(50.0)
+        
+        result = await battery_check.check()
+        
+        assert result is True
+        assert battery_check.is_safe is True
+        assert battery_check.failure_reason is None
+
+    @pytest.mark.asyncio
+    async def test_battery_check_low_level(self, battery_check):
+        """Test battery check fails with low level."""
+        battery_check.update_battery(15.0)  # Below 20% threshold
+        
+        result = await battery_check.check()
+        
+        assert result is False
+        assert battery_check.is_safe is False
+        assert "Battery at 15.0%, below 20.0% threshold" in battery_check.failure_reason
+
+    def test_update_battery_bounds(self, battery_check):
+        """Test battery update respects bounds."""
+        # Test upper bound
+        battery_check.update_battery(150.0)
+        assert battery_check.current_battery_percent == 100.0
+        
+        # Test lower bound
+        battery_check.update_battery(-10.0)
+        assert battery_check.current_battery_percent == 0.0
+        
+        # Test normal value
+        battery_check.update_battery(75.0)
+        assert battery_check.current_battery_percent == 75.0
+
+
+class TestGeofenceCheck:
+    """Test GeofenceCheck implementation."""
+
+    @pytest.fixture
+    def geofence_check(self):
+        """Provide GeofenceCheck instance."""
+        from src.backend.utils.safety import GeofenceCheck
+        return GeofenceCheck()
+
+    @pytest.mark.asyncio
+    async def test_geofence_check_initialization(self, geofence_check):
+        """Test GeofenceCheck initialization."""
+        assert geofence_check.name == "geofence_check"
+        assert geofence_check.fence_center_lat is None
+        assert geofence_check.fence_center_lon is None
+        assert geofence_check.fence_radius is None
+        assert geofence_check.fence_altitude is None
+        assert geofence_check.current_lat is None
+        assert geofence_check.current_lon is None
+        assert geofence_check.current_alt is None
+        assert geofence_check.fence_enabled is False
+
+    @pytest.mark.asyncio
+    async def test_geofence_check_disabled(self, geofence_check):
+        """Test geofence check passes when disabled."""
+        result = await geofence_check.check()
+        
+        assert result is True
+        assert geofence_check.is_safe is True
+        assert geofence_check.failure_reason is None
+
+    def test_set_geofence(self, geofence_check):
+        """Test geofence configuration."""
+        geofence_check.set_geofence(37.7749, -122.4194, 100.0, 50.0)
+        
+        assert geofence_check.fence_center_lat == 37.7749
+        assert geofence_check.fence_center_lon == -122.4194
+        assert geofence_check.fence_radius == 100.0
+        assert geofence_check.fence_altitude == 50.0
+        assert geofence_check.fence_enabled is True
+
+    def test_update_position(self, geofence_check):
+        """Test position updates."""
+        geofence_check.update_position(37.7750, -122.4195, 30.0)
+        
+        assert geofence_check.current_lat == 37.7750
+        assert geofence_check.current_lon == -122.4195
+        assert geofence_check.current_alt == 30.0
+
+    @pytest.mark.asyncio
+    async def test_geofence_check_incomplete_config(self, geofence_check):
+        """Test geofence check fails with incomplete configuration."""
+        geofence_check.fence_enabled = True  # Enable but don't configure
+        
+        result = await geofence_check.check()
+        
+        assert result is False
+        assert geofence_check.is_safe is False
+        assert "not configured" in geofence_check.failure_reason
+
+    @pytest.mark.asyncio
+    async def test_geofence_check_inside_boundary(self, geofence_check):
+        """Test geofence check passes when inside boundary."""
+        # Set up geofence and position
+        geofence_check.set_geofence(37.7749, -122.4194, 100.0, 50.0)
+        geofence_check.update_position(37.7750, -122.4195, 30.0)  # Close position
+        
+        result = await geofence_check.check()
+        
+        assert result is True
+        assert geofence_check.is_safe is True
+        assert geofence_check.failure_reason is None
+
+    @pytest.mark.asyncio
+    async def test_geofence_check_outside_radius(self, geofence_check):
+        """Test geofence check fails when outside radius."""
+        # Set up geofence and distant position
+        geofence_check.set_geofence(37.7749, -122.4194, 100.0, 50.0)
+        geofence_check.update_position(37.8000, -122.5000, 30.0)  # Far position
+        
+        result = await geofence_check.check()
+        
+        assert result is False
+        assert geofence_check.is_safe is False
+        assert "outside geofence radius" in geofence_check.failure_reason
+
+    @pytest.mark.asyncio
+    async def test_geofence_check_altitude_violation(self, geofence_check):
+        """Test geofence check fails when above altitude limit."""
+        # Set up geofence and high position
+        geofence_check.set_geofence(37.7749, -122.4194, 100.0, 50.0)
+        geofence_check.update_position(37.7749, -122.4194, 75.0)  # Same lat/lon, high alt
+        
+        result = await geofence_check.check()
+        
+        assert result is False
+        assert geofence_check.is_safe is False
+        assert "exceeds maximum" in geofence_check.failure_reason
+
+    def test_calculate_distance_same_point(self, geofence_check):
+        """Test distance calculation for same point."""
+        geofence_check.set_geofence(37.7749, -122.4194, 100.0)
+        geofence_check.update_position(37.7749, -122.4194, 30.0)
+        
+        distance = geofence_check.calculate_distance()
+        
+        assert distance < 1.0  # Should be very close to 0
+
+    def test_calculate_distance_no_position(self, geofence_check):
+        """Test distance calculation without position."""
+        distance = geofence_check.calculate_distance()
+        
+        assert distance == float("inf")
+
+    def test_haversine_distance_calculation(self, geofence_check):
+        """Test Haversine distance calculation accuracy."""
+        # Test known distance (approximately 1 degree lat ≈ 111 km)
+        distance = geofence_check._calculate_distance(0.0, 0.0, 1.0, 0.0)
+        
+        # Should be approximately 111,000 meters
+        assert 110000 < distance < 112000
+
+
+class TestSafetyInterlockSystemComprehensive:
+    """Test comprehensive SafetyInterlockSystem functionality."""
+
+    @pytest.fixture
+    def safety_system(self):
+        """Provide SafetyInterlockSystem instance."""
+        from src.backend.utils.safety import SafetyInterlockSystem
+        return SafetyInterlockSystem()
+
+    @pytest.mark.asyncio
+    async def test_safety_system_initialization(self, safety_system):
+        """Test SafetyInterlockSystem initialization."""
+        assert len(safety_system.checks) == 5
+        assert "mode" in safety_system.checks
+        assert "operator" in safety_system.checks
+        assert "signal" in safety_system.checks
+        assert "battery" in safety_system.checks
+        assert "geofence" in safety_system.checks
+        assert safety_system.emergency_stopped is False
+        assert len(safety_system.safety_events) == 0
+        assert safety_system.max_events == 1000
+        assert safety_system._check_task is None
+        assert safety_system._check_interval == 0.1
+
+    @pytest.mark.asyncio
+    async def test_start_stop_monitoring(self, safety_system):
+        """Test monitoring start and stop."""
+        # Start monitoring
+        await safety_system.start_monitoring()
+        assert safety_system._check_task is not None
+        assert not safety_system._check_task.done()
+        
+        # Stop monitoring
+        await safety_system.stop_monitoring()
+        assert safety_system._check_task.done()
+
+    @pytest.mark.asyncio
+    async def test_check_all_safety_mixed_results(self, safety_system):
+        """Test check_all_safety with mixed results."""
+        # Set up some checks to pass and others to fail
+        safety_system.checks["mode"].update_mode("GUIDED")  # Should pass
+        safety_system.checks["battery"].update_battery(10.0)  # Should fail (below 20%)
+        
+        results = await safety_system.check_all_safety()
+        
+        assert "mode" in results
+        assert "battery" in results
+        assert results["mode"] is True
+        assert results["battery"] is False
+
+    @pytest.mark.asyncio
+    async def test_is_safe_to_proceed_all_pass(self, safety_system):
+        """Test is_safe_to_proceed when all checks pass."""
+        # Set up all checks to pass
+        safety_system.checks["mode"].update_mode("GUIDED")
+        safety_system.checks["operator"].enable_homing()
+        safety_system.checks["signal"].update_snr(10.0)
+        safety_system.checks["battery"].update_battery(80.0)
+        safety_system.checks["geofence"].set_geofence(0, 0, 100, 50)
+        safety_system.checks["geofence"].update_position(0, 0, 10)
+        
+        is_safe = await safety_system.is_safe_to_proceed()
+        
+        assert is_safe is True
+
+    @pytest.mark.asyncio
+    async def test_is_safe_to_proceed_with_failure(self, safety_system):
+        """Test is_safe_to_proceed with one check failing."""
+        # Set up one check to fail
+        safety_system.checks["battery"].update_battery(10.0)  # Below threshold
+        
+        is_safe = await safety_system.is_safe_to_proceed()
+        
+        assert is_safe is False
+
+    @pytest.mark.asyncio
+    async def test_emergency_stop(self, safety_system):
+        """Test emergency stop activation."""
+        await safety_system.emergency_stop("Test emergency")
+        
+        assert safety_system.emergency_stopped is True
+        assert len(safety_system.safety_events) > 0
+        
+        # Check that operator check was disabled
+        operator_check = safety_system.checks["operator"]
+        assert operator_check.homing_enabled is False
+
+    @pytest.mark.asyncio
+    async def test_emergency_stop_blocks_safety_checks(self, safety_system):
+        """Test emergency stop blocks all safety checks."""
+        await safety_system.emergency_stop("Test")
+        
+        results = await safety_system.check_all_safety()
+        
+        # All checks should return False when emergency stopped
+        assert all(not result for result in results.values())
+
+    @pytest.mark.asyncio
+    async def test_reset_emergency_stop(self, safety_system):
+        """Test emergency stop reset."""
+        await safety_system.emergency_stop("Test")
+        assert safety_system.emergency_stopped is True
+        
+        await safety_system.reset_emergency_stop()
+        
+        assert safety_system.emergency_stopped is False
+        assert len(safety_system.safety_events) > 1  # Should have reset event
+
+    @pytest.mark.asyncio
+    async def test_enable_homing_safety_check(self, safety_system):
+        """Test enable homing with safety pre-checks."""
+        # Set up good conditions
+        safety_system.checks["mode"].update_mode("GUIDED")
+        safety_system.checks["signal"].update_snr(10.0)
+        safety_system.checks["battery"].update_battery(80.0)
+        safety_system.checks["geofence"].set_geofence(0, 0, 100, 50)
+        safety_system.checks["geofence"].update_position(0, 0, 10)
+        
+        result = await safety_system.enable_homing("test-token")
+        
+        assert result is True
+        operator_check = safety_system.checks["operator"]
+        assert operator_check.homing_enabled is True
+
+    @pytest.mark.asyncio
+    async def test_enable_homing_blocked_by_safety(self, safety_system):
+        """Test enable homing blocked by safety checks."""
+        # Set up failing condition
+        safety_system.checks["battery"].update_battery(10.0)  # Critical battery
+        
+        result = await safety_system.enable_homing()
+        
+        assert result is False
+        operator_check = safety_system.checks["operator"]
+        assert operator_check.homing_enabled is False
+
+    @pytest.mark.asyncio
+    async def test_enable_homing_blocked_by_emergency(self, safety_system):
+        """Test enable homing blocked by emergency stop."""
+        await safety_system.emergency_stop("Test")
+        
+        result = await safety_system.enable_homing()
+        
+        assert result is False
+
+    def test_get_safety_status(self, safety_system):
+        """Test comprehensive safety status."""
+        status = safety_system.get_safety_status()
+        
+        assert "emergency_stopped" in status
+        assert "checks" in status
+        assert "timestamp" in status
+        assert len(status["checks"]) == 5
+        assert status["emergency_stopped"] is False
+
+    def test_get_status_with_events(self, safety_system):
+        """Test status includes event count."""
+        status = safety_system.get_status()
+        
+        assert "events" in status
+        assert status["events"] == 0

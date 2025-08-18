@@ -1,7 +1,7 @@
 # Project Tasks
 
-*This file is synced with Clode Studio and Claude's native TodoWrite system.*
-*Last updated: 2025-08-17T11:15:33.660Z*
+*This file is synced with Clode Studio and Claude's native TodoWrite system.*  
+*Last updated: 2025-08-18T09:35:54.365Z*
 
 ## Backlog (1)
 
@@ -11,7 +11,7 @@
   - Priority: medium
   - Description: POST-MVP ENHANCEMENT - Database architecture transformation from SQLite to DuckDB for advanced analytics
 
-## To Do (4)
+## To Do (5)
 
 - [ ] **Story 4.2: Test Coverage Maintenance**
   - Assignee: claude
@@ -23,6 +23,11 @@
   - Type: feature
   - Priority: high
   - Description: UNBLOCKED - Create HAL mocks, achieve 85%+ coverage
+- [ ] **Story 1.4: Enhanced Web-Based Payload UI 🔄**
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: Foundation complete ✅ Enhanced with live spectrum waterfall, flight controller integration, manual frequency control, and clickable beacon targeting
 - [ ] **Story 2.5: Ground Testing & Safety Validation**
   - Assignee: claude
   - Type: feature
@@ -38,7 +43,7 @@
 
 
 
-## Completed (20)
+## Completed (19)
 
 - [x] ~~CRITICAL: Verify Story 4.9 Implementation Status ✅~~
   - ~~Assignee: claude~~
@@ -60,11 +65,6 @@
   - ~~Type: feature~~
   - ~~Priority: high~~
   - ~~Description: FFT-based RSSI computation, EWMA filtering, noise floor estimation, signal detection~~
-- [x] ~~Story 1.4: Web-Based Payload UI Foundation~~
-  - ~~Assignee: claude~~
-  - ~~Type: feature~~
-  - ~~Priority: high~~
-  - ~~Description: FastAPI web server, React frontend, WebSocket real-time updates, responsive design~~
 - [x] ~~Story 1.5: Configuration Management & Persistence~~
   - ~~Assignee: claude~~
   - ~~Type: feature~~
