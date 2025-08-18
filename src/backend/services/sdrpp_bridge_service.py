@@ -13,6 +13,7 @@ PRD References:
 import asyncio
 import json
 import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -36,11 +37,16 @@ class SDRPPBridgeService:
             "freq_control",
             "homing_state",
             "error",
+            "heartbeat",
         }
 
         # Signal processor dependency for RSSI data access
         self._signal_processor: Any | None = None
         self._message_sequence = 0  # Sequence counter for messages
+
+        # Heartbeat monitoring (based on MAVLink service pattern)
+        self.heartbeat_timeout = 30.0  # 30 seconds for SDR++ connections
+        self.client_heartbeats: dict[tuple[str, int], float] = {}
 
         logger.info("SDRPPBridgeService initialized with port %s", self.port)
 
@@ -106,6 +112,9 @@ class SDRPPBridgeService:
         # Add client to tracking list
         self.clients.append(writer)
 
+        # Initialize heartbeat tracking for this client
+        self.client_heartbeats[client_addr] = time.time()
+
         try:
             # Check if client is still connected by reading from it
             while self.running and not writer.is_closing():
@@ -129,6 +138,10 @@ class SDRPPBridgeService:
             # Remove client from tracking list
             if writer in self.clients:
                 self.clients.remove(writer)
+
+            # Remove from heartbeat tracking
+            if client_addr in self.client_heartbeats:
+                del self.client_heartbeats[client_addr]
 
             # Close connection
             try:
@@ -335,3 +348,99 @@ class SDRPPBridgeService:
                 "data": {"error": "frequency_control_error", "message": f"Internal error: {e!s}"},
                 "sequence": self._get_next_sequence(),
             }
+
+    async def handle_heartbeat(
+        self, message: dict[str, Any], client_addr: tuple[str, int]
+    ) -> dict[str, Any]:
+        """Handle heartbeat message from SDR++ client.
+
+        Args:
+            message: Heartbeat message from client
+            client_addr: Client address tuple (host, port)
+
+        Returns:
+            JSON response with heartbeat acknowledgment
+
+        PRD References:
+        - NFR1: Communication reliability with heartbeat monitoring
+        - NFR9: MTBF >10 hours with connection health tracking
+        """
+        try:
+            # Update client heartbeat timestamp
+            self.client_heartbeats[client_addr] = time.time()
+
+            # Create heartbeat acknowledgment response
+            response = {
+                "type": "heartbeat_ack",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "data": {"status": "received"},
+                "sequence": self._get_next_sequence(),
+            }
+
+            logger.debug("Heartbeat received from %s", client_addr)
+            return response
+
+        except Exception as e:
+            logger.error("Error handling heartbeat from %s: %s", client_addr, e)
+            return {
+                "type": "error",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "data": {"error": "heartbeat_handler_error", "message": f"Internal error: {e!s}"},
+                "sequence": self._get_next_sequence(),
+            }
+
+    async def _check_heartbeat_timeouts(self) -> None:
+        """Check for heartbeat timeouts and disconnect stale clients.
+
+        PRD References:
+        - NFR1: Communication reliability with timeout detection
+        - NFR9: MTBF >10 hours with automatic recovery
+        """
+        try:
+            current_time = time.time()
+            timed_out_clients = []
+
+            # Check all client heartbeats for timeouts
+            for client_addr, last_heartbeat in self.client_heartbeats.items():
+                if current_time - last_heartbeat > self.heartbeat_timeout:
+                    timed_out_clients.append(client_addr)
+
+            # Disconnect timed out clients
+            for client_addr in timed_out_clients:
+                await self._disconnect_client(client_addr)
+                logger.warning("Client %s disconnected due to heartbeat timeout", client_addr)
+
+        except Exception as e:
+            logger.error("Error checking heartbeat timeouts: %s", e)
+
+    async def _disconnect_client(self, client_addr: tuple[str, int]) -> None:
+        """Disconnect a client and clean up tracking.
+
+        Args:
+            client_addr: Client address tuple to disconnect
+        """
+        try:
+            # Remove from heartbeat tracking
+            if client_addr in self.client_heartbeats:
+                del self.client_heartbeats[client_addr]
+
+            # Find and close the client connection
+            clients_to_remove = []
+            for client in self.clients[:]:  # Copy to avoid modification during iteration
+                try:
+                    if client.get_extra_info("peername") == client_addr:
+                        if not client.is_closing():
+                            client.close()
+                            await client.wait_closed()
+                        clients_to_remove.append(client)
+                except Exception as e:
+                    logger.warning("Error closing client connection %s: %s", client_addr, e)
+                    clients_to_remove.append(client)
+
+            # Remove from client list
+            for client in clients_to_remove:
+                if client in self.clients:
+                    self.clients.remove(client)
+
+        except Exception as e:
+            logger.error("Error disconnecting client %s: %s", client_addr, e)
