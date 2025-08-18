@@ -216,7 +216,7 @@ Ground Station Architecture:          Drone Architecture:
 
 **Dual SDR Coordination Logic:**
 1. **Signal Quality Assessment**: Compare RSSI/SNR from ground vs drone
-2. **Priority Decision Matrix**: 
+2. **Priority Decision Matrix**:
    - Safety override (drone always maintains emergency control)
    - Signal strength (best source selected automatically)
    - Communication health (fallback on link degradation)

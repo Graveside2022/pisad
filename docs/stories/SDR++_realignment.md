@@ -1,6 +1,6 @@
 First we will analyze this previous converastion:
 
-We need to integrate SDR++ 
+We need to integrate SDR++
 
 What's unclear:
   - Are you using SDR++ desktop application with plugin, OR
@@ -70,14 +70,14 @@ What's unclear:
   10. Signal Strength Access: Does plugin read SDR++ internal signal strength, or does PISAD still compute RSSI?
   11. MAVLink Integration: Does plugin send MAVLink directly, or via PISAD services?
   12. Frequency Control: Does operator tune via SDR++, and plugin tells PISAD, or vice versa?
-      
+
       References:
-      
+
       https://github.com/AlexandreRouma/SDRPlusPlus
       https://www.sdrpp.org/manual.pdf
-      https://github.com/projecthorus  (see this as areference there was some work previously done on another project that you might be able to analyze the source code and it be helpful)  
+      https://github.com/projecthorus  (see this as areference there was some work previously done on another project that you might be able to analyze the source code and it be helpful)
       USe the octocode mcp server and web searches to analyze additional repos that might be helpful.
-      
+
 Read the following at the bottom of the Previous chat conversation that lead us to the architecture of the SDR++ integration plan above:
 Proceed to carefully analyze all project requirements to fully integrate SDR++.
 After you have read the Document.
@@ -86,14 +86,14 @@ Open /docs/stories (and read all the stories)
 Read the prd.md
 Read the architecture.md
 After you have read our 'current project state by analyzing everything I told you'
-We will now do a gap analysis. This has never been done before so we are literally going to be creating this ourselves. 
+We will now do a gap analysis. This has never been done before so we are literally going to be creating this ourselves.
 In the gap analysis I need to you to tell me our 1) project state 2) the exact steps how we are going to integrate A) what we already have with what we want which is SDR++ integration.
 Now after you do that we also need to understand something very critical: We were in the middle of two code updates for pisad before we decided to change the architecture. 1) was 4.6_CLEAN.md and the other was 1.4_CLEAN.md.
 I need you to read these files and determine how these tasks will be updated to fit our new integration plan with SDR++.
-All this data for simplicity needs to be created in a new EPIC called EPIC 5: Migration to SDR++, this is a complete course correction that impacts: frontend and backend development. Once that is done, then new stories need to be created in order to accomplish our 8 phase plan. (Story 5.1, 5.2 etc.) 
-While this is going on you need to not introduce scope creep. 
-What i now need you to do now is look at my instructions analyze them deeply. Look at all the granular details to get this accomplished. Then give me a complete step by step plan of execution. THis is a high impact task so its extremely important that there is no ambiguity. If there is any let me know becasue we ill be updating all product documentation, existing epics and stories and modifying our architecture.md 
-Please follow all guided principles outlined here: 
+All this data for simplicity needs to be created in a new EPIC called EPIC 5: Migration to SDR++, this is a complete course correction that impacts: frontend and backend development. Once that is done, then new stories need to be created in order to accomplish our 8 phase plan. (Story 5.1, 5.2 etc.)
+While this is going on you need to not introduce scope creep.
+What i now need you to do now is look at my instructions analyze them deeply. Look at all the granular details to get this accomplished. Then give me a complete step by step plan of execution. THis is a high impact task so its extremely important that there is no ambiguity. If there is any let me know becasue we ill be updating all product documentation, existing epics and stories and modifying our architecture.md
+Please follow all guided principles outlined here:
 
 <prompt>
 <task>
@@ -132,22 +132,22 @@ Please follow all guided principles outlined here:
   - Must read /pisad/docs/architecture.md BEFORE starting to understand libraries, dependencies, code structure and relationships across entire stack
   - Must read /pisad/CLAUDE.md BEFORE starting and carefully select best tools/MCP servers for the job (e.g., fd over find, ripgrep over grep, uv for package management)
   - Must inform user of selected tools before beginning work
-  
+
   - USER APPROVAL CHECKPOINT (mandatory before task execution):
     Before beginning any task implementation, STOP and present the following to the user for manual approval to maintain situational awareness:
-    
+
     1. **Task Identification**: Display the exact task being started with its ID and description
-    
+
     2. **Pre-Task Requirements Summary**: Present all requirements analysis for user review
-    
+
     3. **Definition of Done**: Show the established DoD criteria for task/story/epic levels
-    
+
     4. **Integration Points**: List verified integration points that will be used
-    
+
     5. **Wait for Explicit Approval**: Do not proceed until user provides explicit confirmation to begin
-    
+
     6. **Update Sprint Log**: Once approved, update the immediate task section with the approved requirements and DoD
-  
+
   - BRUTAL HONESTY PROTOCOL (mandatory for ALL work):
     1. **NO MOCKS**: Never create mock data, placeholder functions, or simulated responses
     2. **NO THEATER**: If something doesn't work, say it immediately - don't pretend with elaborate non-functional code
@@ -155,7 +155,7 @@ Please follow all guided principles outlined here:
     4. **ADMIT IGNORANCE**: If you don't understand how something works, investigate first or ask for clarification
     5. **STOP WHEN STUCK**: Don't write more code to fix understanding problems - investigate the real system instead
     6. **NO FAKE TESTS**: Never write mock, fake, placeholder, or hardcoded tests just to satisfy TDD requirements - tests must verify REAL system behavior with ACTUAL data flows and authentic integration points
-  
+
   - AUTHENTIC TEST-DRIVEN DEVELOPMENT PROTOCOL (mandatory enforcement against test circumvention):
     1. **REAL BEHAVIOR ONLY**: Tests must verify actual system behavior, not synthetic scenarios created to pass artificial requirements
     2. **NO TEST CIRCUMVENTION**: If a test cannot be written because required integration points don't exist, STOP implementation and document the blocker - do not create fake tests to proceed
@@ -167,7 +167,7 @@ Please follow all guided principles outlined here:
     8. **HONEST TEST FAILURE**: If a test cannot be made to pass without implementing actual functionality, document why and create a blocker - do not modify the test to artificially pass
     9. **AUTHENTIC EDGE CASES**: Edge case testing must address real system boundaries, actual resource limits, and genuine failure modes - not contrived scenarios designed to demonstrate test completeness
     10. **SYSTEM STATE VERIFICATION**: Tests must verify actual system state changes, real data persistence, authentic hardware responses, and legitimate API behavior - never simulated confirmations
-  
+
   - TASK COMPLETION AND TRANSITION PROTOCOL (ABSOLUTE REQUIREMENT - mandatory for ALL task state changes):
     1. **IMMEDIATE COMPLETION TRANSFER**: When a task is marked complete [x], it MUST be immediately moved from the ACTIVE TODO section to the COMPLETED WORK section during the same document update cycle - NO EXCEPTIONS
     2. **ABSOLUTE BLOCKER RESOLUTION TRANSFER**: When a blocker is resolved, it MUST be immediately moved from CURRENT BLOCKERS to the Resolved Blockers Archive section - NO EXCEPTIONS
@@ -177,13 +177,13 @@ Please follow all guided principles outlined here:
     6. **COMPLETION TIMESTAMP REQUIREMENT**: Every completed task must have exact completion timestamp in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)
     7. **IMPACT DOCUMENTATION**: Each completed task must document actual working changes implemented, not theoretical outcomes
     8. **DOCUMENT INTEGRITY VALIDATION**: After every update, verify no completed items remain in active sections and no resolved blockers remain in current blockers section
-  
+
   - PARALLEL DEVELOPMENT COORDINATION PROTOCOL (mandatory for multi-developer environments):
     1. **DEPENDENCY CLASSIFICATION**: Each task must be classified as either:
        * **PARALLELIZABLE** 🟢: Can be worked on simultaneously with other tasks
        * **SEQUENTIAL** 🔴: Must wait for specific prerequisite tasks to complete
        * **CONDITIONAL** 🟡: Can start in parallel but may require coordination at integration points
-    
+
     2. **CONDITIONAL TASK INTEGRATION POINT PROTOCOL**: For CONDITIONAL tasks, implementation must STOP at the exact moment a SEQUENTIAL dependency is encountered:
        * **Integration Point Detection**: Identify the precise code location, API call, hardware interface, or system dependency where SEQUENTIAL coordination is required
        * **Immediate Work Cessation**: Stop all implementation at the integration boundary - do not attempt to mock, simulate, or work around the sequential dependency
@@ -191,50 +191,50 @@ Please follow all guided principles outlined here:
        * **Handoff Preparation**: Prepare all completed work up to the integration point for seamless handoff to the developer responsible for the sequential prerequisite
        * **State Preservation**: Ensure all work completed up to the integration point is fully tested, documented, and committed without any temporary workarounds
        * **Clear Integration Contract**: Document the exact interface, data format, API specification, or hardware protocol expected from the sequential prerequisite
-    
+
     3. **PREREQUISITE MAPPING**: For SEQUENTIAL tasks, explicitly identify:
        * **Blocking Task IDs**: Specific tasks that must complete first
        * **Dependency Type**: Technical (code integration), Resource (shared hardware), or Logical (conceptual sequence)
        * **Integration Points**: Exact interfaces, files, or components that create the dependency
        * **Estimated Coordination Overhead**: Time buffer needed for integration after prerequisite completion
-    
+
     4. **RESOURCE CONFLICT DETECTION**: For PARALLELIZABLE tasks, identify potential conflicts:
        * **File Conflicts**: Tasks modifying same files (merge conflict risk)
        * **Hardware Conflicts**: Tasks requiring same physical hardware
        * **Test Environment Conflicts**: Tasks needing exclusive access to test resources
        * **Shared Component Conflicts**: Tasks modifying same modules/classes
-    
+
     5. **COORDINATION ANNOTATIONS**: Each task must include parallel development metadata:
        * **Concurrency Status**: 🟢 PARALLELIZABLE | 🔴 SEQUENTIAL | 🟡 CONDITIONAL
        * **Developer Capacity**: Maximum developers who can work on this task simultaneously
        * **Merge Complexity**: LOW | MEDIUM | HIGH based on integration difficulty
        * **Communication Requirements**: Sync points needed with other parallel developers
        * **Integration Boundary**: For CONDITIONAL tasks, exact point where sequential dependency is encountered
-  
+
   - PRE-TASK REQUIREMENTS (mandatory presentation to user before ANY task execution):
     Before starting any task, document and present these essential requirements for user approval:
-    
+
     1. **Hardware Requirements**: List any physical hardware needed (GPS modules, USB adapters, sensors, etc.) and their availability status if the task requires it. If no hardware required, explicitly state "None required"
-    
+
     2. **Files to Modify**: Specify exact file paths that will be created or modified for this task or used in the task. Critical: DO NOT CREATE DUPLICATE FILES, functions, or tests. ALWAYS check if functionality already exists. FIX THE ROOT PROBLEM SPECIFIED in the sprint log, don't create workarounds
-    
+
     3. **Dependencies and Packages**: Identify all required packages, libraries, and their versions that are needed for the task. Verify these are not already installed before adding
-    
+
     4. **Technical Requirements**: FIRST check if existing performance benchmarks, integration points, and data formats already exist. If they exist, reference them. If not, define only the MINIMAL technical requirements necessary for the task specified in the sprint - no extra features
-    
+
     5. **Functional Requirements**: ALWAYS refer to the prd.md for the functional requirements. Quote the specific section and requirements that apply to this task
-    
+
     6. **Chain of Thought Context**: Include relevant insights from previous tasks/stories that impact this immediate task you're working on, maintaining the explicit connection from PRD → Epic → Story → Task with specific references
-    
+
     7. **Integration Verification**: Confirm actual integration points exist and work (not assumed or mocked) before beginning any task. Show evidence of verification (file existence, API availability, etc.)
-    
+
     8. **Subtask Decomposition**: Break down the main task into granular, actionable subtasks with individual checkboxes that provide complete visibility into task execution progress
-    
+
     9. **Test Authenticity Verification**: Confirm that all required integration points for testing actually exist and are accessible - if they don't exist, create a blocker instead of proceeding with fake tests
-  
+
   - DEFINITION OF DONE (establish and present to user BEFORE starting work):
-    
-    1. **Task-Level DoD**: 
+
+    1. **Task-Level DoD**:
        - Tests written and passing with real system integration (NO mock/fake/placeholder tests)
        - Code working in actual Test-Driven environment (no mocks)
        - Integration verified with actual system components (hardware etc) where applicable
@@ -243,13 +243,13 @@ Please follow all guided principles outlined here:
        - Clear error messages for failure conditions
        - All subtasks completed and verified
        - All tests verify authentic system behavior, not artificial pass conditions
-    
+
     2. **Story-Level DoD**: Define what the entire story requires for completion (all tasks done, integration tested, acceptance criteria met per PRD)
-    
+
     3. **Epic-Level DoD**: Define epic completion requirements (all stories complete, system integration verified, performance validated per PRD specs)
-    
+
     NOTE: After task completion, review the code against these DoD criteria to determine if the task is truly complete or requires additional work
-  
+
   - TEST-DRIVEN DEVELOPMENT PROTOCOL (mandatory for ALL code):
     1. RED PHASE: Write a failing test FIRST that defines the desired functionality
        - Test must fail for the right reason (not compilation/import error)
@@ -271,28 +271,28 @@ Please follow all guided principles outlined here:
     6. NEVER write fake/mock/placeholder tests to satisfy TDD requirements
     7. Test in real environment, not just unit tests
     8. If test cannot be written due to missing dependencies, document blocker
-  
+
   - ONE FEATURE AT A TIME PROTOCOL:
     1. **SINGLE FOCUS**: Complete one feature entirely before moving to next
     2. **NO FEATURE CREEP**: Resist adding "nice to have" additions
     3. **SMALL CHANGES**: Keep changes small and focused
     4. **FREQUENT TESTING**: Run tests every few lines of code
     5. **COMPLETE BEFORE CONTINUE**: Feature must be fully done before starting next
-  
+
   - FAIL FAST PROTOCOL:
     1. **AGGRESSIVE VALIDATION**: Check every input, every integration point
     2. **LOUD ERRORS**: When something breaks, make it obvious with clear messages
     3. **TEST EDGE CASES**: Deliberately try to break your own code (within PRD scope)
     4. **IMMEDIATE FAILURE**: Make code fail immediately when assumptions are wrong
     5. **NO SILENT FAILURES**: Never hide problems with try-catch without logging
-  
+
   - OPTIMIZATION PROTOCOL:
     1. **MAKE IT WORK**: First priority is functioning code with real integration
     2. **MAKE IT RIGHT**: Clean up and refactor with tests as safety net
     3. **MAKE IT FAST**: Only optimize after profiling shows real bottlenecks
     4. **MEASURE FIRST**: Never optimize based on assumptions
     5. **PROFILE BEFORE OPTIMIZE**: Use actual performance data, not guesses
-  
+
   - RED FLAGS TO AVOID:
     🚫 Creating elaborate structures without testing integration
     🚫 Writing 100+ lines without running anything
@@ -309,7 +309,7 @@ Please follow all guided principles outlined here:
     🚫 Continuing CONDITIONAL tasks past sequential integration points
     🚫 Leaving resolved blockers in CURRENT BLOCKERS section
     🚫 Failing to apply mandatory markdown highlighting to story.md updates
-  
+
   - REALITY CHECK QUESTIONS (ask frequently):
     1. "Have I tested this with the real system?"
     2. "Am I building what's needed per PRD or what I think is cool?"
@@ -326,10 +326,10 @@ Please follow all guided principles outlined here:
     13. "Have I reached a sequential integration point in this conditional task?"
     14. "Are there any resolved blockers still in the current blockers section?"
     15. "Have I applied proper markdown highlighting to all story.md updates?"
-  
+
   - MANDATORY DOCUMENT STRUCTURE (ABSOLUTE REQUIREMENT - enforced after EVERY update):
     The story.md file MUST maintain this exact hierarchical structure where sections appear in this precise order:
-    
+
     1. **ACTIVE TODO TASKS** (ALWAYS at document top, line 1):
        - This section must be the FIRST thing visible when opening the file
        - Contains ONLY uncompleted, unblocked tasks ordered by execution priority
@@ -360,7 +360,7 @@ Please follow all guided principles outlined here:
        - Within each group, maintain PRD priority ordering (P0 > P1 > P2)
        - Maximum of 10 tasks shown in primary view
        - **CRITICAL ENFORCEMENT**: Immediate removal of any completed [x] tasks to completed section
-    
+
     2. **CURRENT BLOCKERS** (immediately following TODO tasks):
        - Position directly after active tasks for immediate visibility
        - **ABSOLUTE PROHIBITION**: NO resolved blockers allowed in this section under any circumstances
@@ -376,7 +376,7 @@ Please follow all guided principles outlined here:
          * Parallel Impact: How blocker affects other developers' tasks
        - Order blockers by severity then by affected task count
        - **CRITICAL ENFORCEMENT**: Immediate removal of any resolved blockers to archive section
-    
+
     3. **COMPLETED WORK** (historical record following blockers):
        - Contains ALL completed tasks moved from ACTIVE TODO section
        - **EXCLUSIVE LOCATION**: This is the ONLY section where completed [x] tasks are allowed
@@ -400,7 +400,7 @@ Please follow all guided principles outlined here:
          * `    TDD Compliance: ✅ [Red-Green-Refactor cycles with authentic tests documented]`
          * `    Parallel Coordination: [Any coordination required with other developers]`
          * `    Integration Boundary Reached: [For CONDITIONAL tasks: exact stopping point documented]`
-    
+
     4. **SUPPLEMENTARY INFORMATION** (contextual data at document bottom):
        - Sprint Velocity Metrics
        - PRD Coverage Analysis
@@ -418,16 +418,16 @@ Please follow all guided principles outlined here:
        - Conditional Task Integration Boundary Documentation
 
   - MANDATORY MARKDOWN HIGHLIGHTING PROTOCOL (ABSOLUTE REQUIREMENT - enforced for ALL story.md updates):
-    
+
     1. **VISUAL HIERARCHY ENFORCEMENT**: Every story.md update MUST apply strategic markdown highlighting to create immediate visual hierarchy and keyword recognition:
-       
+
        **Status and Priority Indicators:**
        - **Bold formatting** (`**text**`) for ALL priority levels: `**[Priority: P0]**`, `**[Priority: P1]**`, `**[Priority: P2]**`
        - **Bold formatting** for ALL concurrency status: `**[Concurrency: 🟢 PARALLELIZABLE]**`, `**[Concurrency: 🔴 SEQUENTIAL]**`, `**[Concurrency: 🟡 CONDITIONAL]**`
        - **Bold formatting** for ALL progress indicators: `**[Progress: 100%]**`, `**[Progress: 0%]**`
        - **Bold formatting** for ALL status markers: `**[PENDING]**`, `**[BLOCKED]**`, `**[RUNNING]**`, `**VERIFIED**`, `**RESOLVED**`
        - **Bold formatting** for ALL completion markers: `**[x]**` for completed tasks, `**[ ]**` for active tasks
-       
+
        **Technical Elements:**
        - **Code block formatting** (`` `text` ``) for ALL:
          * Task IDs: `[TASK-9.3]`, `[BLOCKER-003]`
@@ -440,41 +440,41 @@ Please follow all guided principles outlined here:
          * Timestamps: `2025-08-17T02:58:00Z`
          * Duration indicators: `45m`, `2h`, `1h 30m`
          * Functional requirement IDs: `FR2`, `FR15`, `PRD-FR4`, `PRD-NFR1`
-       
+
        **Critical Information:**
        - **Bold formatting** for ALL section headers: `**ACTIVE TODO TASKS**`, `**CURRENT BLOCKERS**`, `**COMPLETED WORK**`
        - **Bold formatting** for ALL subsection headers: `**Immediate Execution**`, `**Sequential Tasks**`, `**Today's Completed Tasks**`
        - **Bold formatting** for ALL field labels: `**Hardware:**`, `**Files:**`, `**Dependencies:**`, `**Integration Points:**`, `**Subtasks:**`, `**DoD Task:**`, `**Context:**`, `**Impact:**`, `**Severity:**`, `**Next Action Required:**`
        - **Bold + Italic combination** for critical alerts: `**[PENDING** - requires approval before execution**]**`
-       
+
        **Requirements and References:**
        - **Bold formatting** for ALL PRD references: `**PRD-FR2**`, `**PRD-NFR1**`, `**PRD-Complete**`
        - **Code block formatting** for specific requirement IDs: `FR2`, `FR15`, `FR3,FR15,FR17`
        - **Italic formatting** (*text*) for quoted requirements: *"The drone shall execute expanding square search patterns at configurable velocities between 5-10 m/s"*
        - **Bold formatting** for requirement contexts: `**Per PRD-FR2**`, `**Per PRD-FR4**`
-       
+
        **Conditional States and Notes:**
        - **Italic formatting** for conditional states: *None required*, *verified no duplicates exist*, *verified installed*, *None identified*
        - **Italic formatting** for explanatory notes: *(SITL simulation)*, *(test-focused task)*, *(standalone task)*
        - **Italic formatting** for qualification statements: *well under 100ms requirement*, *requires coordination with TASK-9.3*
-       
+
        **Completion and Progress Tracking:**
        - **Bold formatting** for completion timestamps: `**[Completed: 2025-08-17T03:20:00Z]**`
        - **Bold formatting** for duration indicators: `**[Duration: 25m]**`, `**[Duration: 45m]**`
        - **Bold formatting** for all metrics labels: `**RSSI computation latency:**`, `**State transition latency:**`, `**Test Coverage:**`, `**Tests:**`
        - **Code block formatting** for all metric values: `<1ms`, `<68ms`, `85%`, `12 unit`, `5 integration`
-       
+
        **Blocker and Error Information:**
        - **Bold formatting** for severity indicators: `**Severity:** 🔴 **High**`, `**Severity:** 🟠 **Medium**`
        - **Bold formatting** for blocker fields: `**Affected Tasks:**`, `**Discovery Context:**`, `**Current Status:**`, `**Technical Details:**`, `**Owner:**`, `**Created:**`, `**Expected Resolution:**`
        - **Code block formatting** for error details: `ConfigProfile.__init__() got an unexpected keyword argument`, `TypeError`
        - **Bold formatting** for status states: `🔍 **Investigation**`, `✅ **verified**`
-       
+
        **Archive and Historical Information:**
        - **Bold formatting** for resolution markers: `**[RESOLVED]**`
        - **Bold formatting** for archive fields: `**Resolution Date:**`, `**Resolution:**`, `**Verification:**`, `**Impact:**`, `**Time to Resolve:**`
        - **Code block formatting** for technical details in archives: `HackRF One #0 66a062dc2227359f`, `SoapySDR`, `SITL processes confirmed running`
-       
+
        **Metrics and Analysis:**
        - **Bold formatting** for metric categories: `**Sprint Velocity Metrics**`, `**PRD Coverage Analysis**`, `**Test Execution Metrics**`
        - **Bold formatting** for metric labels: `**Current Sprint Progress:**`, `**Tasks Remaining:**`, `**Average Task Completion Time:**`
@@ -490,12 +490,12 @@ Please follow all guided principles outlined here:
 
     3. **COMBINATION FORMATTING RULES**: Strategic use of combined formatting for maximum impact:
        - **Bold + Code**: `**[TASK-9.3]**` for task identifiers
-       - **Bold + Emoji**: `**🟢 PARALLELIZABLE**` for status indicators  
+       - **Bold + Emoji**: `**🟢 PARALLELIZABLE**` for status indicators
        - **Bold + Italic**: `**[PENDING** - requires approval**]**` for critical alerts
        - **Code + Emoji**: `FR2` 🟢, `FR6` ✅ for requirement status
        - **Bold + Code + Emoji**: `**✅ VERIFIED**` for confirmation states
 
-    4. **FORMATTING CONSISTENCY ENFORCEMENT**: 
+    4. **FORMATTING CONSISTENCY ENFORCEMENT**:
        - ALL task entries MUST follow identical formatting patterns
        - ALL blocker entries MUST use consistent field highlighting
        - ALL completed entries MUST maintain uniform completion metadata formatting
@@ -528,7 +528,7 @@ Please follow all guided principles outlined here:
 
     7. **MANDATORY APPLICATION**: This highlighting protocol is NON-NEGOTIABLE and must be applied to:
        - Every task entry in ACTIVE TODO TASKS section
-       - Every blocker entry in CURRENT BLOCKERS section  
+       - Every blocker entry in CURRENT BLOCKERS section
        - Every completed task in COMPLETED WORK section
        - Every metric and analysis in SUPPLEMENTARY INFORMATION section
        - Every archive entry in Resolved Blockers Archive
@@ -540,9 +540,9 @@ Please follow all guided principles outlined here:
        - Failing to maintain document integrity
        - Violating user approval requirements
        - Breaking authentic test requirements
-       
+
        The highlighting is essential for immediate actionability and rapid project status assessment.
-  
+
   - Dynamic update workflow sequence with user approval, TDD enforcement, and absolute task completion management:
     1. Read PRD, architecture.md, and CLAUDE.md for context
     2. **DOCUMENT INTEGRITY CHECK**: Verify no completed [x] tasks in ACTIVE TODO and no resolved blockers in CURRENT BLOCKERS
@@ -590,7 +590,7 @@ Please follow all guided principles outlined here:
     34. Update metrics and chain of thought documentation with mandatory markdown highlighting
     35. **MANDATORY HIGHLIGHTING VERIFICATION**: Apply highlighting validation checklist to entire document
     36. Commit with descriptive message including test coverage and integration verification
-  
+
   - All code must be production-quality with NO mock, simulated, or placeholder components
   - Must not deviate from PRD specifications or assigned sprint plan tasks
   - Test-First Development is mandatory - no production code without failing test first
@@ -765,7 +765,7 @@ For maximum efficiency, whenever you perform multiple independent operations, in
 </use_parallel_tool_calls>
 
 1. do you have all you need in terms of context to create the new users stories associated with this full SDR++ Integration. I have confirmation from my supervisor that this is the exact direction we will work in.
-2. are you prepared to update all /docs/stories with this new information as they will need to all be modified becasue of this new information. 
+2. are you prepared to update all /docs/stories with this new information as they will need to all be modified becasue of this new information.
 3. will you update the prd.md with this new info
 4. will you update the architecture.md and the /docs/architecture files
 5. will you do a deep analysis of the functional requirements in prd.md and make sure that they are aligned in the tasks that will be outlined in the new stories to avoid scope creep.
@@ -843,7 +843,7 @@ For maximum efficiency, whenever you perform multiple independent operations, in
   5. Maintain BRUTAL HONESTY - no mocks/placeholders in documentation
   6. Follow TDD principles even in documentation (verify integration points exist)
 
-  Ready to proceed with supervisor confirmation received. Shall I begin with reading all current context files and TASKS.md 
+  Ready to proceed with supervisor confirmation received. Shall I begin with reading all current context files and TASKS.md
   structure?
 
   Instructions on how to create tasks in thekan ban board:
