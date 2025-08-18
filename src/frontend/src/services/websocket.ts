@@ -41,7 +41,7 @@ class WebSocketService {
     const host = window.location.hostname;
     // Use environment variable or default to API port
     const port =
-      process.env.REACT_APP_WS_PORT || process.env.REACT_APP_API_PORT || "8000";
+      process.env.REACT_APP_WS_PORT || process.env.REACT_APP_API_PORT || "8080";
     return `${protocol}//${host}:${port}/ws`;
   }
 

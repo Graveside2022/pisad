@@ -15,7 +15,7 @@ function App() {
             <AppBar position="static" elevation={0}>
               <Toolbar>
                 <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                  PISAD - Signal Analysis & Detection System
+                  PISAD - RF-Homing SAR Drone System
                 </Typography>
               </Toolbar>
             </AppBar>

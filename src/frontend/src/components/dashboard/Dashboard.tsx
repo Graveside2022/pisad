@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { Typography, Grid } from "@mui/material";
-import { useWebSocket } from "../../hooks/useWebSocket";
+// import { useWebSocket } from "../../hooks/useWebSocket";
 import SignalMeter from "./SignalMeter";
 import RSSIGraph from "./RSSIGraph";
 import SDRStatus from "./SDRStatus";
 import SystemHealth from "./SystemHealth";
 import DetectionLog from "./DetectionLog";
-import HomingMonitor from "../homing/HomingMonitor";
-import GradientVisualization from "../homing/GradientVisualization";
+// import HomingMonitor from "../homing/HomingMonitor";
+// import GradientVisualization from "../homing/GradientVisualization";
 
 interface RSSIData {
   rssi: number;
@@ -18,7 +18,9 @@ interface RSSIData {
 }
 
 function Dashboard() {
-  const { isConnected, addMessageHandler } = useWebSocket();
+  // TEMPORARY: Disable WebSocket to prevent crash
+  // const { isConnected, addMessageHandler } = useWebSocket();
+  const isConnected = false;
   const [rssiData, setRssiData] = useState<RSSIData>({
     rssi: -80,
     noiseFloor: -95,
@@ -27,16 +29,29 @@ function Dashboard() {
     timestamp: new Date().toISOString(),
   });
 
-  useEffect(() => {
-    // Handle WebSocket messages
-    const cleanup = addMessageHandler((message) => {
-      if (message.type === "rssi" && message.data) {
-        setRssiData(message.data as RSSIData);
-      }
-    });
+  // TEMPORARY: Disable WebSocket message handling
+  // useEffect(() => {
+  //   const cleanup = addMessageHandler((message) => {
+  //     if (message.type === "rssi" && message.data) {
+  //       setRssiData(message.data as RSSIData);
+  //     }
+  //   });
+  //   return cleanup;
+  // }, [addMessageHandler]);
 
-    return cleanup;
-  }, [addMessageHandler]);
+  // Simulate data updates for testing (much safer)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRssiData(prev => ({
+        ...prev,
+        rssi: -80 + Math.random() * 20,
+        snr: 10 + Math.random() * 15,
+        timestamp: new Date().toISOString(),
+      }));
+    }, 2000); // Update every 2 seconds instead of real-time
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <Grid container spacing={3}>
@@ -74,13 +89,14 @@ function Dashboard() {
         <DetectionLog />
       </Grid>
 
-      <Grid size={{ xs: 12, md: 6 }}>
+      {/* Temporarily disabled until homing components are fixed */}
+      {/* <Grid size={{ xs: 12, md: 6 }}>
         <HomingMonitor />
       </Grid>
 
       <Grid size={{ xs: 12, md: 6 }}>
         <GradientVisualization />
-      </Grid>
+      </Grid> */}
     </Grid>
   );
 }
