@@ -72,6 +72,8 @@ class MAVLinkService:
 
         self.connection: mavutil.mavlink_connection | None = None
         self.state = ConnectionState.DISCONNECTED
+        # Alias for backwards compatibility with tests
+        self.connection_state = self.state
         self.last_heartbeat_received = 0.0
         self.last_heartbeat_sent = 0.0
         self.heartbeat_timeout = 3.0  # seconds
@@ -115,10 +117,14 @@ class MAVLinkService:
         # Telemetry streaming tasks
         self._telemetry_tasks: list[asyncio.Task[None]] = []
         self._rssi_value: float = -100.0  # Default noise floor
+        self._current_rssi: float = -100.0  # Current RSSI for compatibility
         self._telemetry_config = {
             "rssi_rate_hz": 2.0,
             "health_interval_seconds": 10,
             "detection_throttle_ms": 500,
+            # Legacy format for backwards compatibility
+            "rate": 2.0,
+            "precision": 1,
         }
         self._last_detection_time = 0.0
         self._last_state_sent = ""
@@ -162,7 +168,7 @@ class MAVLinkService:
                 await asyncio.sleep(1.0)
 
     def send_named_value_float(
-        self, name: str, value: float, timestamp: float | None = None
+        self, name: str, value: float, timestamp: float | None = None, time_ms: int | None = None
     ) -> bool:
         """Send NAMED_VALUE_FLOAT message for continuous telemetry.
 
@@ -182,11 +188,16 @@ class MAVLinkService:
             name = name[:10]
 
             # Use current time if not provided
-            if timestamp is None:
+            if timestamp is None and time_ms is None:
                 timestamp = time.time()
 
-            # Convert timestamp to milliseconds
-            time_boot_ms = int((timestamp % 86400) * 1000)
+            # Convert timestamp to milliseconds or use provided time_ms
+            if time_ms is not None:
+                time_boot_ms = time_ms
+            else:
+                # timestamp is guaranteed to be float here
+                assert timestamp is not None
+                time_boot_ms = int((timestamp % 86400) * 1000)
 
             self.connection.mav.named_value_float_send(time_boot_ms, name.encode("utf-8"), value)
 
@@ -293,6 +304,7 @@ class MAVLinkService:
             rssi: Current RSSI value in dBm
         """
         self._rssi_value = rssi
+        self._current_rssi = rssi  # For backwards compatibility
 
     def update_telemetry_config(self, config: dict[str, Any]) -> None:
         """Update telemetry configuration.
@@ -310,6 +322,13 @@ class MAVLinkService:
             self._telemetry_config["detection_throttle_ms"] = max(
                 100, min(5000, config["detection_throttle_ms"])
             )
+
+        # Handle legacy format
+        if "rate" in config:
+            self._telemetry_config["rssi_rate_hz"] = config["rate"]
+            self._telemetry_config["rate"] = config["rate"]
+        if "precision" in config:
+            self._telemetry_config["precision"] = config["precision"]
 
         logger.info(f"Telemetry config updated: {self._telemetry_config}")
 
@@ -346,6 +365,7 @@ class MAVLinkService:
         if self.state != new_state:
             old_state = self.state
             self.state = new_state
+            self.connection_state = new_state  # Update alias
             logger.info(f"MAVLink connection state changed: {old_state.value} -> {new_state.value}")
 
             for callback in self._state_callbacks:

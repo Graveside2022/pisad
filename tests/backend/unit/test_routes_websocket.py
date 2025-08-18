@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from fastapi.websockets import WebSocketDisconnect
 
 from src.backend.api.websocket import (
     ConnectionManager,
@@ -21,7 +20,6 @@ from src.backend.api.websocket import (
     get_mavlink_service,
     get_signal_processor,
     get_state_machine,
-    manager,
     router,
 )
 from src.backend.core.app import app
@@ -175,7 +173,6 @@ class TestWebSocketEndpoint:
             patch("src.backend.api.websocket.get_signal_processor") as mock_get_processor,
             patch("src.backend.api.websocket.get_mavlink_service") as mock_get_mavlink,
         ):
-
             # Mock the services to avoid SDR hardware dependency
             mock_processor = Mock()
             mock_processor.start = AsyncMock()
@@ -200,7 +197,6 @@ class TestWebSocketEndpoint:
             patch("src.backend.api.websocket.get_signal_processor") as mock_get_processor,
             patch("src.backend.api.websocket.get_mavlink_service") as mock_get_mavlink,
         ):
-
             # Mock the services to avoid SDR hardware dependency
             mock_processor = Mock()
             mock_processor.start = AsyncMock()
@@ -234,7 +230,6 @@ class TestWebSocketEndpoint:
             patch("src.backend.api.websocket.get_signal_processor") as mock_get_processor,
             patch("src.backend.api.websocket.get_mavlink_service") as mock_get_mavlink,
         ):
-
             # Mock the services to avoid SDR hardware dependency
             mock_processor = Mock()
             mock_processor.start = AsyncMock()
@@ -302,7 +297,6 @@ class TestServiceIntegration:
             patch("src.backend.api.websocket.MAVLinkService") as mock_mavlink,
             patch("src.backend.api.websocket.get_config") as mock_config,
         ):
-
             # Mock configuration
             config = Mock()
             config.mavlink_device = "tcp:127.0.0.1:5760"
@@ -361,7 +355,6 @@ class TestMessageBroadcasting:
             patch("src.backend.api.websocket.manager") as mock_manager,
             patch("src.backend.api.websocket.get_config") as mock_config,
         ):
-
             # Mock configuration
             config = Mock()
             config.websocket = Mock()
@@ -413,7 +406,6 @@ class TestMessageBroadcasting:
             patch("src.backend.api.websocket.get_mavlink_service") as mock_get_mavlink,
             patch("src.backend.api.websocket.manager") as mock_manager,
         ):
-
             # Mock MAVLink service
             mock_mavlink = Mock()
             mock_mavlink.is_connected.return_value = True
@@ -456,7 +448,6 @@ class TestMessageBroadcasting:
             patch("src.backend.api.websocket.manager") as mock_manager,
             patch("src.backend.api.websocket.state_machine") as mock_state_machine,
         ):
-
             mock_manager.broadcast_json = AsyncMock()
 
             # Mock state machine methods
@@ -581,7 +572,6 @@ class TestPRDCompliance:
     async def test_prd_nfr2_processing_latency(self):
         """Test PRD-NFR2: Signal processing latency shall not exceed 100ms per RSSI computation cycle."""
         # Test WebSocket configuration allows for <100ms updates
-        from src.backend.api.websocket import router
 
         # Verify WebSocket endpoint exists and is properly configured
         assert any(route.path == "/ws" for route in router.routes)

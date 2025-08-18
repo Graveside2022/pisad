@@ -594,3 +594,529 @@ class TestStateMachine:
         # Test that concurrent access is handled
         current_state = state_machine.current_state
         assert current_state in SystemState
+
+    # === ENHANCED TDD COVERAGE FOR 90% TARGET ===
+    # Systematic coverage of uncovered lines per TASK-4.6.2
+
+    @pytest.mark.asyncio
+    async def test_send_telemetry_update_mavlink_integration(self, state_machine):
+        """Test send_telemetry_update method with MAVLink service per PRD-FR9."""
+
+        # Mock MAVLink service with send_telemetry method
+        class MockMAVLinkTelemetry:
+            def __init__(self):
+                self.telemetry_calls = []
+
+            def send_telemetry(self, key, value):
+                self.telemetry_calls.append((key, value))
+
+        mock_mavlink = MockMAVLinkTelemetry()
+        state_machine.set_mavlink_service(mock_mavlink)
+
+        # Test telemetry sending (lines 454-476)
+        await state_machine.send_telemetry_update()
+
+        # Should have sent state transition count
+        telemetry_keys = [call[0] for call in mock_mavlink.telemetry_calls]
+        assert "state_transitions" in telemetry_keys
+        assert "state_duration_ms" in telemetry_keys
+        assert "avg_transition_ms" in telemetry_keys
+
+        # Should include state-specific metrics
+        state_metrics = [key for key in telemetry_keys if key.startswith("state_")]
+        assert len(state_metrics) >= 3  # At least a few state duration metrics
+
+    @pytest.mark.asyncio
+    async def test_send_telemetry_update_no_mavlink_service(self, state_machine):
+        """Test send_telemetry_update gracefully handles missing MAVLink service."""
+        # Ensure no MAVLink service set
+        state_machine._mavlink_service = None
+
+        # Should not raise exception (line 454-455)
+        await state_machine.send_telemetry_update()
+
+        # Test passes if no exception raised
+        assert True
+
+    @pytest.mark.asyncio
+    async def test_send_telemetry_update_database_error(self, state_machine):
+        """Test send_telemetry_update handles database errors gracefully."""
+
+        # Mock MAVLink service that raises DatabaseError
+        class FailingMAVLinkService:
+            def send_telemetry(self, key, value):
+                from src.backend.core.exceptions import DatabaseError
+
+                raise DatabaseError("Telemetry database error")
+
+        state_machine.set_mavlink_service(FailingMAVLinkService())
+
+        # Should handle DatabaseError gracefully (lines 475-476)
+        await state_machine.send_telemetry_update()
+
+        # Test passes if exception is caught and handled
+        assert True
+
+    @pytest.mark.asyncio
+    async def test_transition_mavlink_notifications(self, state_machine):
+        """Test state transitions send MAVLink notifications per PRD-FR9."""
+
+        # Mock MAVLink service to capture state change calls
+        class MAVLinkStateTracker:
+            def __init__(self):
+                self.state_changes = []
+
+            def send_state_change(self, new_state):
+                self.state_changes.append(new_state)
+
+        mock_mavlink = MAVLinkStateTracker()
+        state_machine.set_mavlink_service(mock_mavlink)
+
+        # Ensure we start from IDLE to force an actual transition
+        await state_machine.transition_to(SystemState.IDLE)
+
+        # Perform state transition (should trigger line 569)
+        await state_machine.transition_to(SystemState.SEARCHING)
+
+        # Should have sent state change notification
+        assert len(mock_mavlink.state_changes) >= 1
+        assert "SEARCHING" in mock_mavlink.state_changes
+
+    @pytest.mark.asyncio
+    async def test_transition_mavlink_notification_error(self, state_machine):
+        """Test state transition handles MAVLink notification errors gracefully."""
+
+        # Mock MAVLink service that raises StateTransitionError
+        class FailingMAVLinkStateService:
+            def send_state_change(self, new_state):
+                from src.backend.core.exceptions import StateTransitionError
+
+                raise StateTransitionError("MAVLink state notification failed")
+
+        state_machine.set_mavlink_service(FailingMAVLinkStateService())
+
+        # Transition should still succeed despite MAVLink error (lines 570-571)
+        success = await state_machine.transition_to(SystemState.SEARCHING)
+
+        assert success is True
+        assert state_machine.current_state == SystemState.SEARCHING
+
+    @pytest.mark.asyncio
+    async def test_database_persistence_save_state_change(self, state_machine):
+        """Test database persistence for state changes per PRD requirements."""
+
+        # Mock state database
+        class MockStateDB:
+            def __init__(self):
+                self.saved_changes = []
+                self.saved_states = []
+
+            def save_state_change(
+                self, from_state, to_state, timestamp, reason, action_duration_ms
+            ):
+                self.saved_changes.append(
+                    {
+                        "from_state": from_state,
+                        "to_state": to_state,
+                        "reason": reason,
+                        "action_duration_ms": action_duration_ms,
+                    }
+                )
+
+            def save_current_state(
+                self, state, previous_state, homing_enabled, last_detection_time, detection_count
+            ):
+                self.saved_states.append(
+                    {
+                        "state": state,
+                        "previous_state": previous_state,
+                        "homing_enabled": homing_enabled,
+                    }
+                )
+
+        mock_db = MockStateDB()
+        state_machine._state_db = mock_db
+
+        # Ensure we start from IDLE to force an actual transition
+        await state_machine.transition_to(SystemState.IDLE)
+
+        # Perform state transition (should trigger lines 541-560)
+        await state_machine.transition_to(SystemState.SEARCHING, "Test persistence")
+
+        # Should have saved state change
+        assert len(mock_db.saved_changes) >= 1
+        change = mock_db.saved_changes[-1]
+        assert change["to_state"] == "SEARCHING"
+        assert change["reason"] == "Test persistence"
+
+        # Should have saved current state
+        assert len(mock_db.saved_states) >= 1
+        current = mock_db.saved_states[-1]
+        assert current["state"] == "SEARCHING"
+
+    @pytest.mark.asyncio
+    async def test_database_persistence_error_handling(self, state_machine):
+        """Test database persistence error handling during state transitions."""
+
+        # Mock failing database
+        class FailingStateDB:
+            def save_state_change(self, *args, **kwargs):
+                from src.backend.core.exceptions import StateTransitionError
+
+                raise StateTransitionError("Database save failed")
+
+            def save_current_state(self, *args, **kwargs):
+                from src.backend.core.exceptions import StateTransitionError
+
+                raise StateTransitionError("Current state save failed")
+
+        state_machine._state_db = FailingStateDB()
+
+        # Transition should still succeed despite database errors (lines 557-558)
+        success = await state_machine.transition_to(SystemState.SEARCHING)
+
+        assert success is True
+        assert state_machine.current_state == SystemState.SEARCHING
+
+    @pytest.mark.asyncio
+    async def test_force_transition_database_persistence(self, state_machine):
+        """Test force_transition database persistence with operator_id."""
+
+        # Mock state database for force transitions
+        class MockForceDB:
+            def __init__(self):
+                self.forced_changes = []
+                self.forced_states = []
+
+            def save_state_change(
+                self,
+                from_state,
+                to_state,
+                timestamp,
+                reason,
+                operator_id=None,
+                action_duration_ms=0,
+            ):
+                self.forced_changes.append(
+                    {
+                        "from_state": from_state,
+                        "to_state": to_state,
+                        "reason": reason,
+                        "operator_id": operator_id,
+                    }
+                )
+
+            def save_current_state(
+                self, state, previous_state, homing_enabled, last_detection_time, detection_count
+            ):
+                self.forced_states.append({"state": state})
+
+        mock_db = MockForceDB()
+        state_machine._state_db = mock_db
+
+        # Force transition with operator ID (lines 894-915)
+        await state_machine.force_transition(SystemState.HOMING, "Force test", "operator123")
+
+        # Should have saved forced transition
+        assert len(mock_db.forced_changes) >= 1
+        change = mock_db.forced_changes[-1]
+        assert "FORCED" in change["reason"]
+        assert change["operator_id"] == "operator123"
+
+    @pytest.mark.asyncio
+    async def test_force_transition_database_error(self, state_machine):
+        """Test force_transition handles database errors gracefully."""
+
+        # Mock failing database for force transitions
+        class FailingForceDB:
+            def save_state_change(self, *args, **kwargs):
+                from src.backend.core.exceptions import StateTransitionError
+
+                raise StateTransitionError("Force save failed")
+
+            def save_current_state(self, *args, **kwargs):
+                pass
+
+        state_machine._state_db = FailingForceDB()
+
+        # Force transition should still succeed (lines 911-912)
+        success = await state_machine.force_transition(SystemState.SEARCHING, "Test force error")
+
+        assert success is True
+        assert state_machine.current_state == SystemState.SEARCHING
+
+    @pytest.mark.asyncio
+    async def test_force_transition_mavlink_error(self, state_machine):
+        """Test force_transition handles MAVLink notification errors."""
+
+        # Mock failing MAVLink service for force transitions
+        class FailingForceMAVLink:
+            def send_state_change(self, new_state):
+                from src.backend.core.exceptions import StateTransitionError
+
+                raise StateTransitionError("Force MAVLink failed")
+
+        state_machine.set_mavlink_service(FailingForceMAVLink())
+
+        # Force transition should still succeed (lines 916-919)
+        success = await state_machine.force_transition(
+            SystemState.DETECTING, "Test force MAVLink error"
+        )
+
+        assert success is True
+        assert state_machine.current_state == SystemState.DETECTING
+
+    @pytest.mark.asyncio
+    async def test_force_transition_callback_error(self, state_machine):
+        """Test force_transition handles callback errors gracefully."""
+
+        # Add failing callback
+        def failing_callback(old_state, new_state, reason):
+            from src.backend.core.exceptions import StateTransitionError
+
+            raise StateTransitionError("Callback failed")
+
+        state_machine.add_state_callback(failing_callback)
+
+        # Force transition should still succeed (lines 923-926)
+        success = await state_machine.force_transition(SystemState.IDLE, "Test callback error")
+
+        assert success is True
+        assert state_machine.current_state == SystemState.IDLE
+
+    @pytest.mark.asyncio
+    async def test_start_stop_lifecycle_methods(self, state_machine):
+        """Test state machine start/stop lifecycle per PRD requirements."""
+
+        # Test start method (lines 1055-1064)
+        await state_machine.start()
+
+        # Should be running
+        assert state_machine._is_running is True
+
+        # Test stop method (lines 1079-1081)
+        await state_machine.stop()
+
+        # Should be stopped and in IDLE
+        assert state_machine._is_running is False
+        assert state_machine.current_state == SystemState.IDLE
+
+    @pytest.mark.asyncio
+    async def test_initialize_method_full_setup(self, state_machine):
+        """Test initialize method comprehensive setup per PRD requirements."""
+
+        # Test initialize method (lines 1194-1248)
+        result = await state_machine.initialize()
+
+        # Should succeed
+        assert result is True
+
+        # Should be in a valid state after initialization (restores from DB)
+        assert state_machine.current_state in SystemState
+        assert state_machine._homing_enabled is False
+        assert state_machine._detection_count >= 0  # May have existing detections
+
+    @pytest.mark.asyncio
+    async def test_shutdown_method_graceful_cleanup(self, state_machine):
+        """Test shutdown method graceful cleanup per PRD requirements."""
+
+        # Start the state machine first
+        await state_machine.start()
+
+        # Transition to active state
+        await state_machine.transition_to(SystemState.SEARCHING)
+
+        # Test shutdown method (lines 1255-1313)
+        await state_machine.shutdown()
+
+        # Should be in IDLE state after shutdown
+        assert state_machine.current_state == SystemState.IDLE
+        assert state_machine._is_running is False
+
+    @pytest.mark.asyncio
+    async def test_on_signal_detected_comprehensive(self, state_machine):
+        """Test comprehensive signal detection workflow per PRD-FR6."""
+
+        # Create mock detection event
+        class MockDetectionEvent:
+            def __init__(self):
+                self.rssi = -45.0  # Strong signal
+                self.snr = 15.0  # Good SNR
+                self.confidence = 85.0  # High confidence
+
+        # Start in SEARCHING state
+        await state_machine.transition_to(SystemState.SEARCHING)
+
+        # Test signal detection (lines 1335-1372)
+        detection_event = MockDetectionEvent()
+        await state_machine.on_signal_detected(detection_event)
+
+        # Should transition to DETECTING
+        assert state_machine.current_state == SystemState.DETECTING
+        assert state_machine._detection_count >= 1
+        assert state_machine._last_detection_time > 0
+
+    @pytest.mark.asyncio
+    async def test_on_signal_detected_high_confidence_homing(self, state_machine):
+        """Test signal detection with high confidence triggers homing per PRD-FR14."""
+
+        # Enable homing per PRD-FR14
+        state_machine.enable_homing(True)
+
+        # Start in DETECTING state
+        await state_machine.transition_to(SystemState.SEARCHING)
+        await state_machine.transition_to(SystemState.DETECTING)
+
+        # Create high confidence detection event
+        class HighConfidenceEvent:
+            def __init__(self):
+                self.rssi = -40.0
+                self.snr = 20.0
+                self.confidence = 90.0  # Very high confidence > 80%
+
+        # Test high confidence detection (should trigger homing)
+        detection_event = HighConfidenceEvent()
+        await state_machine.on_signal_detected(detection_event)
+
+        # Should transition to HOMING due to high confidence
+        assert state_machine.current_state == SystemState.HOMING
+
+    @pytest.mark.asyncio
+    async def test_on_signal_detected_mavlink_telemetry(self, state_machine):
+        """Test signal detection sends MAVLink telemetry per PRD-FR9."""
+
+        # Mock MAVLink service to capture telemetry
+        class TelemetryCapture:
+            def __init__(self):
+                self.telemetry_calls = []
+
+            def send_state_change(self, new_state):
+                pass
+
+            async def send_detection_telemetry(self, rssi, snr, confidence, state):
+                self.telemetry_calls.append(
+                    {"rssi": rssi, "snr": snr, "confidence": confidence, "state": state}
+                )
+
+        mock_mavlink = TelemetryCapture()
+        state_machine.set_mavlink_service(mock_mavlink)
+
+        # Start in SEARCHING
+        await state_machine.transition_to(SystemState.SEARCHING)
+
+        # Create detection event
+        class DetectionEvent:
+            def __init__(self):
+                self.rssi = -50.0
+                self.snr = 12.0
+                self.confidence = 75.0
+
+        # Test telemetry sending (lines 1366-1372)
+        detection_event = DetectionEvent()
+        await state_machine.on_signal_detected(detection_event)
+
+        # Should have sent telemetry
+        assert len(mock_mavlink.telemetry_calls) >= 1
+        telemetry = mock_mavlink.telemetry_calls[-1]
+        assert telemetry["rssi"] == -50.0
+        assert telemetry["confidence"] == 75.0
+
+    @pytest.mark.asyncio
+    async def test_on_signal_detected_mavlink_error(self, state_machine):
+        """Test signal detection handles MAVLink telemetry errors gracefully."""
+
+        # Mock failing MAVLink service
+        class FailingTelemetry:
+            def send_state_change(self, new_state):
+                pass
+
+            async def send_detection_telemetry(self, rssi, snr, confidence, state):
+                raise Exception("Telemetry failed")
+
+        state_machine.set_mavlink_service(FailingTelemetry())
+
+        # Start in SEARCHING
+        await state_machine.transition_to(SystemState.SEARCHING)
+
+        # Create detection event
+        class DetectionEvent:
+            def __init__(self):
+                self.rssi = -55.0
+                self.snr = 10.0
+                self.confidence = 70.0
+
+        # Should handle telemetry error gracefully
+        detection_event = DetectionEvent()
+        await state_machine.on_signal_detected(detection_event)
+
+        # Should still transition to DETECTING despite telemetry error
+        assert state_machine.current_state == SystemState.DETECTING
+
+    @pytest.mark.asyncio
+    async def test_on_signal_lost_workflow(self, state_machine):
+        """Test signal loss workflow per PRD-FR17."""
+
+        # Start in HOMING state
+        state_machine.enable_homing(True)
+        await state_machine.transition_to(SystemState.SEARCHING)
+        await state_machine.transition_to(SystemState.DETECTING)
+        await state_machine.transition_to(SystemState.HOMING)
+
+        # Test signal loss handling (lines 1376-1391)
+        await state_machine.on_signal_lost()
+
+        # Should transition back to SEARCHING
+        assert state_machine.current_state == SystemState.SEARCHING
+        assert state_machine._detection_count == 0
+
+    @pytest.mark.asyncio
+    async def test_on_signal_lost_mavlink_notification(self, state_machine):
+        """Test signal loss sends MAVLink notification per PRD-FR9."""
+
+        # Mock MAVLink service
+        class SignalLostCapture:
+            def __init__(self):
+                self.signal_lost_calls = []
+
+            def send_state_change(self, new_state):
+                pass
+
+            async def send_signal_lost_telemetry(self):
+                self.signal_lost_calls.append("signal_lost")
+
+        mock_mavlink = SignalLostCapture()
+        state_machine.set_mavlink_service(mock_mavlink)
+
+        # Start in DETECTING state
+        await state_machine.transition_to(SystemState.SEARCHING)
+        await state_machine.transition_to(SystemState.DETECTING)
+
+        # Test signal loss notification
+        await state_machine.on_signal_lost()
+
+        # Should have sent signal lost telemetry
+        assert len(mock_mavlink.signal_lost_calls) >= 1
+
+    @pytest.mark.asyncio
+    async def test_on_signal_lost_mavlink_error(self, state_machine):
+        """Test signal loss handles MAVLink notification errors gracefully."""
+
+        # Mock failing MAVLink service
+        class FailingSignalLost:
+            def send_state_change(self, new_state):
+                pass
+
+            async def send_signal_lost_telemetry(self):
+                raise Exception("Signal lost telemetry failed")
+
+        state_machine.set_mavlink_service(FailingSignalLost())
+
+        # Start in DETECTING state
+        await state_machine.transition_to(SystemState.SEARCHING)
+        await state_machine.transition_to(SystemState.DETECTING)
+
+        # Should handle error gracefully
+        await state_machine.on_signal_lost()
+
+        # Should still transition despite telemetry error
+        assert state_machine.current_state == SystemState.SEARCHING
