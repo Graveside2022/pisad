@@ -1,7 +1,7 @@
 # Project Tasks
 
-*This file is synced with Clode Studio and Claude's native TodoWrite system.*  
-*Last updated: 2025-08-18T09:35:54.365Z*
+*This file is synced with Clode Studio and Claude's native TodoWrite system.*
+*Last updated: 2025-08-18T10:03:21.059Z*
 
 ## Backlog (1)
 
@@ -11,23 +11,13 @@
   - Priority: medium
   - Description: POST-MVP ENHANCEMENT - Database architecture transformation from SQLite to DuckDB for advanced analytics
 
-## To Do (5)
+## To Do (4)
 
-- [ ] **Story 4.2: Test Coverage Maintenance**
-  - Assignee: claude
-  - Type: feature
-  - Priority: high
-  - Description: UNBLOCKED - Maintain 90% coverage after APIs complete
 - [ ] **Story 4.6: Safety-Critical Coverage Compliance**
   - Assignee: claude
   - Type: feature
   - Priority: high
   - Description: UNBLOCKED - Create HAL mocks, achieve 85%+ coverage
-- [ ] **Story 1.4: Enhanced Web-Based Payload UI 🔄**
-  - Assignee: claude
-  - Type: feature
-  - Priority: high
-  - Description: Foundation complete ✅ Enhanced with live spectrum waterfall, flight controller integration, manual frequency control, and clickable beacon targeting
 - [ ] **Story 2.5: Ground Testing & Safety Validation**
   - Assignee: claude
   - Type: feature
@@ -38,13 +28,23 @@
   - Type: feature
   - Priority: high
   - Description: MVP COMPLETION - Real-world validation with HackRF/Cube Orange+, requires FAA COA if applicable
+- [ ] **Story 1.4: Enhanced Web-Based Payload UI 🔄**
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: Foundation complete ✅ Enhanced with live spectrum waterfall, flight controller integration, manual frequency control, and clickable beacon targeting
 
 ## In Progress (0)
 
 
 
-## Completed (19)
+## Completed (20)
 
+- [x] ~~Story 4.2: Test Coverage Maintenance~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: UNBLOCKED - Maintain 90% coverage after APIs complete~~
 - [x] ~~CRITICAL: Verify Story 4.9 Implementation Status ✅~~
   - ~~Assignee: claude~~
   - ~~Type: feature~~

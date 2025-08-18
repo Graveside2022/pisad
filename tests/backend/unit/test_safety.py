@@ -516,6 +516,7 @@ class TestSafetyInterlockSystem:
 
 # NEW TDD TESTS FOR 90%+ SAFETY UTILS COVERAGE
 
+
 class TestOperatorActivationCheck:
     """Test OperatorActivationCheck implementation."""
 
@@ -523,6 +524,7 @@ class TestOperatorActivationCheck:
     def operator_check(self):
         """Provide OperatorActivationCheck instance."""
         from src.backend.utils.safety import OperatorActivationCheck
+
         return OperatorActivationCheck(timeout_seconds=10)
 
     @pytest.mark.asyncio
@@ -538,7 +540,7 @@ class TestOperatorActivationCheck:
     async def test_operator_check_homing_disabled(self, operator_check):
         """Test operator check fails when homing disabled."""
         result = await operator_check.check()
-        
+
         assert result is False
         assert operator_check.is_safe is False
         assert "Operator has not enabled homing" in operator_check.failure_reason
@@ -547,9 +549,9 @@ class TestOperatorActivationCheck:
     async def test_operator_check_homing_enabled(self, operator_check):
         """Test operator check passes when homing enabled."""
         operator_check.enable_homing()
-        
+
         result = await operator_check.check()
-        
+
         assert result is True
         assert operator_check.is_safe is True
         assert operator_check.failure_reason is None
@@ -559,13 +561,13 @@ class TestOperatorActivationCheck:
     async def test_operator_check_timeout(self, operator_check):
         """Test operator check times out after configured duration."""
         from datetime import UTC, datetime, timedelta
-        
+
         operator_check.enable_homing()
         # Simulate old activation time
         operator_check.activation_time = datetime.now(UTC) - timedelta(seconds=15)
-        
+
         result = await operator_check.check()
-        
+
         assert result is False
         assert operator_check.is_safe is False
         assert "timed out after" in operator_check.failure_reason
@@ -573,7 +575,7 @@ class TestOperatorActivationCheck:
     def test_enable_homing(self, operator_check):
         """Test homing enablement."""
         operator_check.enable_homing()
-        
+
         assert operator_check.homing_enabled is True
         assert operator_check.activation_time is not None
 
@@ -581,9 +583,9 @@ class TestOperatorActivationCheck:
         """Test homing disablement."""
         operator_check.enable_homing()
         assert operator_check.homing_enabled is True
-        
+
         operator_check.disable_homing("Test disable")
-        
+
         assert operator_check.homing_enabled is False
         assert operator_check.activation_time is None
 
@@ -595,6 +597,7 @@ class TestSignalLossCheck:
     def signal_check(self):
         """Provide SignalLossCheck instance."""
         from src.backend.utils.safety import SignalLossCheck
+
         return SignalLossCheck(snr_threshold=6.0, timeout_seconds=5)
 
     @pytest.mark.asyncio
@@ -611,9 +614,9 @@ class TestSignalLossCheck:
     async def test_signal_check_good_snr(self, signal_check):
         """Test signal check passes with good SNR."""
         signal_check.update_snr(10.0)  # Above threshold
-        
+
         result = await signal_check.check()
-        
+
         assert result is True
         assert signal_check.is_safe is True
         assert signal_check.failure_reason is None
@@ -623,9 +626,9 @@ class TestSignalLossCheck:
     async def test_signal_check_poor_snr(self, signal_check):
         """Test signal check fails with poor SNR."""
         signal_check.update_snr(3.0)  # Below threshold
-        
+
         result = await signal_check.check()
-        
+
         assert result is False
         assert signal_check.is_safe is False
         assert "SNR 3.0 dB below threshold" in signal_check.failure_reason
@@ -636,26 +639,26 @@ class TestSignalLossCheck:
         # Add multiple SNR values
         for snr in [5.0, 7.0, 6.5, 8.0]:
             signal_check.update_snr(snr)
-        
+
         assert len(signal_check.snr_history) == 4
         assert signal_check.current_snr == 8.0
-        
+
         # Test history limit (100 entries)
         for i in range(100):
             signal_check.update_snr(10.0)
-        
+
         assert len(signal_check.snr_history) <= 100
 
     def test_get_average_snr(self, signal_check):
         """Test average SNR calculation."""
         # Initially no history
         assert signal_check.get_average_snr() == 0.0
-        
+
         # Add test values
         signal_check.update_snr(5.0)
         signal_check.update_snr(7.0)
         signal_check.update_snr(8.0)
-        
+
         average = signal_check.get_average_snr()
         assert abs(average - (5.0 + 7.0 + 8.0) / 3) < 0.01
 
@@ -664,10 +667,10 @@ class TestSignalLossCheck:
         """Test old history cleanup during check."""
         # Add some SNR values
         signal_check.update_snr(8.0)
-        
+
         # Run check to trigger cleanup
         await signal_check.check()
-        
+
         # History should still contain recent entry
         assert len(signal_check.snr_history) >= 1
 
@@ -679,6 +682,7 @@ class TestBatteryCheck:
     def battery_check(self):
         """Provide BatteryCheck instance."""
         from src.backend.utils.safety import BatteryCheck
+
         return BatteryCheck(threshold_percent=20.0)
 
     @pytest.mark.asyncio
@@ -694,9 +698,9 @@ class TestBatteryCheck:
     async def test_battery_check_normal_level(self, battery_check):
         """Test battery check passes with normal level."""
         battery_check.update_battery(50.0)
-        
+
         result = await battery_check.check()
-        
+
         assert result is True
         assert battery_check.is_safe is True
         assert battery_check.failure_reason is None
@@ -705,9 +709,9 @@ class TestBatteryCheck:
     async def test_battery_check_low_level(self, battery_check):
         """Test battery check fails with low level."""
         battery_check.update_battery(15.0)  # Below 20% threshold
-        
+
         result = await battery_check.check()
-        
+
         assert result is False
         assert battery_check.is_safe is False
         assert "Battery at 15.0%, below 20.0% threshold" in battery_check.failure_reason
@@ -717,11 +721,11 @@ class TestBatteryCheck:
         # Test upper bound
         battery_check.update_battery(150.0)
         assert battery_check.current_battery_percent == 100.0
-        
+
         # Test lower bound
         battery_check.update_battery(-10.0)
         assert battery_check.current_battery_percent == 0.0
-        
+
         # Test normal value
         battery_check.update_battery(75.0)
         assert battery_check.current_battery_percent == 75.0
@@ -734,6 +738,7 @@ class TestGeofenceCheck:
     def geofence_check(self):
         """Provide GeofenceCheck instance."""
         from src.backend.utils.safety import GeofenceCheck
+
         return GeofenceCheck()
 
     @pytest.mark.asyncio
@@ -753,7 +758,7 @@ class TestGeofenceCheck:
     async def test_geofence_check_disabled(self, geofence_check):
         """Test geofence check passes when disabled."""
         result = await geofence_check.check()
-        
+
         assert result is True
         assert geofence_check.is_safe is True
         assert geofence_check.failure_reason is None
@@ -761,7 +766,7 @@ class TestGeofenceCheck:
     def test_set_geofence(self, geofence_check):
         """Test geofence configuration."""
         geofence_check.set_geofence(37.7749, -122.4194, 100.0, 50.0)
-        
+
         assert geofence_check.fence_center_lat == 37.7749
         assert geofence_check.fence_center_lon == -122.4194
         assert geofence_check.fence_radius == 100.0
@@ -771,7 +776,7 @@ class TestGeofenceCheck:
     def test_update_position(self, geofence_check):
         """Test position updates."""
         geofence_check.update_position(37.7750, -122.4195, 30.0)
-        
+
         assert geofence_check.current_lat == 37.7750
         assert geofence_check.current_lon == -122.4195
         assert geofence_check.current_alt == 30.0
@@ -780,9 +785,9 @@ class TestGeofenceCheck:
     async def test_geofence_check_incomplete_config(self, geofence_check):
         """Test geofence check fails with incomplete configuration."""
         geofence_check.fence_enabled = True  # Enable but don't configure
-        
+
         result = await geofence_check.check()
-        
+
         assert result is False
         assert geofence_check.is_safe is False
         assert "not configured" in geofence_check.failure_reason
@@ -793,9 +798,9 @@ class TestGeofenceCheck:
         # Set up geofence and position
         geofence_check.set_geofence(37.7749, -122.4194, 100.0, 50.0)
         geofence_check.update_position(37.7750, -122.4195, 30.0)  # Close position
-        
+
         result = await geofence_check.check()
-        
+
         assert result is True
         assert geofence_check.is_safe is True
         assert geofence_check.failure_reason is None
@@ -806,9 +811,9 @@ class TestGeofenceCheck:
         # Set up geofence and distant position
         geofence_check.set_geofence(37.7749, -122.4194, 100.0, 50.0)
         geofence_check.update_position(37.8000, -122.5000, 30.0)  # Far position
-        
+
         result = await geofence_check.check()
-        
+
         assert result is False
         assert geofence_check.is_safe is False
         assert "outside geofence radius" in geofence_check.failure_reason
@@ -819,9 +824,9 @@ class TestGeofenceCheck:
         # Set up geofence and high position
         geofence_check.set_geofence(37.7749, -122.4194, 100.0, 50.0)
         geofence_check.update_position(37.7749, -122.4194, 75.0)  # Same lat/lon, high alt
-        
+
         result = await geofence_check.check()
-        
+
         assert result is False
         assert geofence_check.is_safe is False
         assert "exceeds maximum" in geofence_check.failure_reason
@@ -830,22 +835,22 @@ class TestGeofenceCheck:
         """Test distance calculation for same point."""
         geofence_check.set_geofence(37.7749, -122.4194, 100.0)
         geofence_check.update_position(37.7749, -122.4194, 30.0)
-        
+
         distance = geofence_check.calculate_distance()
-        
+
         assert distance < 1.0  # Should be very close to 0
 
     def test_calculate_distance_no_position(self, geofence_check):
         """Test distance calculation without position."""
         distance = geofence_check.calculate_distance()
-        
+
         assert distance == float("inf")
 
     def test_haversine_distance_calculation(self, geofence_check):
         """Test Haversine distance calculation accuracy."""
         # Test known distance (approximately 1 degree lat ≈ 111 km)
         distance = geofence_check._calculate_distance(0.0, 0.0, 1.0, 0.0)
-        
+
         # Should be approximately 111,000 meters
         assert 110000 < distance < 112000
 
@@ -857,6 +862,7 @@ class TestSafetyInterlockSystemComprehensive:
     def safety_system(self):
         """Provide SafetyInterlockSystem instance."""
         from src.backend.utils.safety import SafetyInterlockSystem
+
         return SafetyInterlockSystem()
 
     @pytest.mark.asyncio
@@ -881,7 +887,7 @@ class TestSafetyInterlockSystemComprehensive:
         await safety_system.start_monitoring()
         assert safety_system._check_task is not None
         assert not safety_system._check_task.done()
-        
+
         # Stop monitoring
         await safety_system.stop_monitoring()
         assert safety_system._check_task.done()
@@ -892,9 +898,9 @@ class TestSafetyInterlockSystemComprehensive:
         # Set up some checks to pass and others to fail
         safety_system.checks["mode"].update_mode("GUIDED")  # Should pass
         safety_system.checks["battery"].update_battery(10.0)  # Should fail (below 20%)
-        
+
         results = await safety_system.check_all_safety()
-        
+
         assert "mode" in results
         assert "battery" in results
         assert results["mode"] is True
@@ -910,9 +916,9 @@ class TestSafetyInterlockSystemComprehensive:
         safety_system.checks["battery"].update_battery(80.0)
         safety_system.checks["geofence"].set_geofence(0, 0, 100, 50)
         safety_system.checks["geofence"].update_position(0, 0, 10)
-        
+
         is_safe = await safety_system.is_safe_to_proceed()
-        
+
         assert is_safe is True
 
     @pytest.mark.asyncio
@@ -920,19 +926,19 @@ class TestSafetyInterlockSystemComprehensive:
         """Test is_safe_to_proceed with one check failing."""
         # Set up one check to fail
         safety_system.checks["battery"].update_battery(10.0)  # Below threshold
-        
+
         is_safe = await safety_system.is_safe_to_proceed()
-        
+
         assert is_safe is False
 
     @pytest.mark.asyncio
     async def test_emergency_stop(self, safety_system):
         """Test emergency stop activation."""
         await safety_system.emergency_stop("Test emergency")
-        
+
         assert safety_system.emergency_stopped is True
         assert len(safety_system.safety_events) > 0
-        
+
         # Check that operator check was disabled
         operator_check = safety_system.checks["operator"]
         assert operator_check.homing_enabled is False
@@ -941,9 +947,9 @@ class TestSafetyInterlockSystemComprehensive:
     async def test_emergency_stop_blocks_safety_checks(self, safety_system):
         """Test emergency stop blocks all safety checks."""
         await safety_system.emergency_stop("Test")
-        
+
         results = await safety_system.check_all_safety()
-        
+
         # All checks should return False when emergency stopped
         assert all(not result for result in results.values())
 
@@ -952,9 +958,9 @@ class TestSafetyInterlockSystemComprehensive:
         """Test emergency stop reset."""
         await safety_system.emergency_stop("Test")
         assert safety_system.emergency_stopped is True
-        
+
         await safety_system.reset_emergency_stop()
-        
+
         assert safety_system.emergency_stopped is False
         assert len(safety_system.safety_events) > 1  # Should have reset event
 
@@ -967,9 +973,9 @@ class TestSafetyInterlockSystemComprehensive:
         safety_system.checks["battery"].update_battery(80.0)
         safety_system.checks["geofence"].set_geofence(0, 0, 100, 50)
         safety_system.checks["geofence"].update_position(0, 0, 10)
-        
+
         result = await safety_system.enable_homing("test-token")
-        
+
         assert result is True
         operator_check = safety_system.checks["operator"]
         assert operator_check.homing_enabled is True
@@ -979,9 +985,9 @@ class TestSafetyInterlockSystemComprehensive:
         """Test enable homing blocked by safety checks."""
         # Set up failing condition
         safety_system.checks["battery"].update_battery(10.0)  # Critical battery
-        
+
         result = await safety_system.enable_homing()
-        
+
         assert result is False
         operator_check = safety_system.checks["operator"]
         assert operator_check.homing_enabled is False
@@ -990,15 +996,15 @@ class TestSafetyInterlockSystemComprehensive:
     async def test_enable_homing_blocked_by_emergency(self, safety_system):
         """Test enable homing blocked by emergency stop."""
         await safety_system.emergency_stop("Test")
-        
+
         result = await safety_system.enable_homing()
-        
+
         assert result is False
 
     def test_get_safety_status(self, safety_system):
         """Test comprehensive safety status."""
         status = safety_system.get_safety_status()
-        
+
         assert "emergency_stopped" in status
         assert "checks" in status
         assert "timestamp" in status
@@ -1008,6 +1014,6 @@ class TestSafetyInterlockSystemComprehensive:
     def test_get_status_with_events(self, safety_system):
         """Test status includes event count."""
         status = safety_system.get_status()
-        
+
         assert "events" in status
         assert status["events"] == 0

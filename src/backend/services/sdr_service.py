@@ -328,6 +328,121 @@ class SDRService:
 
         return self.status
 
+    async def get_fft_data(self, center_freq: int, bandwidth: int, num_samples: int = 1024) -> dict:
+        """Get FFT spectrum data for waterfall display.
+
+        Args:
+            center_freq: Center frequency in Hz
+            bandwidth: Bandwidth in Hz
+            num_samples: Number of FFT samples (default 1024)
+
+        Returns:
+            dict: FFT data with frequencies, magnitudes, sample_rate
+        """
+        import time
+
+        import numpy as np
+
+        # Update configuration if needed
+        if center_freq != self.config.frequency:
+            await self.update_config({"center_freq": center_freq})
+
+        # For mock/testing - generate simulated spectrum data
+        if not self.device or self.status.status != "CONNECTED":
+            logger.debug("Generating mock FFT data for testing")
+
+            # Generate frequency array
+            freq_start = center_freq - bandwidth / 2
+            freq_end = center_freq + bandwidth / 2
+            frequencies = np.linspace(freq_start, freq_end, num_samples)
+
+            # Generate realistic RSSI values (-100 to -20 dBm with noise)
+            # Add some spectral features for testing
+            magnitudes = np.random.random(num_samples) * 30 - 100  # -100 to -70 dBm base
+
+            # Add some signal peaks for testing
+            peak1_idx = int(num_samples * 0.3)
+            peak2_idx = int(num_samples * 0.7)
+            magnitudes[peak1_idx - 5 : peak1_idx + 5] += 20  # WiFi-like signal
+            magnitudes[peak2_idx - 3 : peak2_idx + 3] += 15  # Another signal
+
+            return {
+                "frequencies": frequencies,
+                "magnitudes": magnitudes,
+                "sample_rate": bandwidth,
+                "center_freq": center_freq,
+                "timestamp": int(time.time() * 1000),
+            }
+
+        # Real HackRF One implementation
+        try:
+            # Configure for waterfall acquisition
+            self.device.setSampleRate(SoapySDR.SOAPY_SDR_RX, 0, bandwidth)
+            self.device.setFrequency(SoapySDR.SOAPY_SDR_RX, 0, center_freq)
+
+            # Activate stream if not active
+            if not self.status.stream_active:
+                self._start_stream()
+
+            # Read IQ samples
+            rx_stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+            self.device.activateStream(rx_stream)
+
+            # Buffer for IQ samples
+            buff = np.array([0] * num_samples, np.complex64)
+            sr = self.device.readStream(rx_stream, [buff], num_samples)
+
+            # Compute FFT
+            fft_data = np.fft.fftshift(np.fft.fft(buff))
+            magnitudes = 20 * np.log10(np.abs(fft_data) + 1e-12)  # Convert to dBm
+
+            # Generate frequency array
+            freq_start = center_freq - bandwidth / 2
+            freq_end = center_freq + bandwidth / 2
+            frequencies = np.linspace(freq_start, freq_end, num_samples)
+
+            self.device.deactivateStream(rx_stream)
+            self.device.closeStream(rx_stream)
+
+            return {
+                "frequencies": frequencies,
+                "magnitudes": magnitudes,
+                "sample_rate": bandwidth,
+                "center_freq": center_freq,
+                "timestamp": int(time.time() * 1000),
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting FFT data: {e}")
+            # Fall back to mock data on error
+            return await self.get_fft_data(center_freq, bandwidth, num_samples)
+
+    async def update_config(self, config_updates: dict, immediate: bool = True) -> None:
+        """Update SDR configuration.
+
+        Args:
+            config_updates: Dictionary of configuration updates
+            immediate: Apply changes immediately (default True)
+        """
+        for key, value in config_updates.items():
+            if key == "center_freq":
+                self.set_frequency(value)
+            elif key == "sample_rate":
+                if self.device:
+                    self.device.setSampleRate(SoapySDR.SOAPY_SDR_RX, 0, value)
+                self.config.sampleRate = value
+            elif key == "gain":
+                if self.device:
+                    if isinstance(value, str) and value.upper() == "AUTO":
+                        self.device.setGainMode(SoapySDR.SOAPY_SDR_RX, 0, True)
+                    else:
+                        self.device.setGainMode(SoapySDR.SOAPY_SDR_RX, 0, False)
+                        self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, float(value))
+                self.config.gain = value
+            # Add other configuration parameters as needed
+
+        logger.info(f"Updated SDR configuration: {config_updates}")
+
     async def _health_monitor(self) -> None:
         """Periodic health monitoring task."""
         while True:

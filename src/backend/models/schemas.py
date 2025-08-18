@@ -33,6 +33,17 @@ class SDRStatus:
 
 
 @dataclass
+class SpectrumData:
+    """FFT spectrum data for waterfall display."""
+
+    frequencies: list[float]  # Frequency array in Hz
+    magnitudes: list[float]  # Magnitude array in dBm
+    timestamp: int  # Timestamp in milliseconds
+    centerFreq: int  # Center frequency in Hz
+    sampleRate: int  # Sample rate in Hz
+
+
+@dataclass
 class SystemState:
     """Overall system state."""
 

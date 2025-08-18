@@ -388,11 +388,7 @@ class TestSafetyManager:
         safety_manager.mavlink = mock_mavlink
 
         # Normal GPS with good satellites and HDOP
-        mock_mavlink.telemetry["gps"] = {
-            "satellites": 12, 
-            "hdop": 1.2,
-            "fix_type": 3
-        }
+        mock_mavlink.telemetry["gps"] = {"satellites": 12, "hdop": 1.2, "fix_type": 3}
 
         status = safety_manager.check_gps_status()
 
@@ -406,11 +402,7 @@ class TestSafetyManager:
         safety_manager.mavlink = mock_mavlink
 
         # Low satellite count
-        mock_mavlink.telemetry["gps"] = {
-            "satellites": 6, 
-            "hdop": 1.2,
-            "fix_type": 3
-        }
+        mock_mavlink.telemetry["gps"] = {"satellites": 6, "hdop": 1.2, "fix_type": 3}
 
         status = safety_manager.check_gps_status()
 
@@ -423,11 +415,7 @@ class TestSafetyManager:
         safety_manager.mavlink = mock_mavlink
 
         # Poor HDOP
-        mock_mavlink.telemetry["gps"] = {
-            "satellites": 10, 
-            "hdop": 3.5,
-            "fix_type": 3
-        }
+        mock_mavlink.telemetry["gps"] = {"satellites": 10, "hdop": 3.5, "fix_type": 3}
 
         status = safety_manager.check_gps_status()
 
@@ -441,9 +429,9 @@ class TestSafetyManager:
 
         # No 3D fix
         mock_mavlink.telemetry["gps"] = {
-            "satellites": 10, 
+            "satellites": 10,
             "hdop": 1.5,
-            "fix_type": 2  # 2D fix only
+            "fix_type": 2,  # 2D fix only
         }
 
         status = safety_manager.check_gps_status()
@@ -475,7 +463,7 @@ class TestSafetyManager:
         """Test geofence check with position inside fence."""
         # Set home position
         safety_manager.home_position = {"lat": 37.7749, "lon": -122.4194, "alt": 0.0}
-        
+
         # Position close to home (within fence)
         test_position = {"lat": 37.7750, "lon": -122.4195, "alt": 30.0}
 
@@ -487,7 +475,7 @@ class TestSafetyManager:
         """Test geofence check with position outside fence."""
         # Set home position
         safety_manager.home_position = {"lat": 37.7749, "lon": -122.4194, "alt": 0.0}
-        
+
         # Position far from home (outside 100m fence)
         test_position = {"lat": 37.8000, "lon": -122.5000, "alt": 30.0}
 
@@ -499,7 +487,7 @@ class TestSafetyManager:
         """Test geofence check with altitude violation."""
         # Set home position
         safety_manager.home_position = {"lat": 37.7749, "lon": -122.4194, "alt": 0.0}
-        
+
         # Position close horizontally but high altitude
         test_position = {"lat": 37.7750, "lon": -122.4195, "alt": 80.0}  # Above 50m limit
 
@@ -537,10 +525,10 @@ class TestSafetyManager:
     def test_signal_loss_handling(self, safety_manager):
         """Test signal loss event handling."""
         initial_state = safety_manager.state
-        
+
         # Simulate signal loss
         safety_manager.signal_lost(5.0)  # 5 seconds of signal loss
-        
+
         assert safety_manager.state == "SEARCHING"
         # Verify signal time was updated
         current_time = time.time()
@@ -550,7 +538,7 @@ class TestSafetyManager:
         """Test get_state method returns current state."""
         # Test initial state
         assert safety_manager.get_state() == "IDLE"
-        
+
         # Change state and test
         safety_manager.state = "MONITORING"
         assert safety_manager.get_state() == "MONITORING"
@@ -558,56 +546,66 @@ class TestSafetyManager:
     def test_get_contingency_mode_short_signal_loss(self, safety_manager):
         """Test contingency mode for short signal loss."""
         safety_manager.last_signal_time = time.time() - 5.0  # 5 seconds ago
-        
+
         mode = safety_manager.get_contingency_mode()
-        
+
         assert mode == "LOITER"
 
     def test_get_contingency_mode_long_signal_loss(self, safety_manager):
         """Test contingency mode for long signal loss."""
         safety_manager.last_signal_time = time.time() - 45.0  # 45 seconds ago
-        
+
         mode = safety_manager.get_contingency_mode()
-        
+
         assert mode == "RTL"
 
     def test_get_contingency_mode_no_signal_time(self, safety_manager):
         """Test contingency mode when no signal time recorded."""
         # Remove last_signal_time attribute
-        if hasattr(safety_manager, 'last_signal_time'):
-            delattr(safety_manager, 'last_signal_time')
-        
+        if hasattr(safety_manager, "last_signal_time"):
+            delattr(safety_manager, "last_signal_time")
+
         mode = safety_manager.get_contingency_mode()
-        
+
         assert mode == "LOITER"
 
     def test_pre_arm_checks_all_pass(self, safety_manager, mock_mavlink):
         """Test pre-arm checks when all conditions are good."""
         safety_manager.mavlink = mock_mavlink
-        
+
         # Set good conditions
         mock_mavlink.telemetry["gps"] = {"satellites": 12, "hdop": 1.2, "fix_type": 3}
         mock_mavlink.telemetry["battery"] = {"voltage": 22.0}
         safety_manager.motor_interlock = False
-        mock_mavlink.telemetry["rc_channels"] = {"throttle": 1500, "roll": 1500, "pitch": 1500, "yaw": 1500}
-        
+        mock_mavlink.telemetry["rc_channels"] = {
+            "throttle": 1500,
+            "roll": 1500,
+            "pitch": 1500,
+            "yaw": 1500,
+        }
+
         checks = safety_manager.pre_arm_checks()
-        
+
         assert checks["passed"] is True
         assert len(checks["failures"]) == 0
 
     def test_pre_arm_checks_multiple_failures(self, safety_manager, mock_mavlink):
         """Test pre-arm checks with multiple failure conditions."""
         safety_manager.mavlink = mock_mavlink
-        
+
         # Set bad conditions
         mock_mavlink.telemetry["gps"] = {"satellites": 4, "hdop": 3.5, "fix_type": 2}  # Bad GPS
         mock_mavlink.telemetry["battery"] = {"voltage": 17.0}  # Critical battery
         safety_manager.motor_interlock = True  # Interlock engaged
-        mock_mavlink.telemetry["rc_channels"] = {"throttle": 1600, "roll": 1500, "pitch": 1500, "yaw": 1500}  # RC override
-        
+        mock_mavlink.telemetry["rc_channels"] = {
+            "throttle": 1600,
+            "roll": 1500,
+            "pitch": 1500,
+            "yaw": 1500,
+        }  # RC override
+
         checks = safety_manager.pre_arm_checks()
-        
+
         assert checks["passed"] is False
         assert len(checks["failures"]) > 0
         assert any("GPS" in failure for failure in checks["failures"])
@@ -618,12 +616,12 @@ class TestSafetyManager:
     def test_get_failsafe_action_rc_override(self, safety_manager, mock_mavlink):
         """Test failsafe action priority for RC override."""
         safety_manager.mavlink = mock_mavlink
-        
+
         # RC override active (highest priority)
         mock_mavlink.telemetry["rc_channels"]["throttle"] = 1600
-        
+
         action = safety_manager.get_failsafe_action()
-        
+
         assert action["priority"] == 1
         assert action["action"] == "RC_CONTROL"
         assert "Pilot override" in action["reason"]
@@ -631,12 +629,12 @@ class TestSafetyManager:
     def test_get_failsafe_action_critical_battery(self, safety_manager, mock_mavlink):
         """Test failsafe action for critical battery."""
         safety_manager.mavlink = mock_mavlink
-        
+
         # Critical battery (priority 2)
         mock_mavlink.telemetry["battery"]["voltage"] = 17.0
-        
+
         action = safety_manager.get_failsafe_action()
-        
+
         assert action["priority"] == 2
         assert action["action"] == "RTL"
         assert "Battery critical" in action["reason"]
@@ -644,12 +642,12 @@ class TestSafetyManager:
     def test_get_failsafe_action_gps_loss(self, safety_manager, mock_mavlink):
         """Test failsafe action for GPS loss."""
         safety_manager.mavlink = mock_mavlink
-        
+
         # GPS loss (priority 3)
         mock_mavlink.telemetry["gps"] = {"satellites": 4, "hdop": 3.5, "fix_type": 2}
-        
+
         action = safety_manager.get_failsafe_action()
-        
+
         assert action["priority"] == 3
         assert action["action"] == "LOITER"
         # Should contain GPS reason from check_gps_status
@@ -657,14 +655,19 @@ class TestSafetyManager:
     def test_get_failsafe_action_no_failsafe(self, safety_manager, mock_mavlink):
         """Test failsafe action when no failsafe needed."""
         safety_manager.mavlink = mock_mavlink
-        
+
         # Set up good conditions for all systems
-        mock_mavlink.telemetry["rc_channels"] = {"throttle": 1500, "roll": 1500, "pitch": 1500, "yaw": 1500}  # No RC override
+        mock_mavlink.telemetry["rc_channels"] = {
+            "throttle": 1500,
+            "roll": 1500,
+            "pitch": 1500,
+            "yaw": 1500,
+        }  # No RC override
         mock_mavlink.telemetry["battery"] = {"voltage": 22.0}  # Good battery
         mock_mavlink.telemetry["gps"] = {"satellites": 12, "hdop": 1.2, "fix_type": 3}  # Good GPS
-        
+
         action = safety_manager.get_failsafe_action()
-        
+
         assert action["priority"] == 99
         assert action["action"] == "NONE"
         assert action["reason"] == "All systems nominal"
@@ -674,7 +677,7 @@ class TestSafetyManager:
         # Test setting interlock
         safety_manager.set_motor_interlock(True)
         assert safety_manager.motor_interlock is True
-        
+
         # Test clearing interlock
         safety_manager.set_motor_interlock(False)
         assert safety_manager.motor_interlock is False
@@ -684,7 +687,7 @@ class TestSafetyManager:
         # Should be able to spin when interlock disengaged
         safety_manager.motor_interlock = False
         assert safety_manager.can_spin_motors() is True
-        
+
         # Should not be able to spin when interlock engaged
         safety_manager.motor_interlock = True
         assert safety_manager.can_spin_motors() is False
@@ -692,9 +695,9 @@ class TestSafetyManager:
     def test_arm_with_checks_interlock_engaged(self, safety_manager):
         """Test arming blocked by motor interlock."""
         safety_manager.motor_interlock = True
-        
+
         result = safety_manager.arm_with_checks()
-        
+
         assert result["success"] is False
         assert "Motor interlock engaged" in result["reason"]
 
@@ -702,12 +705,12 @@ class TestSafetyManager:
         """Test arming blocked by safety check failures."""
         safety_manager.mavlink = mock_mavlink
         safety_manager.motor_interlock = False
-        
+
         # Set up failing conditions
         mock_mavlink.telemetry["battery"]["voltage"] = 17.0  # Critical battery
-        
+
         result = safety_manager.arm_with_checks()
-        
+
         assert result["success"] is False
         assert "Battery critical" in result["reason"]
 
@@ -715,14 +718,14 @@ class TestSafetyManager:
         """Test successful arming with all checks passed."""
         safety_manager.mavlink = mock_mavlink
         safety_manager.motor_interlock = False
-        
+
         # Set up good conditions
         mock_mavlink.telemetry["gps"] = {"satellites": 12, "hdop": 1.2, "fix_type": 3}
         mock_mavlink.telemetry["battery"] = {"voltage": 22.0}
         mock_mavlink.arm_vehicle = Mock(return_value=True)
-        
+
         result = safety_manager.arm_with_checks()
-        
+
         assert result["success"] is True
         mock_mavlink.arm_vehicle.assert_called_once()
 
@@ -730,9 +733,9 @@ class TestSafetyManager:
         """Test arming attempt without MAVLink connection."""
         safety_manager.mavlink = None
         safety_manager.motor_interlock = False
-        
+
         result = safety_manager.arm_with_checks()
-        
+
         assert result["success"] is False
         # Should fail pre-arm checks due to no telemetry
         expected_reasons = ["MAVLink not available", "GPS: No telemetry"]
@@ -745,10 +748,10 @@ class TestSafetyManager:
         """Test async safety monitoring startup."""
         # Should start monitoring without error
         monitoring_task = asyncio.create_task(safety_manager.start_monitoring(rate_hz=5))
-        
+
         # Let it run briefly
         await asyncio.sleep(0.01)
-        
+
         # Cancel and cleanup
         monitoring_task.cancel()
         try:
@@ -759,18 +762,18 @@ class TestSafetyManager:
     def test_check_all_safety_conditions(self, safety_manager, mock_mavlink):
         """Test comprehensive safety condition checking."""
         safety_manager.mavlink = mock_mavlink
-        
+
         # Set up conditions that trigger violations
         mock_mavlink.telemetry["battery"] = {"voltage": 17.0}  # Critical battery
         mock_mavlink.telemetry["gps"] = {"satellites": 4, "hdop": 3.5, "fix_type": 2}  # Bad GPS
         mock_mavlink.telemetry["altitude"] = 120.0  # Above max altitude
-        
+
         # Trigger safety condition check
         safety_manager._check_all_safety_conditions()
-        
+
         # Should have recorded violations
         assert len(safety_manager.active_violations) > 0
-        
+
         # Check violation types
         violation_types = [v.type for v in safety_manager.active_violations]
         assert "BATTERY" in violation_types
@@ -782,18 +785,19 @@ class TestSafetyManager:
         # Initially no violations
         violations = safety_manager.get_active_violations()
         assert len(violations) == 0
-        
+
         # Add test violation
         from src.backend.services.safety_manager import SafetyViolation
+
         test_violation = SafetyViolation(
             timestamp=time.time(),
             type="TEST",
-            severity="HIGH", 
+            severity="HIGH",
             description="Test violation",
-            action="TEST_ACTION"
+            action="TEST_ACTION",
         )
         safety_manager.active_violations.append(test_violation)
-        
+
         violations = safety_manager.get_active_violations()
         assert len(violations) == 1
         assert "Test violation" in violations
@@ -801,27 +805,27 @@ class TestSafetyManager:
     def test_set_max_altitude(self, safety_manager):
         """Test maximum altitude configuration."""
         new_altitude = 150.0
-        
+
         safety_manager.set_max_altitude(new_altitude)
-        
+
         assert safety_manager.max_altitude == new_altitude
 
     def test_check_altitude_limit_normal(self, safety_manager, mock_mavlink):
         """Test altitude limit check with normal altitude."""
         safety_manager.mavlink = mock_mavlink
         mock_mavlink.telemetry["altitude"] = 50.0  # Well below 100m limit
-        
+
         result = safety_manager.check_altitude_limit()
-        
+
         assert result is True
 
     def test_check_altitude_limit_warning(self, safety_manager, mock_mavlink):
         """Test altitude limit check with warning zone."""
         safety_manager.mavlink = mock_mavlink
         mock_mavlink.telemetry["altitude"] = 95.0  # Close to 100m limit
-        
+
         result = safety_manager.check_altitude_limit()
-        
+
         assert isinstance(result, dict)
         assert result["warning"] is True
         assert result["margin"] == 5.0
@@ -831,9 +835,9 @@ class TestSafetyManager:
         """Test altitude limit check with violation."""
         safety_manager.mavlink = mock_mavlink
         mock_mavlink.telemetry["altitude"] = 120.0  # Above 100m limit
-        
+
         result = safety_manager.check_altitude_limit()
-        
+
         assert isinstance(result, dict)
         assert result["violation"] is True
         assert result["action"] == "DESCEND"
@@ -843,36 +847,36 @@ class TestSafetyManager:
     def test_check_altitude_limit_no_telemetry(self, safety_manager):
         """Test altitude limit check without telemetry."""
         safety_manager.mavlink = None
-        
+
         result = safety_manager.check_altitude_limit()
-        
+
         assert result is True
 
     def test_set_watchdog(self, safety_manager):
         """Test watchdog timeout configuration."""
         new_timeout = 10.0
-        
+
         safety_manager.set_watchdog(new_timeout)
-        
+
         assert safety_manager.watchdog_timeout == new_timeout
 
     def test_start_command(self, safety_manager):
         """Test command tracking for watchdog."""
         command = "test_command"
-        
+
         safety_manager.start_command(command)
-        
+
         assert command in safety_manager.watchdog_commands
         assert isinstance(safety_manager.watchdog_commands[command], float)
 
     def test_complete_command(self, safety_manager):
         """Test command completion tracking."""
         command = "test_command"
-        
+
         # Start command
         safety_manager.start_command(command)
         assert command in safety_manager.watchdog_commands
-        
+
         # Complete command
         safety_manager.complete_command(command)
         assert command not in safety_manager.watchdog_commands
@@ -881,9 +885,9 @@ class TestSafetyManager:
         """Test watchdog not triggered with recent command."""
         # Start recent command
         safety_manager.start_command("recent_command")
-        
+
         triggered = safety_manager.is_watchdog_triggered()
-        
+
         assert triggered is False
 
     def test_is_watchdog_triggered_timeout(self, safety_manager):
@@ -892,9 +896,9 @@ class TestSafetyManager:
         command = "old_command"
         safety_manager.watchdog_commands[command] = time.time() - 10.0  # 10 seconds ago
         safety_manager.watchdog_timeout = 5.0  # 5 second timeout
-        
+
         triggered = safety_manager.is_watchdog_triggered()
-        
+
         assert triggered is True
 
     def test_get_watchdog_action_triggered(self, safety_manager):
@@ -902,13 +906,13 @@ class TestSafetyManager:
         # Set up triggered watchdog
         safety_manager.watchdog_commands["old_command"] = time.time() - 10.0
         safety_manager.watchdog_timeout = 5.0
-        
+
         action = safety_manager.get_watchdog_action()
-        
+
         assert action == "ABORT"
 
     def test_get_watchdog_action_not_triggered(self, safety_manager):
         """Test watchdog action when not triggered."""
         action = safety_manager.get_watchdog_action()
-        
+
         assert action == "NONE"

@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
         detections,
         health,
         search,
+        spectrum,
         state,
         static,
         system,
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(state.router, tags=["state"])  # Already has /api/state prefix
     app.include_router(telemetry.router, tags=["telemetry"])  # Already has /api/telemetry prefix
     app.include_router(search.router, tags=["search"])  # Already has /api/search prefix
+    app.include_router(spectrum.router, tags=["spectrum"])  # Already has /api/spectrum prefix
     app.include_router(static.router, prefix="/api", tags=["static"])
     app.include_router(testing.router, tags=["testing"])  # Already has /api/testing prefix
 

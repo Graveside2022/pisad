@@ -110,7 +110,7 @@ class HackRFInterface:
             if result != 0:  # Non-zero return indicates failure
                 logger.error(f"HackRF device rejected frequency {freq/1e6:.1f} MHz")
                 return False
-                
+
             self.config.frequency = freq
             logger.info(f"Frequency set to {freq/1e9:.3f} GHz")
             return True
@@ -133,7 +133,7 @@ class HackRFInterface:
             if result != 0:  # Non-zero return indicates failure
                 logger.error(f"HackRF device rejected sample rate {rate/1e6:.1f} Msps")
                 return False
-                
+
             self.config.sample_rate = rate
             logger.info(f"Sample rate set to {rate/1e6:.1f} Msps")
             return True
