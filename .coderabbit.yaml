@@ -5,15 +5,15 @@
 repository:
   # Enable CodeRabbit for this repository
   enabled: true
-  
+
   # Review settings
   review:
     # Enable automatic code review on PRs
     enabled: true
-    
+
     # Review all files by default
     files: "**/*"
-    
+
     # Exclude certain file types if needed
     exclude:
       - "*.lock"
@@ -129,7 +129,7 @@ repository:
 review:
   # Enable comprehensive code review
   comprehensive: true
-  
+
   # Review patterns
   patterns:
     # Python files
@@ -157,13 +157,13 @@ review:
 quality:
   # Enable security scanning
   security: true
-  
+
   # Enable performance analysis
   performance: true
-  
+
   # Enable best practices review
   best_practices: true
-  
+
   # Enable maintainability analysis
   maintainability: true
 
@@ -171,10 +171,10 @@ quality:
 comments:
   # Enable inline comments
   inline: true
-  
+
   # Enable summary comments
   summary: true
-  
+
   # Enable suggestion comments
   suggestions: true
 
@@ -183,7 +183,7 @@ languages:
   python:
     # Enable Python-specific analysis
     enabled: true
-    
+
     # Check for common Python issues
     checks:
       - "imports"
@@ -191,11 +191,11 @@ languages:
       - "complexity"
       - "security"
       - "performance"
-  
+
   javascript:
     # Enable JavaScript/TypeScript analysis
     enabled: true
-    
+
     # Check for common JS issues
     checks:
       - "imports"
@@ -203,11 +203,11 @@ languages:
       - "complexity"
       - "security"
       - "performance"
-  
+
   markdown:
     # Enable markdown analysis
     enabled: true
-    
+
     # Check for common markdown issues
     checks:
       - "links"
@@ -220,13 +220,13 @@ integrations:
   github:
     # Enable GitHub integration
     enabled: true
-    
+
     # Comment on PRs
     comment_on_pr: true
-    
+
     # Update PR status
     update_status: true
-    
+
     # Enable checks
     enable_checks: true
 
@@ -234,10 +234,10 @@ integrations:
 notifications:
   # Enable email notifications
   email: false
-  
+
   # Enable Slack notifications
   slack: false
-  
+
   # Enable webhook notifications
   webhook: false
 
@@ -245,17 +245,17 @@ notifications:
 advanced:
   # Enable experimental features
   experimental: false
-  
+
   # Custom review rules
   custom_rules: []
-  
+
   # Review depth
   depth: "comprehensive"
-  
+
   # Timeout settings
   timeout:
     # Review timeout in seconds
     review: 300
-    
+
     # Analysis timeout in seconds
     analysis: 120

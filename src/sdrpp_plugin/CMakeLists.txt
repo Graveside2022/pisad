@@ -88,6 +88,16 @@ target_link_libraries(test_pisad_plugin PRIVATE
     pthread
 )
 
+# Create standalone TCP client test for SUBTASK-5.2.2.1
+add_executable(standalone_tcp_client standalone_tcp_client.cpp)
+target_include_directories(standalone_tcp_client PRIVATE
+    ${JSONCPP_INCLUDE_DIRS}
+)
+target_link_libraries(standalone_tcp_client PRIVATE
+    ${JSONCPP_LIBRARIES}
+    pthread
+)
+
 # Development convenience targets
 add_custom_target(install_plugin
     COMMAND ${CMAKE_COMMAND} --build . --target install

@@ -2,9 +2,12 @@
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <chrono>
+#include <cstring>
+#include <string>
 
 SDRPP_MOD_INFO{
     /* Name:            */ "pisad_bridge",
@@ -90,8 +93,9 @@ bool PisadBridgeModule::isEnabled() {
 void PisadBridgeModule::worker() {
     while (worker_running) {
         if (!connected) {
-            connectToPISAD();
-            std::this_thread::sleep_for(std::chrono::seconds(5));
+            // [8d] Enhanced reconnection with exponential backoff
+            handleReconnection();
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
 
@@ -128,20 +132,51 @@ void PisadBridgeModule::worker() {
 }
 
 void PisadBridgeModule::connectToPISAD() {
+    // [8a] Enhanced TCP client connection with configurable host/port settings
+    connection_start_time = std::chrono::steady_clock::now();
+    connection_attempts++;
+
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0) {
         std::lock_guard<std::mutex> lock(data_mutex);
-        connection_status = "Socket creation failed";
+        setConnectionError("Socket creation failed: " + std::string(strerror(errno)));
         return;
     }
+
+    // [8d] Add TCP socket options for reliable communication
+    int keepalive = 1;
+    int nodelay = 1;
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0) {
+        spdlog::warn("Failed to set SO_KEEPALIVE: {}", strerror(errno));
+    }
+    if (setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay)) < 0) {
+        spdlog::warn("Failed to set TCP_NODELAY: {}", strerror(errno));
+    }
+    socket_configured = true;
+
+    // [8c] Connection timeout handling to prevent blocking indefinitely
+    struct timeval timeout;
+    timeout.tv_sec = 5;  // 5 second timeout
+    timeout.tv_usec = 0;
+    setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(pisad_port);
 
+    // [8e] Enhanced host/port validation before connection attempts
+    if (pisad_host.empty() || pisad_port <= 0 || pisad_port > 65535) {
+        std::lock_guard<std::mutex> lock(data_mutex);
+        setConnectionError("Invalid host/port configuration");
+        close(socket_fd);
+        socket_fd = -1;
+        return;
+    }
+
     if (inet_pton(AF_INET, pisad_host.c_str(), &server_addr.sin_addr) <= 0) {
         std::lock_guard<std::mutex> lock(data_mutex);
-        connection_status = "Invalid address";
+        setConnectionError("Invalid address: " + pisad_host);
         close(socket_fd);
         socket_fd = -1;
         return;
@@ -149,7 +184,7 @@ void PisadBridgeModule::connectToPISAD() {
 
     if (connect(socket_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         std::lock_guard<std::mutex> lock(data_mutex);
-        connection_status = "Connection failed";
+        setConnectionError("Connection failed to " + pisad_host + ":" + std::to_string(pisad_port) + " - " + strerror(errno));
         close(socket_fd);
         socket_fd = -1;
         return;
@@ -157,9 +192,11 @@ void PisadBridgeModule::connectToPISAD() {
 
     std::lock_guard<std::mutex> lock(data_mutex);
     connected = true;
+    has_connection_error = false;
     connection_status = "Connected";
+    resetReconnectInterval();
 
-    spdlog::info("Connected to PISAD at {}:{}", pisad_host, pisad_port);
+    spdlog::info("Connected to PISAD at {}:{} (attempt {})", pisad_host, pisad_port, connection_attempts);
 }
 
 void PisadBridgeModule::disconnectFromPISAD() {
@@ -254,5 +291,107 @@ void PisadBridgeModule::updateGUI() {
                 disconnectFromPISAD();
             }
         }
+    }
+}
+
+// [8a] Enhanced TCP client connection with configurable host/port settings
+void PisadBridgeModule::setConnectionSettings(const std::string& host, int port) {
+    std::lock_guard<std::mutex> lock(data_mutex);
+    pisad_host = host;
+    pisad_port = port;
+    strcpy(host_buffer, host.c_str());
+    port_buffer = port;
+    
+    // Save to configuration
+    config.conf[name]["host"] = pisad_host;
+    config.conf[name]["port"] = pisad_port;
+    
+    spdlog::info("Connection settings updated: {}:{}", host, port);
+}
+
+// [8b] JSON message serialization for outbound frequency control commands
+std::string PisadBridgeModule::serializeFrequencyControl(double frequency, int sequence) {
+    Json::Value message;
+    message["type"] = "freq_control";
+    message["frequency"] = static_cast<int64_t>(frequency);
+    message["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    message["sequence"] = sequence;
+    
+    Json::StreamWriterBuilder builder;
+    builder["indentation"] = "";  // Compact format
+    return Json::writeString(builder, message);
+}
+
+// [8c] JSON message deserialization for inbound RSSI data streaming
+bool PisadBridgeModule::deserializeRSSIData(const std::string& json_data) {
+    Json::Value message;
+    Json::Reader reader;
+    
+    if (!reader.parse(json_data, message)) {
+        spdlog::warn("Failed to parse RSSI JSON: {}", reader.getFormattedErrorMessages());
+        return false;
+    }
+    
+    if (!message.isObject() || message.get("type", "").asString() != "rssi_data") {
+        spdlog::warn("Invalid RSSI message type");
+        return false;
+    }
+    
+    std::lock_guard<std::mutex> lock(data_mutex);
+    current_rssi = message.get("rssi", -999.0f).asFloat();
+    last_sequence = message.get("sequence", 0).asInt();
+    rssi_valid = true;
+    
+    return true;
+}
+
+// [8d] Automatic reconnection logic with exponential backoff algorithm
+void PisadBridgeModule::simulateConnectionLoss() {
+    spdlog::info("Simulating connection loss for testing");
+    disconnectFromPISAD();
+    increaseReconnectInterval();
+}
+
+void PisadBridgeModule::handleReconnection() {
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_reconnect_attempt).count();
+    
+    if (elapsed >= current_reconnect_interval) {
+        last_reconnect_attempt = now;
+        connectToPISAD();
+        
+        if (!connected) {
+            increaseReconnectInterval();
+        }
+    }
+}
+
+void PisadBridgeModule::resetReconnectInterval() {
+    current_reconnect_interval = 1000; // Reset to 1 second
+}
+
+void PisadBridgeModule::increaseReconnectInterval() {
+    current_reconnect_interval = std::min(current_reconnect_interval * 2, max_reconnect_interval);
+    spdlog::info("Reconnect interval increased to {} ms", current_reconnect_interval);
+}
+
+// [8e] Connection status monitoring and error reporting with GUI integration
+void PisadBridgeModule::setConnectionError(const std::string& error) {
+    has_connection_error = true;
+    connection_error_message = error;
+    connection_status = "Error: " + error;
+    spdlog::error("Connection error: {}", error);
+}
+
+// [8f] GUI integration with SDR++ plugin framework and configuration display
+std::string PisadBridgeModule::getGUIConnectionStatus() const {
+    std::lock_guard<std::mutex> lock(data_mutex);
+    if (connected) {
+        return "CONNECTED to " + pisad_host + ":" + std::to_string(pisad_port);
+    } else if (has_connection_error) {
+        return "DISCONNECTED - " + connection_error_message;
+    } else {
+        return "DISCONNECTED";
     }
 }

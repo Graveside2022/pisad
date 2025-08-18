@@ -47,15 +47,15 @@
   - Priority: high
   - Type: feature
 
-## In Progress (0)
+## In Progress (1)
 
-## Completed (26)
-
-- [x] ~~Epic 5 Story 5.2: TCP Communication Protocol Implementation~~
+- [ ] **Epic 5 Story 5.2: TCP Communication Protocol Implementation**
   - ID: EPIC5-5.2
-  - Description: COMPLETED 2025-08-18T22:15:00Z - TCP server implementation with comprehensive message handling and ServiceManager integration
+  - Description: TCP server implemented, client development in progress - TASK-5.2.2-CLIENT remaining
   - Priority: high
   - Type: feature
+
+## Completed (25)
 
 - [x] ~~Epic 5 Story 5.1: SDR++ Plugin Development Framework~~
   - ID: EPIC5-5.1
