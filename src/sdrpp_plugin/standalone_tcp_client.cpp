@@ -56,6 +56,75 @@ public:
         return Json::writeString(builder, message);
     }
     
+    // [9a] Enhanced sendFrequencyUpdate() to support all outbound command types
+    std::string serializeMessage(const std::string& type, const Json::Value& data, int sequence) {
+        Json::Value message;
+        message["type"] = type;
+        message["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        message["sequence"] = sequence;
+        message["data"] = data;
+        
+        Json::StreamWriterBuilder builder;
+        builder["indentation"] = "";
+        return Json::writeString(builder, message);
+    }
+    
+    // [9b] SET_FREQUENCY command message formatting with proper validation
+    std::string serializeSETFrequency(double frequency, int sequence) {
+        // Validate frequency range (850 MHz - 6.5 GHz per PRD-FR1)
+        if (frequency < 850e6 || frequency > 6.5e9) {
+            return "";  // Invalid frequency
+        }
+        
+        Json::Value data;
+        data["frequency"] = static_cast<int64_t>(frequency);
+        data["command"] = "SET_FREQUENCY";
+        
+        return serializeMessage("freq_control", data, sequence);
+    }
+    
+    // [9c] GET_RSSI request message formatting for streaming requests
+    std::string serializeGETRSSI(int sequence, bool streaming = true) {
+        Json::Value data;
+        data["command"] = "GET_RSSI";
+        data["streaming"] = streaming;
+        
+        return serializeMessage("rssi_update", data, sequence);
+    }
+    
+    // [9d] Message sequence numbering for protocol reliability
+    int getNextSequence() {
+        return ++message_sequence;
+    }
+    
+    // [9e] JSON message framing for TCP stream parsing
+    std::string frameMessage(const std::string& json_message) {
+        // Add length prefix and delimiter for proper TCP stream parsing
+        return std::to_string(json_message.length()) + "\n" + json_message + "\n";
+    }
+    
+    // [9f] Message validation and error response handling
+    bool validateMessage(const Json::Value& message) {
+        if (!message.isObject()) {
+            std::cout << "Invalid message: not a JSON object" << std::endl;
+            return false;
+        }
+        
+        if (!message.isMember("type") || !message["type"].isString()) {
+            std::cout << "Invalid message: missing or invalid type field" << std::endl;
+            return false;
+        }
+        
+        std::string type = message["type"].asString();
+        if (type != "rssi_data" && type != "error" && type != "ack" && type != "heartbeat") {
+            std::cout << "Invalid message type: " << type << std::endl;
+            return false;
+        }
+        
+        return true;
+    }
+    
     // [8c] JSON message deserialization for inbound data
     bool deserializeRSSIData(const std::string& json_data) {
         Json::Value message;
@@ -212,6 +281,7 @@ private:
     float current_rssi = -999.0f;
     bool rssi_valid = false;
     int last_sequence = 0;
+    int message_sequence = 0;
     
     std::string connection_status = "Disconnected";
     bool has_connection_error = false;
