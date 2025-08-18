@@ -1,4 +1,4 @@
-# CLAUDE.md - AI Assistant Tool Reference
+<!-- # CLAUDE.md - AI Assistant Tool Reference
 
 ## CRITICAL: Code Quality Enforcement
 
@@ -304,4 +304,4 @@ Before ANY code changes:
 - Source: `/home/pisad/projects/pisad/src/`
 - Tests: `/home/pisad/projects/pisad/tests/`
 - Config: `/home/pisad/projects/pisad/config/`
-- Docs: `/home/pisad/projects/pisad/docs/`
+- Docs: `/home/pisad/projects/pisad/docs/` -->

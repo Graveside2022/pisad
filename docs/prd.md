@@ -132,10 +132,16 @@ Single repository containing all components (flight control configs, SDR process
 
 - **Python 3.10+** as primary language for rapid prototyping and extensive library support
 - **AsyncIO architecture** throughout for concurrent SDR sampling and flight control
+- **Dual SDR Interface Architecture** supporting both standalone and coordinated operation:
+  - **Primary**: HackRF One via SoapySDR for drone-based signal processing
+  - **Enhanced**: SDR++ desktop integration for ground station operator interface
+  - **Coordination**: TCP-based communication between ground SDR++ and drone PISAD
+  - **Fallback**: Automatic drone-only operation on ground communication loss
 - **HackRF One** with SoapySDR hardware abstraction layer for SDR operations (850 MHz - 6.5 GHz)
   - SoapySDR provides vendor-neutral interface supporting multiple SDR devices
   - Primary: HackRF One via soapysdr-module-hackrf driver
   - Future: USRP, RTL-SDR, LimeSDR support through same API
+  - **SDR++ Integration**: Desktop application coordination via plugin architecture
 - **Pixhawk 4 with Cube Orange+** flight controller via pymavlink on /dev/ttyACM0
 - **FastAPI or Flask** for lightweight web server hosting payload UI
 - **WebSocket** for real-time UI updates without polling
@@ -155,6 +161,10 @@ Single repository containing all components (flight control configs, SDR process
 **Epic 2: Flight Integration & Safety Systems** - Integrate MAVLink communication, implement safety protocols, and enable operator-controlled homing activation with proper safeguards
 
 **Epic 3: Autonomous Behaviors & Field Validation** - Implement search patterns, homing algorithms, and conduct comprehensive field testing with performance validation
+
+**Epic 4: Production Readiness & Testing** - Achieve comprehensive test coverage, performance optimization, and production deployment readiness
+
+**Epic 5: Migration to SDR++ Integration** - Implement dual SDR coordination between ground SDR++ desktop and drone PISAD systems while preserving safety authority and enhancing operator capabilities
 
 ## Epic 1: Foundation & Core Signal Processing
 
@@ -407,6 +417,146 @@ Single repository containing all components (flight control configs, SDR process
 5. Comparison metrics versus baseline manual search methods documented
 6. False positive/negative analysis with environmental correlation
 7. Recommendations for v2.0 improvements based on data analysis
+
+## Epic 5: Migration to SDR++ Integration
+
+**Goal:** Seamlessly integrate ground-based SDR++ desktop application with drone PISAD systems to enhance operator signal analysis capabilities while preserving all safety systems and automatic fallback mechanisms. This epic enables coordinated dual-SDR operation where ground operators use SDR++ for advanced signal analysis while maintaining drone safety authority through PISAD.
+
+### Story 5.1: SDR++ Plugin Development Framework
+
+**As a** system architect,
+**I want** a robust SDR++ plugin framework with reliable communication to PISAD services,
+**so that** ground operators can use SDR++ desktop while maintaining drone safety authority through PISAD systems.
+
+**Acceptance Criteria:**
+
+1. SDR++ plugin successfully registers with SDR++ module system using standard module interface
+2. TCP communication established between plugin and PISAD services with <100ms latency
+3. Real-time RSSI data forwarding from PISAD to SDR++ for ground display and analysis
+4. Frequency control commands sent from SDR++ to PISAD signal processor with validation
+5. Plugin GUI displays connection status and provides basic configuration options
+6. Error handling and automatic reconnection on communication failure with exponential backoff
+7. Plugin compilation integrates with SDR++ build system using CMake
+8. Protocol specification supports bidirectional message exchange with versioning
+
+### Story 5.2: TCP Communication Protocol Implementation
+
+**As a** system integrator,
+**I want** reliable TCP communication between ground SDR++ and drone PISAD services,
+**so that** real-time signal data and control commands can be exchanged while maintaining <100ms latency requirements.
+
+**Acceptance Criteria:**
+
+1. PISAD TCP server accepts connections on configurable port (default 8081) separate from web UI
+2. SDR++ plugin establishes reliable TCP connection to PISAD server with authentication
+3. JSON message protocol handles RSSI streaming at 10Hz minimum with efficient serialization
+4. Frequency control commands processed with <50ms response time including validation
+5. Connection monitoring with automatic reconnection on failure and health reporting
+6. Message validation and error handling for malformed data with comprehensive logging
+7. Performance testing validates <100ms end-to-end latency under normal operation
+8. Integration testing with SITL environment for comprehensive validation
+
+### Story 5.3: Dual SDR Coordination Layer
+
+**As a** signal processing engineer,
+**I want** intelligent coordination between ground SDR++ and drone PISAD signal processing,
+**so that** the system can leverage the best signal source while maintaining safety authority and automatic fallback capabilities.
+
+**Acceptance Criteria:**
+
+1. Automatic frequency synchronization between ground SDR++ and drone HackRF with conflict resolution
+2. RSSI data fusion providing best available signal strength measurement from both sources
+3. Intelligent source switching based on signal quality comparison with configurable thresholds
+4. Automatic fallback to drone-only operation on ground communication loss within 10 seconds
+5. Conflict resolution for simultaneous frequency control commands with priority system
+6. Safety override ensuring drone PISAD maintains emergency control authority at all times
+7. Performance optimization achieving <50ms coordination latency with adaptive algorithms
+8. Comprehensive monitoring and health check reporting for both SDR sources
+
+### Story 5.4: UI Integration and Operator Workflow
+
+**As a** drone operator,
+**I want** coordinated interfaces between PISAD web UI and SDR++ desktop,
+**so that** I have unified control and situational awareness across both systems.
+
+**Acceptance Criteria:**
+
+1. PISAD web UI displays SDR++ connection status and ground signal quality
+2. Frequency synchronization indicators show coordination state between systems
+3. Operator workflow documentation for dual-SDR mission execution
+4. Conflict resolution UI for when ground and drone settings differ
+5. Emergency fallback indicators when ground communication is lost
+6. Ground station signal quality metrics integrated into PISAD dashboard
+7. Dual-system homing status with clear indication of active signal source
+8. Operator training materials for coordinated SDR++ and PISAD operation
+
+### Story 5.5: Safety System Integration
+
+**As a** safety officer,
+**I want** SDR++ integration to preserve all existing PISAD safety mechanisms,
+**so that** enhanced capabilities never compromise flight safety or emergency response.
+
+**Acceptance Criteria:**
+
+1. All existing PISAD safety interlocks remain active during SDR++ coordination
+2. Emergency stop functionality maintains <500ms response time regardless of ground coordination
+3. Automatic safety fallback when ground communication degrades or fails
+4. Flight mode monitoring continues to override all payload commands when not in GUIDED
+5. Geofence boundaries enforced regardless of signal source (ground or drone)
+6. Battery monitoring and low-battery RTL preserved with dual-SDR coordination
+7. Safety system test suite validates all interlocks with SDR++ integration active
+8. Safety audit documentation proving no degradation of existing safety capabilities
+
+### Story 5.6: Performance Optimization and Testing
+
+**As a** performance engineer,
+**I want** dual-SDR coordination to meet all existing performance requirements,
+**so that** enhanced capabilities do not degrade system responsiveness or reliability.
+
+**Acceptance Criteria:**
+
+1. Signal processing latency remains <100ms per computation cycle with dual coordination
+2. TCP communication achieves <50ms round-trip time for all control commands
+3. Automatic performance monitoring detects degradation and triggers fallback
+4. Load testing validates system performance under sustained dual-SDR operation
+5. Memory usage optimization prevents resource exhaustion during extended missions
+6. Network bandwidth optimization for TCP communication with data compression
+7. Performance regression testing ensures no degradation of existing capabilities
+8. Benchmarking documentation proving performance meets or exceeds single-SDR baseline
+
+### Story 5.7: Field Testing Campaign
+
+**As a** test engineer,
+**I want** comprehensive field validation of dual-SDR coordination,
+**so that** the integrated system proves reliable in real-world operational conditions.
+
+**Acceptance Criteria:**
+
+1. Ground-drone coordination tested across various distances and communication conditions
+2. Signal source switching validated with realistic RF environments and interference
+3. Communication failure recovery tested with controlled network disruptions
+4. Performance validation under various weather and environmental conditions
+5. Operator workflow validation with realistic mission scenarios
+6. Safety system validation during dual-SDR operation with failure injection
+7. Extended mission testing proving reliability over multi-hour operations
+8. Field test documentation proving system ready for operational deployment
+
+### Story 5.8: Production Deployment and Documentation
+
+**As a** deployment engineer,
+**I want** complete deployment packages and documentation for dual-SDR systems,
+**so that** operators can successfully deploy and maintain coordinated SDR++ and PISAD systems.
+
+**Acceptance Criteria:**
+
+1. Complete installation documentation for ground station SDR++ setup
+2. Network configuration guides for TCP communication between ground and drone
+3. Operator training materials for dual-SDR mission execution
+4. Troubleshooting guides for common coordination issues and recovery procedures
+5. Maintenance procedures for keeping both systems synchronized and updated
+6. Security guidelines for TCP communication and network hardening
+7. Performance monitoring and alerting configuration for production deployment
+8. Complete system documentation including architecture, interfaces, and protocols
 
 ## Checklist Results Report
 
