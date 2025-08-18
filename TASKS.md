@@ -9,19 +9,7 @@
   - Priority: medium
   - Type: feature
 
-## To Do (8)
-
-- [ ] **Epic 5 Story 5.1: SDR++ Plugin Development Framework**
-  - ID: EPIC5-5.1
-  - Description: Create SDR++ plugin with TCP communication to PISAD services for ground station coordination
-  - Priority: high
-  - Type: feature
-
-- [ ] **Epic 5 Story 5.2: TCP Communication Protocol Implementation**
-  - ID: EPIC5-5.2
-  - Description: Implement reliable TCP communication between ground SDR++ and drone PISAD services
-  - Priority: high
-  - Type: feature
+## To Do (6)
 
 - [ ] **Epic 5 Story 5.3: Dual SDR Coordination Layer**
   - ID: EPIC5-5.3
@@ -61,7 +49,19 @@
 
 ## In Progress (0)
 
-## Completed (24)
+## Completed (26)
+
+- [x] ~~Epic 5 Story 5.2: TCP Communication Protocol Implementation~~
+  - ID: EPIC5-5.2
+  - Description: COMPLETED 2025-08-18T22:15:00Z - TCP server implementation with comprehensive message handling and ServiceManager integration
+  - Priority: high
+  - Type: feature
+
+- [x] ~~Epic 5 Story 5.1: SDR++ Plugin Development Framework~~
+  - ID: EPIC5-5.1
+  - Description: COMPLETED 2025-08-18 - SDR++ plugin with TCP communication framework and protocol specification created
+  - Priority: high
+  - Type: feature
 
 - [x] ~~Story 4.2: Test Coverage Maintenance~~
   - Description: UNBLOCKED - Maintain 90% coverage after APIs complete

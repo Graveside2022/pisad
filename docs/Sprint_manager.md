@@ -29,9 +29,9 @@ Complete assigned development tasks with production-quality code using Test-Driv
 
 **TASK WORKFLOW**
 1. Please begin reading the Tasks.md specifically the tasks associated with next story which will be listed on the 'todo' section or 'in progress' section of the TASKS.md. For maximum efficiency, whenever you perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially. Prioritize calling tools in parallel whenever possible. For example, when reading 3 files, run 3 tool calls in parallel to read all 3 files into context at the same time. When running multiple read-only commands like `ls` or `list_dir`, always run all of the commands in parallel. Err on the side of maximizing parallel tool calls rather than running too many tools sequentially.
-2. Please make sure you review that you have 'everything you need before you begin' which means:
-    * you used the octocode mcp server & the context7 mcp server and web searches 'if necessary' to find relevant information or existing libraries or the 'latest libraries' relevant to teh task.
-    * and you are using the correct tools and mcp servers outlined in the CLAUDE.md file. -Be sure to also make sure you do not introduce scope creep to your work or when you create subtasks. Ensure that we are aligned from the PRD to the EPIC to the Story to the Task at all times and you are only ever doing work that is necessary and in no way shape or form introducing scope creep. -Finally before you begin make sure that you have all 'subtasks' properly decomposed further into granular subtasks so you can begin and have full clarity into what your doing and **update the story.md file you are working on with the subtasks it just created. When you do this, you must use the specific numbered and lettered format (e.g., [8a], [8b]) as defined in the constraints.**
+2. Please make sure you review that you have 'everything you need before you begin.' This involves two distinct steps:
+    * **Step A: Pre-Requirements Gathering.** Use the octocode mcp server, context7 mcp server, and web searches to gather all necessary information. As part of this step, you will decompose the assigned task into granular subtasks using the specified `[8a], [8b]` format.
+    * **Step B: Update The Story File.** Immediately after gathering requirements and creating the subtasks in Step A, you must **update the story.md file**. You will insert the newly created subtasks as a nested, indented list directly under the parent subtask they relate to. This must be done exactly as shown in the `<example>` document.
 3. If you complete the 'final objective related to a story file', move the file from 'todo' or 'in progress' to 'done' on the kanban board. (see instructions below)
 
 **KANBAN BOARD MODIFICATION INSTRUCTIONS**
@@ -112,6 +112,35 @@ Complete assigned development tasks with production-quality code using Test-Driv
 **Mark Complete:** "Mark Story 4.2: Test Coverage Maintenance as completed"
 **Update Priority:** "Change Story 5.5 priority from P1 to P0"
 </instruction>
+
+<example>
+**Here is a specific example of how to update the `story.md` file after you have decomposed a parent subtask. Assume you have just decomposed `SUBTASK-5.2.1.7`.**
+
+**BEFORE your update, the file looks like this:**
+```markdown
+- **Subtasks:**
+  - **[x]** **SUBTASK-5.2.1.1:** Create basic `SDRPPBridgeService` class structure...
+  - **[x]** **SUBTASK-5.2.1.2:** Add asyncio TCP server socket creation...
+  ...
+  - **[ ]** **SUBTASK-5.2.1.7:** Implement frequency control message handler with validation
+  - **[ ]** **SUBTASK-5.2.1.8:** Add connection heartbeat monitoring...
+**AFTER your update, the file MUST look like this, with the new child subtasks nested and indented under their parent:**
+code
+Markdown
+```
+- **Subtasks:**
+  - **[x]** **SUBTASK-5.2.1.1:** Create basic `SDRPPBridgeService` class structure...
+  - **[x]** **SUBTASK-5.2.1.2:** Add asyncio TCP server socket creation...
+  ...
+  - **[ ]** **SUBTASK-5.2.1.7:** Implement frequency control message handler with validation
+    - `[ ] [8a]` Create handle_frequency_control() method with parameter validation
+    - `[ ] [8b]` Integrate with signal processor integration service set_frequency() method
+    - `[ ] [8c]` Implement frequency range validation (850 MHz - 6.5 GHz)
+    - `[ ] [8d]` Add error handling for invalid frequencies and service unavailability
+    - `[ ] [8e]` Create success response with confirmation and timestamp
+    - `[ ] [8f]` Write comprehensive tests following TDD methodology
+  - **[ ]** **SUBTASK-5.2.1.8:** Add connection heartbeat monitoring...
+</example>
 <constraint>
 - Must identify and use the story.md file path specified by user in their instructions (no default file assumed)
 - Must read /pisad/docs/prd.md BEFORE starting to maintain high-level situational awareness of overall mission and functional requirements
@@ -188,13 +217,7 @@ Complete assigned development tasks with production-quality code using Test-Driv
     5. Functional Requirements: ALWAYS refer to the prd.md for the functional requirements. Quote the specific section and requirements that apply to this task
     6. Chain of Thought Context: Include relevant insights from previous tasks/stories that impact this immediate task you're working on, maintaining the explicit connection from PRD → Epic → Story → Task with specific references
     7. Integration Verification: Confirm actual integration points exist and work (not assumed or mocked) before beginning any task. Show evidence of verification (file existence, API availability, etc.)
-    8. **Subtask Decomposition**: Break down the main task into granular, actionable subtasks. Each subtask must have a numbered and lettered prefix that links to the main requirement number (e.g., `[8a]`, `[8b]`). This format is mandatory and must provide complete visibility into the execution plan. For example:
-        *   `[8a]` Create handle_frequency_control() method with parameter validation
-        *   `[8b]` Integrate with signal processor integration service set_frequency() method
-        *   `[8c]` Implement frequency range validation (850 MHz - 6.5 GHz)
-        *   `[8d]` Add error handling for invalid frequencies and service unavailability
-        *   `[8e]` Create success response with confirmation and timestamp
-        *   `[8f]` Write comprehensive tests following TDD methodology
+    8. **Subtask Decomposition**: During the pre-requirements gathering phase, you will break down a parent subtask into more granular, actionable child subtasks. Each child subtask must have a numbered and lettered prefix that links to the main requirement number (e.g., `[8a]`, `[8b]`). After creating these, you MUST update the `story.md` file by nesting them under the parent subtask, as shown in the `<example>` document.
     9. Test Authenticity Verification: Confirm that all required integration points for testing actually exist and are accessible - if they don't exist, create a blocker instead of proceeding with fake tests
 * DEFINITION OF DONE (establish and present to user BEFORE starting work):
     1. Task-Level DoD:
@@ -297,9 +320,9 @@ Complete assigned development tasks with production-quality code using Test-Driv
             * Resource Conflicts: [File/Hardware/Test conflicts with other tasks]
             * Max Developers: [Number who can work simultaneously]
             * Subtasks:
-                * `[ ] [8a]` Specific actionable step
-                * `[ ] [8b]` Specific actionable step
-                * `[ ] [8c]` Specific actionable step
+                * `[ ]` **SUBTASK-ID:** Description of high-level subtask
+                    - `[ ] [8a]` Detailed, decomposed child subtask
+                    - `[ ] [8b]` Detailed, decomposed child subtask
             * DoD Task: [Approved task-level completion criteria]
             * DoD Story: [Approved story-level completion criteria]
             * DoD Epic: [Approved epic-level completion criteria]
@@ -337,9 +360,9 @@ Complete assigned development tasks with production-quality code using Test-Driv
             * Dependencies: [Packages that were actually needed]
             * Integration Points: [All real-time processing paths verified]
             * Subtasks Completed:
-                * `[x] [8a]` What was actually accomplished
-                * `[x] [8b]` What was actually accomplished
-                * `[x] [8c]` What was actually accomplished
+                * `[x]` **SUBTASK-ID:** Description of high-level subtask
+                    - `[x] [8a]` Detailed, decomposed child subtask
+                    - `[x] [8b]` Detailed, decomposed child subtask
             * DoD: ✅ [Specific criteria met with verification details]
             * Context: [Actual implementation context and decisions]
             * Completed: YYYY-MM-DDTHH:MM:SSZ | Duration: Xh Ym
@@ -480,16 +503,17 @@ Complete assigned development tasks with production-quality code using Test-Driv
     7. Document hardware requirements, files to modify, dependencies needed
     8. Extract functional requirements from PRD specific to this task
     9. Extract chain of thought context from previous tasks
-    10. Decompose task into granular subtasks with individual checkboxes
-    11. Assess parallel development classification (PARALLELIZABLE/SEQUENTIAL/CONDITIONAL)
-    12. For CONDITIONAL tasks, identify exact integration boundary where sequential dependency will be encountered
-    13. Identify potential resource conflicts with other active tasks
-    14. **TEST AUTHENTICITY ASSESSMENT**: Verify all integration points needed for testing actually exist
-    15. Establish Definition of Done for task, story, and epic levels
-    16. **STOP - Present all requirements to user for approval**
-    17. **WAIT for explicit user approval before proceeding**
-    18. Update immediate task section with approved requirements and DoD applying mandatory markdown highlighting
-    19. Execute subtasks using authentic TDD methodology:
+    10. **Decompose a parent subtask into granular child subtasks (e.g., [8a], [8b])**
+    11. **Update `story.md` immediately with the new nested subtasks per the explicit format shown in the `<example>` document.**
+    12. Assess parallel development classification (PARALLELIZABLE/SEQUENTIAL/CONDITIONAL)
+    13. For CONDITIONAL tasks, identify exact integration boundary where sequential dependency will be encountered
+    14. Identify potential resource conflicts with other active tasks
+    15. **TEST AUTHENTICITY ASSESSMENT**: Verify all integration points needed for testing actually exist
+    16. Establish Definition of Done for task, story, and epic levels
+    17. **STOP - Present all requirements to user for approval**
+    18. **WAIT for explicit user approval before proceeding**
+    19. Update immediate task section with approved requirements and DoD applying mandatory markdown highlighting
+    20. Execute subtasks using authentic TDD methodology:
         a. **INTEGRATION POINT VERIFICATION**: Confirm integration point exists before writing test
         b. Write failing test for REAL system behavior (TDD - Red phase) - NO fake/mock/placeholder tests
         c. If integration point doesn't exist, create blocker and STOP - do not write fake test
@@ -500,23 +524,23 @@ Complete assigned development tasks with production-quality code using Test-Driv
         h. Refactor while maintaining green tests (TDD - Refactor phase)
         i. Mark subtask as [x] completed
         j. Repeat for each subtask until completion or sequential boundary
-    20. Test edge cases within PRD scope only (no scope creep) using authentic scenarios
-    21. Run all quality checks (NPX Trunk fmt, black, flake8, mypy, tsc)
-    22. Review code against Definition of Done criteria
-    23. Verify ACTUAL integration with real system components
-    24. Confirm root problem fixed (no workarounds created)
-    25. Verify ALL subtasks are completed [x] or integration boundary reached
-    26. Mark main task as [x] completed (or document integration boundary for conditional tasks)
-    27. **ABSOLUTE REQUIREMENT - IMMEDIATE TASK TRANSFER**: Move completed task from ACTIVE TODO to COMPLETED WORK section immediately with mandatory markdown highlighting
-    28. **ABSOLUTE REQUIREMENT - IMMEDIATE BLOCKER TRANSFER**: Move any resolved blockers to Resolved Blockers Archive immediately with mandatory markdown highlighting
-    29. Update completion metadata with timestamp, duration, impact, and verification applying mandatory markdown highlighting
-    30. Document any new blockers discovered with REAL error messages applying mandatory markdown highlighting
-    31. Update parallel development coordination status for remaining tasks
-    32. **DOCUMENT INTEGRITY VALIDATION**: Verify no completed items in active sections
-    33. Reorder remaining tasks based on new state and dependencies
-    34. Update metrics and chain of thought documentation with mandatory markdown highlighting
-    35. **MANDATORY HIGHLIGHTING VERIFICATION**: Apply highlighting validation checklist to entire document
-    36. Commit with descriptive message including test coverage and integration verification
+    21. Test edge cases within PRD scope only (no scope creep) using authentic scenarios
+    22. Run all quality checks (NPX Trunk fmt, black, flake8, mypy, tsc)
+    23. Review code against Definition of Done criteria
+    24. Verify ACTUAL integration with real system components
+    25. Confirm root problem fixed (no workarounds created)
+    26. Verify ALL subtasks are completed [x] or integration boundary reached
+    27. Mark main task as [x] completed (or document integration boundary for conditional tasks)
+    28. **ABSOLUTE REQUIREMENT - IMMEDIATE TASK TRANSFER**: Move completed task from ACTIVE TODO to COMPLETED WORK section immediately with mandatory markdown highlighting
+    29. **ABSOLUTE REQUIREMENT - IMMEDIATE BLOCKER TRANSFER**: Move any resolved blockers to Resolved Blockers Archive immediately with mandatory markdown highlighting
+    30. Update completion metadata with timestamp, duration, impact, and verification applying mandatory markdown highlighting
+    31. Document any new blockers discovered with REAL error messages applying mandatory markdown highlighting
+    32. Update parallel development coordination status for remaining tasks
+    33. **DOCUMENT INTEGRITY VALIDATION**: Verify no completed items in active sections
+    34. Reorder remaining tasks based on new state and dependencies
+    35. Update metrics and chain of thought documentation with mandatory markdown highlighting
+    36. **MANDATORY HIGHLIGHTING VERIFICATION**: Apply highlighting validation checklist to entire document
+    37. Commit with descriptive message including test coverage and integration verification
 * All code must be production-quality with NO mock, simulated, or placeholder components
 * Must not deviate from PRD specifications or assigned sprint plan tasks
 * Test-First Development is mandatory - no production code without failing test first
@@ -567,7 +591,8 @@ Completed development work with:
   * Integration points VERIFIED to exist in actual system
   * Functional requirements extracted from PRD
   * Chain of thought context from previous tasks included
-  * Task decomposed into granular, numbered subtasks (e.g., [8a], [8b]) with individual checkboxes, providing full visibility
+  * High-level subtasks decomposed into granular, nested child tasks (e.g., [8a], [8b])
+  * `story.md` file updated to reflect the nested subtask structure as per the explicit example
   * Parallel development classification and coordination requirements established
   * Test authenticity verification completed - all integration points confirmed
 - Definition of Done established and approved at three levels:
@@ -638,7 +663,7 @@ Completed development work with:
   * **ALL critical alerts** bold+italic combined: `***[PENDING - requires approval before execution]***`
   * **HIGHLIGHTING VALIDATION CHECKLIST** completed for entire document
 - Dynamically maintained story.md file showing:
-  * Active TODO tasks with approved requirements, DoD, and subtask decomposition using the required `[IDa]` format with mandatory highlighting
+  * Active TODO tasks with approved requirements, DoD, and the correctly nested subtask decomposition with mandatory highlighting
   * **ABSOLUTE COMPLIANCE**: NO completed [x] tasks in ACTIVE TODO section
   * **ABSOLUTE COMPLIANCE**: NO resolved blockers in CURRENT BLOCKERS section
   * Parallel development metadata and coordination requirements with mandatory highlighting
@@ -683,5 +708,5 @@ Completed development work with:
 - Document integrity maintenance ensuring immediate actionability of active sections
 - Visual hierarchy optimization enabling rapid project status assessment and critical information identification
 - **KANBAN BOARD INTEGRATION**: Task completion properly reflected in TASKS.md with automatic board synchronization
-- **TASK LIFECYCLE MANAGEMENT**: Proper movement of tasks through Backlog → To Do → In Progress → Completed sections with counter updates
+- **TASK LIFECYCYCLE MANAGEMENT**: Proper movement of tasks through Backlog → To Do → In Progress → Completed sections with counter updates
 </output>

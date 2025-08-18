@@ -458,3 +458,148 @@ class TestSDRPPBridgeServiceHeartbeat:
 
         # Should have method to check heartbeat timeouts
         assert hasattr(service, "_check_heartbeat_timeouts")
+
+
+class TestSDRPPBridgeServiceShutdown:
+    """Test graceful shutdown and cleanup procedures with authentic integration testing."""
+
+    def test_sdrpp_bridge_service_has_shutdown_method(self):
+        """RED: Test that service has shutdown method for ServiceManager integration."""
+        service = SDRPPBridgeService()
+
+        # Should have shutdown method following ServiceManager pattern
+        assert hasattr(service, "shutdown")
+
+    @pytest.mark.asyncio
+    async def test_shutdown_method_stops_running_server(self):
+        """RED: Test shutdown method stops server and sets running flag to False."""
+        service = SDRPPBridgeService()
+
+        # Use different port to avoid conflicts
+        service.port = 8084
+
+        # Start server first
+        await service.start()
+        assert service.running is True
+        assert service.server is not None
+
+        # Call shutdown method
+        await service.shutdown()
+
+        # Server should be stopped
+        assert service.running is False
+        assert service.server is None
+
+    @pytest.mark.asyncio
+    async def test_shutdown_disconnects_all_active_clients(self):
+        """RED: Test shutdown gracefully disconnects all connected clients."""
+        service = SDRPPBridgeService()
+
+        # Use different port to avoid conflicts
+        service.port = 8085
+
+        # Start server
+        await service.start()
+
+        # Connect multiple test clients
+        client1_reader, client1_writer = await asyncio.open_connection("localhost", 8085)
+        client2_reader, client2_writer = await asyncio.open_connection("localhost", 8085)
+
+        # Give server time to register clients
+        await asyncio.sleep(0.1)
+        assert len(service.clients) == 2
+        assert len(service.client_heartbeats) == 2
+
+        # Call shutdown - should disconnect all clients
+        await service.shutdown()
+
+        # All clients should be disconnected and tracking cleared
+        assert len(service.clients) == 0
+        assert len(service.client_heartbeats) == 0
+
+        # Cleanup
+        try:
+            client1_writer.close()
+            client2_writer.close()
+            await client1_writer.wait_closed()
+            await client2_writer.wait_closed()
+        except Exception:
+            pass  # Ignore cleanup errors
+
+    @pytest.mark.asyncio
+    async def test_shutdown_handles_errors_gracefully(self):
+        """RED: Test shutdown handles client disconnection errors gracefully."""
+        service = SDRPPBridgeService()
+
+        # Use different port to avoid conflicts  
+        service.port = 8086
+
+        # Start server
+        await service.start()
+
+        # Connect client
+        reader, writer = await asyncio.open_connection("localhost", 8086)
+        await asyncio.sleep(0.1)
+
+        # Manually close client connection to simulate error condition
+        writer.close()
+        await writer.wait_closed()
+        await asyncio.sleep(0.1)  # Let server detect disconnection
+
+        # Shutdown should complete without raising exceptions
+        await service.shutdown()
+
+        # Service should be cleanly stopped
+        assert service.running is False
+        assert service.server is None
+        assert len(service.clients) == 0
+        assert len(service.client_heartbeats) == 0
+
+    @pytest.mark.asyncio
+    async def test_shutdown_clears_heartbeat_tracking(self):
+        """RED: Test shutdown clears all heartbeat tracking data."""
+        service = SDRPPBridgeService()
+
+        # Use different port to avoid conflicts
+        service.port = 8087
+
+        # Start server and connect client
+        await service.start()
+        reader, writer = await asyncio.open_connection("localhost", 8087)
+        await asyncio.sleep(0.1)
+
+        # Verify client is tracked
+        assert len(service.clients) == 1
+        assert len(service.client_heartbeats) == 1
+
+        # Shutdown should clear all tracking
+        await service.shutdown()
+
+        # All tracking should be cleared
+        assert len(service.clients) == 0
+        assert len(service.client_heartbeats) == 0
+        assert service.running is False
+
+        # Cleanup
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+    @pytest.mark.asyncio
+    async def test_shutdown_when_not_running_succeeds(self):
+        """RED: Test shutdown succeeds even when service not running."""
+        service = SDRPPBridgeService()
+
+        # Service not started
+        assert service.running is False
+        assert service.server is None
+
+        # Shutdown should succeed without errors
+        await service.shutdown()
+
+        # State should remain consistent
+        assert service.running is False
+        assert service.server is None
+        assert len(service.clients) == 0

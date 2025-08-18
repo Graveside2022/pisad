@@ -444,3 +444,49 @@ class SDRPPBridgeService:
 
         except Exception as e:
             logger.error("Error disconnecting client %s: %s", client_addr, e)
+
+    async def shutdown(self) -> None:
+        """Shutdown SDR++ bridge service following ServiceManager pattern.
+
+        Gracefully disconnects all clients, stops the server, and cleans up resources.
+        Following the same pattern as other services for ServiceManager integration.
+
+        PRD References:
+        - NFR9: MTBF >10 hours with graceful service shutdown
+        - NFR1: Communication reliability with proper cleanup
+        """
+        logger.info("Shutting down SDR++ bridge service...")
+
+        try:
+            # Set running flag to false to stop new operations
+            self.running = False
+
+            # Disconnect all clients gracefully
+            for client in self.clients[:]:  # Copy list to avoid modification during iteration
+                try:
+                    if not client.is_closing():
+                        client.close()
+                        await client.wait_closed()
+                except Exception as e:
+                    logger.warning("Error closing client during shutdown: %s", e)
+
+            # Clear client tracking
+            self.clients.clear()
+            self.client_heartbeats.clear()
+
+            # Stop the TCP server
+            if self.server:
+                self.server.close()
+                await self.server.wait_closed()
+                self.server = None
+
+            logger.info("SDR++ bridge service shutdown complete")
+
+        except Exception as e:
+            logger.error("Error during SDR++ bridge service shutdown: %s", e)
+            # Still complete shutdown even if errors occurred
+            self.running = False
+            self.clients.clear()
+            self.client_heartbeats.clear()
+            self.server = None
+            raise

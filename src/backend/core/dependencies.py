@@ -15,6 +15,7 @@ from src.backend.core.exceptions import (
 from src.backend.services.homing_controller import HomingController
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.sdr_service import SDRService
+from src.backend.services.sdrpp_bridge_service import SDRPPBridgeService
 from src.backend.services.signal_processor import SignalProcessor
 from src.backend.services.state_machine import StateMachine
 
@@ -38,6 +39,7 @@ class ServiceManager:
             "state_machine",
             "signal_processor",
             "homing_controller",
+            "sdrpp_bridge",
         ]
         self.initialized = False
         self.startup_time: datetime | None = None
@@ -102,6 +104,22 @@ class ServiceManager:
                     state_machine=self.services["state_machine"],
                 )
                 # No initialize method needed for HomingController
+
+                # Initialize SDR++ Bridge Service for ground station coordination
+                logger.info("Initializing SDR++ bridge service...")
+                self.services["sdrpp_bridge"] = SDRPPBridgeService()
+                # Configure signal processor dependency for RSSI streaming
+                self.services["sdrpp_bridge"].set_signal_processor(
+                    self.services["signal_processor"]
+                )
+                # Start the TCP server for ground station connections
+                try:
+                    await self.services["sdrpp_bridge"].start()
+                except Exception as bridge_error:
+                    logger.warning(
+                        f"SDR++ bridge service failed to start: {bridge_error}, continuing without ground coordination"
+                    )
+                    # SDR++ bridge is not critical for basic drone operation
 
                 self.initialized = True
                 startup_duration = (datetime.now() - self.startup_time).total_seconds()
@@ -218,6 +236,14 @@ class ServiceManager:
                                 else "unknown"
                             ),
                         }
+                    elif service_name == "sdrpp_bridge":
+                        service_health = {
+                            "status": "healthy" if service.running else "stopped",
+                            "running": service.running,
+                            "clients_connected": len(service.clients),
+                            "tcp_port": service.port,
+                            "heartbeat_tracking": len(service.client_heartbeats),
+                        }
                     else:
                         service_health = {"status": "unknown", "message": "Unknown service type"}
 
@@ -299,3 +325,11 @@ async def get_homing_controller() -> HomingController:
     if not manager.initialized:
         await manager.initialize_services()
     return manager.get_service("homing_controller")
+
+
+async def get_sdrpp_bridge_service() -> SDRPPBridgeService:
+    """Dependency injection for SDR++ bridge service."""
+    manager = get_service_manager()
+    if not manager.initialized:
+        await manager.initialize_services()
+    return manager.get_service("sdrpp_bridge")
