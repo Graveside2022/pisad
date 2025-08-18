@@ -1,0 +1,261 @@
+# CodeRabbit Configuration
+# This file enables CodeRabbit to review your code
+
+# Repository settings
+repository:
+  # Enable CodeRabbit for this repository
+  enabled: true
+  
+  # Review settings
+  review:
+    # Enable automatic code review on PRs
+    enabled: true
+    
+    # Review all files by default
+    files: "**/*"
+    
+    # Exclude certain file types if needed
+    exclude:
+      - "*.lock"
+      - "*.bin"
+      - "*.pyc"
+      - "__pycache__/**"
+      - ".venv/**"
+      - "node_modules/**"
+      - "*.log"
+      - "coverage-reports/**"
+      - "htmlcov/**"
+      - ".mypy_cache/**"
+      - ".pytest_cache/**"
+      - ".hypothesis/**"
+      - ".ruff_cache/**"
+      - ".bmad-core/**"
+      - ".claude/**"
+      - ".clode/**"
+      - ".worktrees/**"
+      - ".ignore/**"
+      - ".trunk/**"
+      - ".benchmarks/**"
+      - "terrain/**"
+      - "logs/**"
+      - "data/**"
+      - "deployment/**"
+      - "beacon_firmware/**"
+      - "clode-studio/**"
+      - "scripts/**"
+      - "config/**"
+      - "venv-ardupilot/**"
+      - "raspberry-pi-dotfiles/**"
+      - ".cache/**"
+      - ".vscode/**"
+      - ".cursor-server/**"
+      - ".config/**"
+      - ".electron-gyp/**"
+      - ".vnc/**"
+      - ".mozilla/**"
+      - ".pp_backup/**"
+      - ".local/**"
+      - ".fzf/**"
+      - ".claude-snapshots/**"
+      - ".lesshst"
+      - ".tmux/**"
+      - ".gnupg/**"
+      - ".ICEauthority"
+      - ".dbus/**"
+      - ".nuxtrc"
+      - ".npm/**"
+      - ".claude-code/**"
+      - ".serena/**"
+      - ".atuin/**"
+      - ".oh-my-zsh/**"
+      - ".ssh/**"
+      - ".pki/**"
+      - "Desktop/**"
+      - "Documents/**"
+      - "Music/**"
+      - "Pictures/**"
+      - "Public/**"
+      - "Templates/**"
+      - "Videos/**"
+      - "Bookshelf/**"
+      - "Downloads/**"
+      - ".zsh_history"
+      - ".bash_history"
+      - ".bash_logout"
+      - ".profile"
+      - ".bashrc"
+      - ".zshrc"
+      - ".tmux.conf"
+      - ".p10k.zsh"
+      - ".shell.pre-oh-my-zsh"
+      - ".bash-preexec.sh"
+      - ".wget-hsts"
+      - ".gitconfig"
+      - ".Xauthority"
+      - ".xsession-errors"
+      - ".xsession-errors.old"
+      - ".zcompdump*"
+      - ".sudo_as_admin_successful"
+      - "setup-*.sh"
+      - "test-*.sh"
+      - "debug-*.py"
+      - "fix-*.py"
+      - "consolidate_*.py"
+      - "verify_*.py"
+      - "sim_vehicle.py"
+      - "test_*.py"
+      - "test_*.json"
+      - "coverage.*"
+      - "eeprom.bin"
+      - "package*.json"
+      - "pyproject.toml"
+      - "pytest.ini"
+      - "codecov.yml"
+      - ".pre-commit-config.yaml"
+      - ".python-version"
+      - ".gitignore"
+      - "requirements.txt"
+      - "uv.lock"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "SAFETY_CRITICAL_SEQUENCE.md"
+      - "TASKS.md"
+      - "TASK_INSTRUCTIONS.md"
+      - "CLAUDE.md"
+      - ".claude.json"
+      - ".claude.json.backup"
+
+# Review configuration
+review:
+  # Enable comprehensive code review
+  comprehensive: true
+  
+  # Review patterns
+  patterns:
+    # Python files
+    - "**/*.py"
+    # Configuration files
+    - "**/*.{yaml,yml,json,toml,ini,cfg}"
+    # Documentation
+    - "**/*.{md,rst,txt}"
+    # Shell scripts
+    - "**/*.sh"
+    # Makefiles
+    - "**/Makefile"
+    # Docker files
+    - "**/Dockerfile"
+    - "**/*.dockerfile"
+    # CI/CD files
+    - ".github/**/*"
+    - ".gitlab-ci.yml"
+    - "Jenkinsfile"
+    # Environment files
+    - ".env*"
+    - "*.env"
+
+# Quality settings
+quality:
+  # Enable security scanning
+  security: true
+  
+  # Enable performance analysis
+  performance: true
+  
+  # Enable best practices review
+  best_practices: true
+  
+  # Enable maintainability analysis
+  maintainability: true
+
+# Comment settings
+comments:
+  # Enable inline comments
+  inline: true
+  
+  # Enable summary comments
+  summary: true
+  
+  # Enable suggestion comments
+  suggestions: true
+
+# Language-specific settings
+languages:
+  python:
+    # Enable Python-specific analysis
+    enabled: true
+    
+    # Check for common Python issues
+    checks:
+      - "imports"
+      - "naming"
+      - "complexity"
+      - "security"
+      - "performance"
+  
+  javascript:
+    # Enable JavaScript/TypeScript analysis
+    enabled: true
+    
+    # Check for common JS issues
+    checks:
+      - "imports"
+      - "naming"
+      - "complexity"
+      - "security"
+      - "performance"
+  
+  markdown:
+    # Enable markdown analysis
+    enabled: true
+    
+    # Check for common markdown issues
+    checks:
+      - "links"
+      - "formatting"
+      - "structure"
+
+# Integration settings
+integrations:
+  # GitHub integration
+  github:
+    # Enable GitHub integration
+    enabled: true
+    
+    # Comment on PRs
+    comment_on_pr: true
+    
+    # Update PR status
+    update_status: true
+    
+    # Enable checks
+    enable_checks: true
+
+# Notification settings
+notifications:
+  # Enable email notifications
+  email: false
+  
+  # Enable Slack notifications
+  slack: false
+  
+  # Enable webhook notifications
+  webhook: false
+
+# Advanced settings
+advanced:
+  # Enable experimental features
+  experimental: false
+  
+  # Custom review rules
+  custom_rules: []
+  
+  # Review depth
+  depth: "comprehensive"
+  
+  # Timeout settings
+  timeout:
+    # Review timeout in seconds
+    review: 300
+    
+    # Analysis timeout in seconds
+    analysis: 120
