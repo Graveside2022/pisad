@@ -477,8 +477,6 @@ class DualSDRCoordinator:
             "performance_status": (
                 "optimal"
                 if latency_stats["meets_requirements"] and latency_stats["active_alerts"] == 0
-                else "degraded"
-                if latency_stats["active_alerts"] > 0
-                else "baseline"
+                else "degraded" if latency_stats["active_alerts"] > 0 else "baseline"
             ),
         }

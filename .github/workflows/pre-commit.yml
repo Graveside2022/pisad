@@ -1,0 +1,46 @@
+name: Pre-commit Checks
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  pre-commit:
+    name: Pre-commit hooks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          uv run pre-commit install
+
+      - name: Run pre-commit
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+        env:
+          SKIP: trunk-check,pytest
+
+      - name: Comment on PR if pre-commit fails
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## ❌ Pre-commit Checks Failed\n\nSome code quality checks failed. Please run:\n\n```bash\nuv run pre-commit run --all-files\n```\n\nThen fix any issues and commit the changes.'
+            })

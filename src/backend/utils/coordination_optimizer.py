@@ -434,7 +434,9 @@ class MessageSerializer:
         if not batch_message or batch_message.get("type") != "batch":
             return []
 
-        return batch_message.get("messages", [])
+        messages = batch_message.get("messages", [])
+        # Ensure type safety: return empty list if messages is not a list
+        return messages if isinstance(messages, list) else []
 
     def serialize_delta(
         self, current_message: dict[str, Any], previous_message: dict[str, Any]

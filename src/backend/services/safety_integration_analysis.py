@@ -78,7 +78,7 @@ class SafetyIntegrationAnalyzer:
     with SDR++ coordination system.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the safety integration analyzer."""
         self.safety_components: dict[str, SafetyComponent] = {}
         self.coordination_components: dict[str, CoordinationComponent] = {}

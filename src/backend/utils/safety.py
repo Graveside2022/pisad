@@ -124,7 +124,9 @@ class ModeCheck(SafetyCheck):
         self.is_safe = self.current_mode == self.required_mode
 
         if not self.is_safe:
-            self.failure_reason = f"Mode is {self.current_mode}, requires {self.required_mode}"
+            self.failure_reason = (
+                f"Mode is {self.current_mode}, requires {self.required_mode}"
+            )
         else:
             self.failure_reason = None
 
@@ -163,7 +165,9 @@ class OperatorActivationCheck(SafetyCheck):
             elapsed = (self.last_check - self.activation_time).total_seconds()
             if elapsed > self.timeout_seconds:
                 self.is_safe = False
-                self.failure_reason = f"Homing activation timed out after {elapsed:.0f} seconds"
+                self.failure_reason = (
+                    f"Homing activation timed out after {elapsed:.0f} seconds"
+                )
                 return self.is_safe
 
         self.is_safe = self.homing_enabled
@@ -227,9 +231,7 @@ class SignalLossCheck(SafetyCheck):
         # Immediate failure if SNR is below threshold (no timeout for tests)
         if self.current_snr < self.snr_threshold:
             self.is_safe = False
-            self.failure_reason = (
-                f"SNR {self.current_snr:.1f} dB below threshold {self.snr_threshold:.1f} dB"
-            )
+            self.failure_reason = f"SNR {self.current_snr:.1f} dB below threshold {self.snr_threshold:.1f} dB"
 
             # Track signal lost time for timeout logic
             if self.signal_lost_time is None:
@@ -304,7 +306,9 @@ class BatteryCheck(SafetyCheck):
                 self.last_warning_level is None or level < self.last_warning_level
             ):
                 self.last_warning_level = level
-                logger.warning(f"Battery warning: {self.current_battery_percent:.1f}% remaining")
+                logger.warning(
+                    f"Battery warning: {self.current_battery_percent:.1f}% remaining"
+                )
                 break
 
         return self.is_safe
@@ -369,7 +373,10 @@ class GeofenceCheck(SafetyCheck):
         assert self.fence_radius is not None
 
         distance = self._calculate_distance(
-            self.current_lat, self.current_lon, self.fence_center_lat, self.fence_center_lon
+            self.current_lat,
+            self.current_lon,
+            self.fence_center_lat,
+            self.fence_center_lon,
         )
 
         # Check horizontal distance
@@ -380,9 +387,7 @@ class GeofenceCheck(SafetyCheck):
         elif self.fence_altitude is not None and self.current_alt is not None:
             if self.current_alt > self.fence_altitude:
                 self.is_safe = False
-                self.failure_reason = (
-                    f"Altitude {self.current_alt:.1f}m exceeds maximum {self.fence_altitude:.1f}m"
-                )
+                self.failure_reason = f"Altitude {self.current_alt:.1f}m exceeds maximum {self.fence_altitude:.1f}m"
             else:
                 self.is_safe = True
                 self.failure_reason = None
@@ -392,7 +397,9 @@ class GeofenceCheck(SafetyCheck):
 
         return self.is_safe
 
-    def _calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    def _calculate_distance(
+        self, lat1: float, lon1: float, lat2: float, lon2: float
+    ) -> float:
         """Calculate distance between two points in meters.
 
         Args:
@@ -413,7 +420,10 @@ class GeofenceCheck(SafetyCheck):
         delta_lat = radians(lat2 - lat1)
         delta_lon = radians(lon2 - lon1)
 
-        a = sin(delta_lat / 2) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon / 2) ** 2
+        a = (
+            sin(delta_lat / 2) ** 2
+            + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon / 2) ** 2
+        )
         c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
         return R * c
@@ -438,7 +448,9 @@ class GeofenceCheck(SafetyCheck):
         self.fence_radius = radius_meters
         self.fence_altitude = altitude
         self.fence_enabled = True
-        logger.info(f"Geofence set: center=({center_lat}, {center_lon}), radius={radius_meters}m")
+        logger.info(
+            f"Geofence set: center=({center_lat}, {center_lon}), radius={radius_meters}m"
+        )
 
     def update_position(self, lat: float, lon: float, alt: float | None = None) -> None:
         """Update current position.
@@ -468,8 +480,18 @@ class GeofenceCheck(SafetyCheck):
             ]
         ):
             return float("inf")
+
+        # Type checking: all values are guaranteed to be non-None after the check above
+        assert self.current_lat is not None
+        assert self.current_lon is not None
+        assert self.fence_center_lat is not None
+        assert self.fence_center_lon is not None
+
         return self._calculate_distance(
-            self.current_lat, self.current_lon, self.fence_center_lat, self.fence_center_lon
+            self.current_lat,
+            self.current_lon,
+            self.fence_center_lat,
+            self.fence_center_lon,
         )
 
 
@@ -510,8 +532,12 @@ class CoordinationHealthCheck(SafetyCheck):
         if self.dual_sdr_coordinator:
             try:
                 health_status = await self.dual_sdr_coordinator.get_health_status()
-                self.current_latency_ms = health_status.get("coordination_latency_ms", 0.0)
-                self.communication_quality = health_status.get("ground_connection_status", 0.0)
+                self.current_latency_ms = health_status.get(
+                    "coordination_latency_ms", 0.0
+                )
+                self.communication_quality = health_status.get(
+                    "ground_connection_status", 0.0
+                )
 
                 # Check latency threshold
                 if self.current_latency_ms > self.latency_threshold_ms:
@@ -542,9 +568,7 @@ class CoordinationHealthCheck(SafetyCheck):
             time_since_response = self.last_check - self.last_coordination_response
             if time_since_response.total_seconds() > self.health_timeout_s:
                 self.is_safe = False
-                self.failure_reason = (
-                    f"No coordination response for {time_since_response.total_seconds():.1f}s"
-                )
+                self.failure_reason = f"No coordination response for {time_since_response.total_seconds():.1f}s"
                 return False
 
         self.is_safe = True
@@ -618,7 +642,9 @@ class DualSourceSignalCheck(SafetyCheck):
             signal_diff = abs(self.ground_snr - self.drone_snr)
             if signal_diff > self.conflict_threshold:
                 self.source_conflict_detected = True
-                logger.warning(f"Signal conflict detected: {signal_diff:.1f}dB difference")
+                logger.warning(
+                    f"Signal conflict detected: {signal_diff:.1f}dB difference"
+                )
                 # This is a warning, not a failure - coordination should handle this
             else:
                 self.source_conflict_detected = False
@@ -666,7 +692,9 @@ class SafetyInterlockSystem:
         self._check_task: asyncio.Task | None = None
         self._check_interval = 0.1  # 100ms for mode detection requirement
 
-        logger.info("Safety interlock system initialized with SDR++ coordination awareness")
+        logger.info(
+            "Safety interlock system initialized with SDR++ coordination awareness"
+        )
 
     async def start_monitoring(self) -> None:
         """Start continuous safety monitoring."""
@@ -749,7 +777,9 @@ class SafetyInterlockSystem:
                 operator_check.disable_homing("Emergency stop")
 
         await self._log_safety_event(
-            SafetyEventType.EMERGENCY_STOP, SafetyTrigger.EMERGENCY_STOP, {"reason": reason}
+            SafetyEventType.EMERGENCY_STOP,
+            SafetyTrigger.EMERGENCY_STOP,
+            {"reason": reason},
         )
 
         logger.critical(f"EMERGENCY STOP ACTIVATED: {reason}")
@@ -905,7 +935,10 @@ class SafetyInterlockSystem:
         return events[-limit:]
 
     async def _log_safety_event(
-        self, event_type: SafetyEventType, trigger: SafetyTrigger, details: dict[str, Any]
+        self,
+        event_type: SafetyEventType,
+        trigger: SafetyTrigger,
+        details: dict[str, Any],
     ) -> None:
         """Log a safety event.
 
@@ -1030,7 +1063,9 @@ class SafetyInterlockSystem:
                     {
                         "ground_snr": signal_check.ground_snr,
                         "drone_snr": signal_check.drone_snr,
-                        "difference": abs(signal_check.ground_snr - signal_check.drone_snr),
+                        "difference": abs(
+                            signal_check.ground_snr - signal_check.drone_snr
+                        ),
                     },
                 )
 
@@ -1065,8 +1100,12 @@ class SafetyInterlockSystem:
         coordination_result = {}
         if self.dual_sdr_coordinator:
             try:
-                coordination_result = await self.dual_sdr_coordinator.trigger_emergency_override()
-                logger.info(f"Coordination emergency override result: {coordination_result}")
+                coordination_result = (
+                    await self.dual_sdr_coordinator.trigger_emergency_override()
+                )
+                logger.info(
+                    f"Coordination emergency override result: {coordination_result}"
+                )
             except Exception as e:
                 logger.error(f"Coordination emergency override failed: {e}")
                 coordination_result = {"error": str(e), "coordination_override": False}
@@ -1140,7 +1179,9 @@ class SafetyInterlockSystem:
             enabled: Whether to enable coordination safety checks
         """
         self.coordination_safety_enabled = enabled
-        logger.info(f"Coordination safety monitoring {'enabled' if enabled else 'disabled'}")
+        logger.info(
+            f"Coordination safety monitoring {'enabled' if enabled else 'disabled'}"
+        )
 
     async def coordination_latency_check(self, latency_ms: float) -> bool:
         """
@@ -1164,7 +1205,8 @@ class SafetyInterlockSystem:
                 {
                     "measured_latency_ms": latency_ms,
                     "threshold_ms": coord_check.latency_threshold_ms,
-                    "violation_amount_ms": latency_ms - coord_check.latency_threshold_ms,
+                    "violation_amount_ms": latency_ms
+                    - coord_check.latency_threshold_ms,
                 },
             )
             return False
