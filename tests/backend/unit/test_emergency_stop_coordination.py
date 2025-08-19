@@ -6,7 +6,7 @@ Validates that emergency stop response times meet <500ms requirement
 even with DualSDRCoordinator active and processing coordination tasks.
 
 This ensures PRD-FR16 and NFR12 timing requirements are met:
-- PRD-FR16: "Disable Homing control that stops all velocity commands within 500ms"  
+- PRD-FR16: "Disable Homing control that stops all velocity commands within 500ms"
 - PRD-NFR12: "All safety-critical functions shall execute with deterministic timing"
 
 Chain of Thought Context:
@@ -155,7 +155,6 @@ class TestEmergencyStopCoordinationTiming:
         """
         # Test emergency stop trigger through coordination system
         with patch("src.backend.services.dual_sdr_coordinator.logger") as mock_logger:
-
             # Simulate emergency stop triggered through coordination system
             start_time = time.perf_counter()
 
@@ -184,7 +183,6 @@ class TestEmergencyStopCoordinationTiming:
 
         # Run multiple emergency stop timing tests
         for load_level in [0, 25, 50, 75, 100]:  # Percentage system load
-
             # Simulate system load
             async def system_load():
                 load_iterations = load_level // 10  # Scale load

@@ -390,6 +390,9 @@ class TestFullSystemIntegration:
         try:
             import psutil
 
+            # Get reliable CPU measurement
+            psutil.cpu_percent()  # Prime the measurement
+            time.sleep(0.1)  # Short measurement interval
             cpu_percent = psutil.cpu_percent()
             results["NFR4"] = f"Power monitoring capability available: CPU={cpu_percent}%"
         except ImportError:

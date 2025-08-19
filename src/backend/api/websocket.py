@@ -5,18 +5,13 @@ WebSocket handler for real-time updates.
 import asyncio
 import json
 from datetime import datetime
-from typing import Any, Literal
-
-from src.backend.constants.websocket_messages import (
-    WebSocketMessageTypes, 
-    SDRConnectionStatus, 
-    ActiveSource, 
-    HomingAuthority, 
-    SyncStatus
-)
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from src.backend.constants.websocket_messages import (
+    WebSocketMessageTypes,
+)
 from src.backend.core.config import get_config
 from src.backend.core.exceptions import (
     PISADException,
@@ -195,7 +190,8 @@ async def broadcast_telemetry_updates():
                 if safety_system:
                     safety_status = safety_system.get_safety_status()
                     safety_interlocks = {
-                        name: check["is_safe"] for name, check in safety_status["checks"].items()
+                        name: check["is_safe"]
+                        for name, check in safety_status["checks"].items()
                     }
 
                 # Format telemetry update message
@@ -205,7 +201,10 @@ async def broadcast_telemetry_updates():
                         "position": telemetry["position"],
                         "battery": telemetry["battery"]["percentage"],
                         "flightMode": telemetry["flight_mode"],
-                        "velocity": {"forward": 0.0, "yaw": 0.0},  # Placeholder for actual velocity
+                        "velocity": {
+                            "forward": 0.0,
+                            "yaw": 0.0,
+                        },  # Placeholder for actual velocity
                         "gpsStatus": service.get_gps_status_string(),
                         "armed": telemetry["armed"],
                         "safetyInterlocks": safety_interlocks,
@@ -333,7 +332,9 @@ async def broadcast_state_updates():
 async def broadcast_rssi_updates():
     """Broadcast RSSI updates to all connected WebSocket clients at 10Hz."""
     config = get_config()
-    update_interval = config.websocket.WS_RSSI_UPDATE_INTERVAL_MS / 1000.0  # Convert to seconds
+    update_interval = (
+        config.websocket.WS_RSSI_UPDATE_INTERVAL_MS / 1000.0
+    )  # Convert to seconds
 
     try:
         processor = await get_signal_processor()
@@ -382,7 +383,10 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.send_json(
             {
                 "type": "connection",
-                "data": {"status": "connected", "timestamp": datetime.utcnow().isoformat()},
+                "data": {
+                    "status": "connected",
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
             }
         )
 
@@ -410,7 +414,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Handle different message types
                     if message.get("type") == "ping":
                         await websocket.send_json(
-                            {"type": "pong", "data": {"timestamp": datetime.utcnow().isoformat()}}
+                            {
+                                "type": "pong",
+                                "data": {"timestamp": datetime.utcnow().isoformat()},
+                            }
                         )
                     else:
                         logger.debug(f"Received WebSocket message: {message}")
@@ -484,10 +491,15 @@ async def get_safety_system() -> SafetyInterlockSystem:
             async def safety_check():
                 return await safety_system.is_safe_to_proceed()
 
-            mavlink_service.set_safety_check_callback(lambda: asyncio.run(safety_check()))
+            mavlink_service.set_safety_check_callback(
+                lambda: asyncio.run(safety_check())
+            )
 
         # Register with signal processor if available
-        if signal_processor_integration and signal_processor_integration.signal_processor:
+        if (
+            signal_processor_integration
+            and signal_processor_integration.signal_processor
+        ):
             signal_processor_integration.signal_processor.add_snr_callback(
                 safety_system.update_signal_snr
             )
@@ -601,18 +613,17 @@ async def broadcast_message(message: dict[str, Any]) -> None:
 
 # Story 5.4: SDR++ Integration WebSocket Handlers
 
+
 async def broadcast_sdrpp_connection_status(
-    status: str, 
-    latency: float | None = None, 
-    last_seen: str | None = None
+    status: str, latency: float | None = None, last_seen: str | None = None
 ) -> None:
     """Broadcast SDR++ connection status updates to all connected WebSocket clients."""
     try:
         # Validate status parameter
-        if status not in ['connected', 'disconnected', 'connecting']:
+        if status not in ["connected", "disconnected", "connecting"]:
             logger.warning(f"Invalid SDR++ connection status: {status}")
             return
-            
+
         message = {
             "type": WebSocketMessageTypes.SDRPP_CONNECTION,
             "data": {
@@ -628,20 +639,18 @@ async def broadcast_sdrpp_connection_status(
 
 
 async def broadcast_dual_homing_status(
-    active_source: str, 
-    homing_authority: str, 
-    performance_metrics: dict[str, Any]
+    active_source: str, homing_authority: str, performance_metrics: dict[str, Any]
 ) -> None:
     """Broadcast dual-system homing status updates to all connected WebSocket clients."""
     try:
         # Validate parameters
-        if active_source not in ['ground', 'drone']:
+        if active_source not in ["ground", "drone"]:
             logger.warning(f"Invalid active source: {active_source}")
             return
-        if homing_authority not in ['ground_priority', 'drone_priority', 'coordinated']:
+        if homing_authority not in ["ground_priority", "drone_priority", "coordinated"]:
             logger.warning(f"Invalid homing authority: {homing_authority}")
             return
-            
+
         message = {
             "type": WebSocketMessageTypes.DUAL_HOMING_STATUS,
             "data": {
@@ -656,14 +665,18 @@ async def broadcast_dual_homing_status(
         logger.error(f"Error broadcasting dual homing status: {e}")
 
 
-async def broadcast_ground_signal_quality(rssi: float, snr: float, noise_floor: float, quality_score: float):
+async def broadcast_ground_signal_quality(
+    rssi: float, snr: float, noise_floor: float, quality_score: float
+):
     """Broadcast ground signal quality metrics to all connected WebSocket clients."""
     try:
         # Validate numeric parameters
-        if not all(isinstance(x, (int, float)) for x in [rssi, snr, noise_floor, quality_score]):
+        if not all(
+            isinstance(x, (int, float)) for x in [rssi, snr, noise_floor, quality_score]
+        ):
             logger.warning("Invalid signal quality parameters - must be numeric")
             return
-            
+
         message = {
             "type": WebSocketMessageTypes.GROUND_SIGNAL_QUALITY,
             "data": {
@@ -680,20 +693,18 @@ async def broadcast_ground_signal_quality(rssi: float, snr: float, noise_floor: 
 
 
 async def broadcast_frequency_sync_status(
-    ground_freq: float, 
-    drone_freq: float, 
-    sync_status: str
+    ground_freq: float, drone_freq: float, sync_status: str
 ) -> None:
     """Broadcast frequency synchronization status to all connected WebSocket clients."""
     try:
         # Validate parameters
-        if sync_status not in ['synchronized', 'mismatch', 'syncing']:
+        if sync_status not in ["synchronized", "mismatch", "syncing"]:
             logger.warning(f"Invalid sync status: {sync_status}")
             return
         if not all(isinstance(x, (int, float)) for x in [ground_freq, drone_freq]):
             logger.warning("Invalid frequency parameters - must be numeric")
             return
-            
+
         message = {
             "type": WebSocketMessageTypes.FREQUENCY_SYNC,
             "data": {
@@ -709,13 +720,15 @@ async def broadcast_frequency_sync_status(
         logger.error(f"Error broadcasting frequency sync status: {e}")
 
 
-async def broadcast_emergency_fallback_status(fallback_active: bool, trigger_reason: str = None):
+async def broadcast_emergency_fallback_status(
+    fallback_active: bool, trigger_reason: str = None
+):
     """Broadcast emergency fallback status updates to all connected WebSocket clients."""
     try:
         if not isinstance(fallback_active, bool):
             logger.warning("Invalid fallback_active parameter - must be boolean")
             return
-            
+
         message = {
             "type": WebSocketMessageTypes.EMERGENCY_FALLBACK,
             "data": {
@@ -737,7 +750,7 @@ async def broadcast_conflict_resolution_status(conflict_data: dict[str, Any]):
         if not isinstance(conflict_data, dict):
             logger.warning("Invalid conflict_data parameter - must be dict")
             return
-            
+
         message = {
             "type": WebSocketMessageTypes.CONFLICT_RESOLUTION,
             "data": conflict_data,

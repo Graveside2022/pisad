@@ -1,0 +1,22 @@
+asv_integration:
+  enabled: true
+  error_retry_attempts: 3
+  error_retry_delay_ms: 500
+  max_concurrent_analyzers: 5
+  performance_monitoring: true
+  processing_thread_pool_size: 4
+  signal_buffer_size_mb: 64
+dotnet_runtime:
+  assembly_load_timeout_ms: 10000
+  dotnet_root: ~/.dotnet
+  runtime_config_path: null
+  use_coreclr: true
+hardware_interface:
+  preserve_existing_hackrf: true
+  preserve_existing_mavlink: true
+  sdr_gain: 14
+  sdr_sample_rate: 2048000
+safety_integration:
+  emergency_stop_propagation: true
+  respect_safety_interlocks: true
+  safety_authority_compliance: true

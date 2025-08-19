@@ -1,0 +1,58 @@
+aviation_analyzer:
+  analyzer_id: aviation_analyzer
+  analyzer_type: VOR
+  calibration_config:
+    auto_calibration: true
+    calibration_interval_s: 600
+    reference_source: internal
+  enabled: true
+  frequency_profiles:
+  - vor_aviation
+  hardware_config:
+    antenna_gain_db: 2
+    lna_enabled: true
+    sdr_device: hackrf
+  processing_config:
+    detection_threshold_db: -95
+    fft_size: 2048
+    overlap_factor: 0.75
+    window_function: blackman
+emergency_analyzer:
+  analyzer_id: emergency_analyzer
+  analyzer_type: GP
+  calibration_config:
+    auto_calibration: true
+    calibration_interval_s: 300
+    reference_source: internal
+  enabled: true
+  frequency_profiles:
+  - emergency_beacon_406
+  - aviation_emergency
+  hardware_config:
+    antenna_gain_db: 0
+    lna_enabled: true
+    sdr_device: hackrf
+  processing_config:
+    detection_threshold_db: -110
+    fft_size: 1024
+    overlap_factor: 0.5
+    window_function: hann
+landing_analyzer:
+  analyzer_id: landing_analyzer
+  analyzer_type: LLZ
+  calibration_config:
+    auto_calibration: true
+    calibration_interval_s: 450
+    reference_source: internal
+  enabled: true
+  frequency_profiles:
+  - ils_localizer
+  hardware_config:
+    antenna_gain_db: 1
+    lna_enabled: true
+    sdr_device: hackrf
+  processing_config:
+    detection_threshold_db: -85
+    fft_size: 1024
+    overlap_factor: 0.5
+    window_function: hann

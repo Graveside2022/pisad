@@ -21,7 +21,6 @@ import pytest
 
 from src.backend.services.dual_sdr_coordinator import DualSDRCoordinator
 from src.backend.services.safety_manager import SafetyManager
-from src.backend.services.sdr_priority_manager import SDRPriorityManager
 
 
 class TestSafetyManagerCoordinatorIntegration:
@@ -242,7 +241,6 @@ class TestSafetyManagerCoordinatorIntegration:
         are properly logged for audit trail and troubleshooting.
         """
         with patch("src.backend.services.dual_sdr_coordinator.logger") as mock_logger:
-
             # Perform coordination operations that should trigger safety logging
             await coordinator_with_safety.synchronize_frequency(2.4e9)  # 2.4 GHz
 

@@ -117,7 +117,11 @@ class SDRPriorityMatrix:
             confidence += 0.2
 
         return SignalQuality(
-            score=total_score, confidence=confidence, rssi=rssi, snr=snr, stability=stability
+            score=total_score,
+            confidence=confidence,
+            rssi=rssi,
+            snr=snr,
+            stability=stability,
         )
 
     def make_priority_decision(
@@ -208,24 +212,24 @@ class SDRPriorityManager:
     """
 
     def __init__(
-        self, 
-        coordinator: Any = None, 
+        self,
+        coordinator: Any = None,
         safety_manager: Any = None,
-        safety_authority: 'SafetyAuthorityManager | None' = None
+        safety_authority: "SafetyAuthorityManager | None" = None,
     ):
         """
         Initialize priority manager with safety authority integration.
-        
+
         SUBTASK-5.5.3.4 [11b] - Add SafetyManager dependency with initialization validation.
 
         Args:
             coordinator: DualSDRCoordinator instance
-            safety_manager: SafetyManager instance  
+            safety_manager: SafetyManager instance
             safety_authority: SafetyAuthorityManager for priority decision validation
         """
         self._coordinator = coordinator
         self._safety_manager = safety_manager
-        # SUBTASK-5.5.3.4 [11b] - Safety authority dependency injection  
+        # SUBTASK-5.5.3.4 [11b] - Safety authority dependency injection
         self._safety_authority = safety_authority
         self._matrix = SDRPriorityMatrix()
 
@@ -272,7 +276,10 @@ class SDRPriorityManager:
             current_source = getattr(self._coordinator, "active_source", "drone")
 
             decision = self._matrix.make_priority_decision(
-                ground_quality, drone_quality, current_source, self._emergency_override_active
+                ground_quality,
+                drone_quality,
+                current_source,
+                self._emergency_override_active,
             )
         else:
             # Fallback to drone if unable to get signals
@@ -336,7 +343,9 @@ class SDRPriorityManager:
             selected_command=selected,
             conflict_type=conflict_type,
             resolution_time_ms=resolution_time_ms,
-            rejected_command=ground_command if selected == drone_command else drone_command,
+            rejected_command=(
+                ground_command if selected == drone_command else drone_command
+            ),
         )
 
         # Log conflict for history
@@ -367,7 +376,9 @@ class SDRPriorityManager:
 
         # Trigger safety manager if available
         safety_result = {}
-        if self._safety_manager and hasattr(self._safety_manager, "trigger_emergency_stop"):
+        if self._safety_manager and hasattr(
+            self._safety_manager, "trigger_emergency_stop"
+        ):
             try:
                 safety_result = self._safety_manager.trigger_emergency_stop()
             except Exception as e:
@@ -383,7 +394,9 @@ class SDRPriorityManager:
             "emergency_override_active": True,
         }
 
-        logger.warning(f"Emergency override activated, response time: {response_time_ms:.1f}ms")
+        logger.warning(
+            f"Emergency override activated, response time: {response_time_ms:.1f}ms"
+        )
 
         return result
 
@@ -412,7 +425,9 @@ class SDRPriorityManager:
             "communication_lost": True,
         }
 
-        logger.warning(f"Communication loss handled, degradation time: {degradation_time_s:.3f}s")
+        logger.warning(
+            f"Communication loss handled, degradation time: {degradation_time_s:.3f}s"
+        )
 
         return result
 
@@ -449,89 +464,99 @@ class SDRPriorityManager:
             ),
         }
 
-    def validate_priority_decision(self, decision_type: str, details: dict[str, Any]) -> dict[str, Any]:
+    def validate_priority_decision(
+        self, decision_type: str, details: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         SUBTASK-5.5.3.2 [9d] - Validate priority management decisions through safety authority.
-        
+
         Integrates safety validation into SDR priority decisions.
-        
+
         Args:
             decision_type: Type of priority decision
             details: Decision details
-            
+
         Returns:
             Dict containing validation result
         """
         # Import here to avoid circular imports
         from src.backend.services.safety_authority_manager import SafetyAuthorityLevel
-        
+
         # Check both safety_manager and safety_authority for backward compatibility
         safety_service = self._safety_manager or self._safety_authority
-        
-        if not safety_service or not hasattr(safety_service, 'validate_coordination_command_real_time'):
-            logger.warning("No safety authority available for priority decision validation")
+
+        if not safety_service or not hasattr(
+            safety_service, "validate_coordination_command_real_time"
+        ):
+            logger.warning(
+                "No safety authority available for priority decision validation"
+            )
             return {
                 "validation_result": {
                     "authorized": False,
-                    "message": "Safety authority not available"
+                    "message": "Safety authority not available",
                 }
             }
-        
+
         try:
             # Map decision to authority level
             authority_level = SafetyAuthorityLevel.COMMUNICATION
             command_type = "source_selection"
-            
+
             if decision_type in ["emergency_priority_change", "safety_override"]:
                 authority_level = SafetyAuthorityLevel.EMERGENCY_STOP
                 command_type = "emergency_stop"
             elif decision_type in ["communication_degradation_response"]:
                 authority_level = SafetyAuthorityLevel.COMMUNICATION
                 command_type = "fallback_trigger"
-            
+
             # Validate the decision
-            authorized, message = safety_service.validate_coordination_command_real_time(
-                command_type=command_type,
-                authority_level=authority_level,
-                details=details,
-                response_time_limit_ms=30  # Strict timing for priority decisions
+            authorized, message = (
+                safety_service.validate_coordination_command_real_time(
+                    command_type=command_type,
+                    authority_level=authority_level,
+                    details=details,
+                    response_time_limit_ms=30,  # Strict timing for priority decisions
+                )
             )
-            
+
             # Log the decision for audit trail
-            if hasattr(safety_service, 'log_coordination_decision'):
+            if hasattr(safety_service, "log_coordination_decision"):
                 safety_service.log_coordination_decision(
                     component="SDRPriorityManager",
                     decision_type=f"priority_{decision_type}",
                     decision_details=details,
                     authority_level=authority_level,
-                    outcome="authorized" if authorized else "denied"
+                    outcome="authorized" if authorized else "denied",
                 )
-            
+
             return {
                 "validation_result": {
                     "authorized": authorized,
                     "message": message,
                     "decision_type": decision_type,
                     "authority_level": authority_level.value,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             }
-            
+
         except Exception as e:
-            logger.error(f"Priority decision validation failed for {decision_type}: {e}")
+            logger.error(
+                f"Priority decision validation failed for {decision_type}: {e}"
+            )
             return {
                 "validation_result": {
                     "authorized": False,
                     "message": f"Validation error: {str(e)}",
                     "decision_type": decision_type,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             }
 
     def validate_safety_authority_integration(self) -> dict[str, Any]:
         """
         SUBTASK-5.5.3.4 [11b] - Validate SafetyManager integration during initialization.
-        
+
         Returns:
             Dict containing validation results
         """
@@ -540,35 +565,40 @@ class SDRPriorityManager:
                 return {
                     "safety_authority_valid": False,
                     "integration_ready": False,
-                    "error": "SafetyAuthorityManager not provided"
+                    "error": "SafetyAuthorityManager not provided",
                 }
-            
+
             # Validate safety authority has required capabilities
-            if not hasattr(self._safety_authority, 'validate_coordination_command_real_time'):
+            if not hasattr(
+                self._safety_authority, "validate_coordination_command_real_time"
+            ):
                 return {
                     "safety_authority_valid": False,
                     "integration_ready": False,
-                    "error": "SafetyAuthorityManager missing required validation methods"
+                    "error": "SafetyAuthorityManager missing required validation methods",
                 }
-            
+
             # Test safety authority responsiveness
-            if hasattr(self._safety_authority, 'authorities') and self._safety_authority.authorities:
+            if (
+                hasattr(self._safety_authority, "authorities")
+                and self._safety_authority.authorities
+            ):
                 authority_count = len(self._safety_authority.authorities)
             else:
                 authority_count = 0
-                
+
             return {
                 "safety_authority_valid": True,
                 "integration_ready": True,
                 "authority_levels_available": authority_count,
                 "validation_methods_available": True,
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
-            
+
         except Exception as e:
             return {
                 "safety_authority_valid": False,
                 "integration_ready": False,
                 "error": f"Validation failed: {str(e)}",
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }

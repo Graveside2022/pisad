@@ -1,0 +1,40 @@
+aviation_emergency:
+  analyzer_type: GP
+  bandwidth_hz: 25000
+  calibration_enabled: true
+  center_frequency_hz: 121500000
+  description: Aviation Emergency Frequency
+  name: aviation_emergency
+  priority: 1
+  processing_timeout_ms: 60
+  ref_power_dbm: -110.0
+emergency_beacon_406:
+  analyzer_type: GP
+  bandwidth_hz: 50000
+  calibration_enabled: true
+  center_frequency_hz: 406000000
+  description: Emergency Beacon Detection at 406 MHz
+  name: emergency_beacon_406
+  priority: 1
+  processing_timeout_ms: 50
+  ref_power_dbm: -120.0
+ils_localizer:
+  analyzer_type: LLZ
+  bandwidth_hz: 150000
+  calibration_enabled: true
+  center_frequency_hz: 109500000
+  description: ILS Localizer Landing System
+  name: ils_localizer
+  priority: 3
+  processing_timeout_ms: 75
+  ref_power_dbm: -90.0
+vor_aviation:
+  analyzer_type: VOR
+  bandwidth_hz: 200000
+  calibration_enabled: true
+  center_frequency_hz: 112500000
+  description: VOR Aviation Navigation Signals
+  name: vor_aviation
+  priority: 2
+  processing_timeout_ms: 100
+  ref_power_dbm: -100.0

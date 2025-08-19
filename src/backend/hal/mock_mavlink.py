@@ -64,7 +64,9 @@ class MockMAVLinkConnection:
         self.heartbeat_received = True
         return heartbeat
 
-    def recv_match(self, type: str, blocking: bool = False, timeout: float = 1.0) -> Mock | None:
+    def recv_match(
+        self, type: str, blocking: bool = False, timeout: float = 1.0
+    ) -> Mock | None:
         """Mock message receiving"""
         if not self.connected:
             return None

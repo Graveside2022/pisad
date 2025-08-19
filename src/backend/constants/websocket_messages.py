@@ -7,10 +7,11 @@ between the backend and frontend components in Story 5.4.
 
 from typing import Literal
 
+
 # Story 5.4 WebSocket Message Types
 class WebSocketMessageTypes:
     """WebSocket message type constants for Story 5.4 SDR++ Integration."""
-    
+
     # SDR++ Integration Message Types
     SDRPP_CONNECTION = "sdrpp_connection"
     DUAL_HOMING_STATUS = "dual_homing_status"
@@ -18,7 +19,7 @@ class WebSocketMessageTypes:
     FREQUENCY_SYNC = "frequency_sync"
     EMERGENCY_FALLBACK = "emergency_fallback"
     CONFLICT_RESOLUTION = "conflict_resolution"
-    
+
     # All Story 5.4 message types
     ALL_STORY_5_4_TYPES = [
         SDRPP_CONNECTION,
@@ -31,7 +32,7 @@ class WebSocketMessageTypes:
 
 
 # Type aliases for better type safety
-SDRConnectionStatus = Literal['connected', 'disconnected', 'connecting']
-ActiveSource = Literal['ground', 'drone']
-HomingAuthority = Literal['ground_priority', 'drone_priority', 'coordinated']
-SyncStatus = Literal['synchronized', 'mismatch', 'syncing']
+SDRConnectionStatus = Literal["connected", "disconnected", "connecting"]
+ActiveSource = Literal["ground", "drone"]
+HomingAuthority = Literal["ground_priority", "drone_priority", "coordinated"]
+SyncStatus = Literal["synchronized", "mismatch", "syncing"]

@@ -93,7 +93,9 @@ class SafetyManager:
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
             if response_time_ms > 500:
-                logger.warning(f"Emergency stop took {response_time_ms:.1f}ms (> 500ms limit)")
+                logger.warning(
+                    f"Emergency stop took {response_time_ms:.1f}ms (> 500ms limit)"
+                )
 
             result = {
                 "success": success,
@@ -155,7 +157,12 @@ class SafetyManager:
         voltage = battery.get("voltage", 0.0)
 
         if voltage >= self.battery_low_voltage:
-            return {"level": "NORMAL", "voltage": voltage, "warning": False, "critical": False}
+            return {
+                "level": "NORMAL",
+                "voltage": voltage,
+                "warning": False,
+                "critical": False,
+            }
         elif voltage >= self.battery_critical_voltage:
             return {
                 "level": "LOW",
@@ -211,7 +218,12 @@ class SafetyManager:
                 "reason": f"No 3D fix (type={fix_type})",
             }
 
-        return {"ready": True, "satellites": satellites, "hdop": hdop, "fix_type": fix_type}
+        return {
+            "ready": True,
+            "satellites": satellites,
+            "hdop": hdop,
+            "fix_type": fix_type,
+        }
 
     def set_geofence(self, radius: float, altitude: float) -> None:
         """Set geofence parameters."""
@@ -333,7 +345,10 @@ class SafetyManager:
             return {"priority": 3, "action": "LOITER", "reason": gps["reason"]}
 
         # Priority 4: Coordination health (if active) - SUBTASK-5.5.3.1 [8c]
-        if self.include_coordination_in_decisions() and not self.is_coordination_healthy():
+        if (
+            self.include_coordination_in_decisions()
+            and not self.is_coordination_healthy()
+        ):
             return {
                 "priority": 4,
                 "action": "FALLBACK_DRONE",
@@ -615,7 +630,9 @@ class SafetyManager:
         new_healthy = self.is_coordination_healthy()
 
         if old_healthy != new_healthy:
-            logger.warning(f"Coordination health changed: {old_healthy} -> {new_healthy}")
+            logger.warning(
+                f"Coordination health changed: {old_healthy} -> {new_healthy}"
+            )
             if not new_healthy:
                 self.trigger_source_fallback("coordination_unhealthy")
 
@@ -636,7 +653,9 @@ class SafetyManager:
         """
         self.coordination_latency_ms = latency_ms
         if latency_ms > 100.0:  # PRD-NFR2: <100ms requirement
-            logger.warning(f"Coordination latency {latency_ms:.1f}ms exceeds 100ms limit")
+            logger.warning(
+                f"Coordination latency {latency_ms:.1f}ms exceeds 100ms limit"
+            )
 
     def validate_coordination_timing(self) -> dict[str, Any]:
         """
@@ -659,5 +678,7 @@ class SafetyManager:
         return {
             "latency_ms": self.coordination_latency_ms,
             "within_limits": self.coordination_latency_ms <= 100.0,
-            "safety_impact": "acceptable" if self.coordination_latency_ms <= 100.0 else "warning",
+            "safety_impact": (
+                "acceptable" if self.coordination_latency_ms <= 100.0 else "warning"
+            ),
         }

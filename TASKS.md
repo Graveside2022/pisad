@@ -1,203 +1,230 @@
 # Project Tasks
 
-*Last updated: 2025-08-19T09:15:00Z*
+*This file is synced with Clode Studio and Claude's native TodoWrite system.*  
+*Last updated: 2025-08-19T22:00:00.000Z*
 
 ## Backlog (1)
 
 - [ ] **Story 4.8: DuckDB Migration**
-  - Description: POST-MVP ENHANCEMENT - Database architecture transformation from SQLite to DuckDB for advanced analytics
-  - Priority: medium
+  - Assignee: claude
   - Type: feature
+  - Priority: medium
+  - Description: POST-MVP ENHANCEMENT - Database architecture transformation from SQLite to DuckDB for advanced analytics
 
 ## To Do (5)
-
-### **Epic 5 - SDR++ Integration (Sequential Dependency Chain)**
-
-- [ ] **Epic 5 Story 5.6: Performance Optimization and Testing** **[COMPLEXITY: 🔴 SEQUENTIAL + CONDITIONAL]**
-  - ID: EPIC5-5.6
-  - Description: Ensure dual-SDR coordination meets all existing performance requirements with <50ms TCP latency and resource optimization
-  - Priority: high
-  - Type: feature
-  - **Dependencies:** Stories 5.2, 5.3 (TCP + coordination services must be operational for testing)
-  - **Effort:** 35-45 hours (performance benchmarking, optimization, testing)
-  - **Ordering Rationale:** Cannot optimize performance without operational services to measure
-
-- [ ] **Epic 5 Story 5.7: Field Testing Campaign** **[COMPLEXITY: 🟡 CONDITIONAL + PARALLEL]**
+- [ ] **Epic 5 Story 5.7: Field Testing Campaign [COMPLEXITY: 🟡 CONDITIONAL + PARALLEL]**
   - ID: EPIC5-5.7
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
   - Description: Comprehensive field validation of dual-SDR coordination with enhanced test procedures and hardware validation
-  - Priority: high
-  - Type: feature
-  - **Dependencies:** Stories 5.2, 5.3, 5.6 (performance-validated system required for field testing)
-  - **Effort:** 40-50 hours (field testing, validation, documentation)
-  - **Ordering Rationale:** Field testing requires performance-validated system; some test scenarios parallelizable
-
-- [ ] **Epic 5 Story 5.8: Production Deployment and Documentation** **[COMPLEXITY: 🟢 PARALLEL]**
+- [ ] **Epic 5 Story 5.8: Production Deployment and Documentation [COMPLEXITY: 🟢 PARALLEL]**
   - ID: EPIC5-5.8
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
   - Description: Complete deployment packages, documentation, and production readiness for dual-SDR systems
-  - Priority: high
+- [ ] **Epic 6 Story 6.2: Enhanced Homing Algorithm Implementation**
+  - ID: EPIC6-6.2
+  - Assignee: claude
   - Type: feature
-  - **Dependencies:** All Epic 5 stories (complete system required for deployment)
-  - **Effort:** 25-30 hours (packaging, documentation, deployment procedures)
-  - **Ordering Rationale:** Documentation can be parallelized, deployment requires complete system
-
-### **Production Readiness Focus**
-
-*Quality enhancements removed as feature creep - existing implementations meet/exceed PRD requirements*
-
-## In Progress (1)
-
-- [ ] **Epic 5 Story 5.5: Safety System Integration**
-  - ID: EPIC5-5.5
-  - Description: TASK-5.5.2-EMERGENCY-FALLBACK in progress - Automatic safety fallback implementation
   - Priority: high
+  - Description: Implement ASV enhanced course correction algorithms addressing RSSI degradation scenarios with professional-grade bearing calculation and adaptive search patterns
+  - Resources: File: docs/stories/6.2_Story.md, Dependency: Story 6.1 complete
+- [ ] **Epic 6 Story 6.3: Mission Planner RF Integration**  
+  - ID: EPIC6-6.3
+  - Assignee: claude
   - Type: feature
+  - Priority: high
+  - Description: Complete RF control and visualization integration within Mission Planner interface for unified operator workflow
+  - Resources: File: docs/stories/6.3_Story.md, Dependency: Story 6.1 complete
+- [ ] **Epic 6 Story 6.4: Field Testing & Validation**
+  - ID: EPIC6-6.4
+  - Assignee: claude
+  - Type: feature  
+  - Priority: high
+  - Description: Comprehensive field testing and validation of ASV enhanced system including performance benchmarking and operational readiness assessment
+  - Resources: File: docs/stories/6.4_Story.md, Dependency: Stories 6.1-6.3 complete
 
-## Completed (28)
+## In Progress (2)
 
+- [ ] **Epic 5 Story 5.6: Performance Optimization - Resource Optimization Phase [0% COMPLETE]** ⏳
+  - ID: EPIC5-5.6-RESOURCE  
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: STARTING: TASK-5.6.2-RESOURCE-OPTIMIZATION - Memory management, CPU optimization, network bandwidth optimization, and graceful degradation under resource constraints
+  - Resources: File: docs/stories/5.6_Story.md, Task: TASK-5.6.2-RESOURCE-OPTIMIZATION
+- [ ] **Epic 6 Story 6.1: ASV SDR Framework Foundation Integration [75% COMPLETE]** ⏳
+  - ID: EPIC6-6.1
+  - Assignee: claude
+  - Type: feature
+  - Priority: high
+  - Description: PROGRESS: SUBTASK-6.1.1.1 through 6.1.1.4 completed (Python-.NET bridge, ASV components, integration layer, and Epic 6 impact analysis). Moving to TASK-6.1.2 HackRF Multi-Analyzer Framework
+  - Resources: File: docs/stories/6.1_Story.md, Task: TASK-6.1.2-HACKRF-MULTI-ANALYZER-FRAMEWORK
+
+## Completed (30)
+
+- [x] ~~Epic 5 Story 5.6: Performance Optimization - Latency Optimization Phase [COMPLETED]~~
+  - ~~ID: EPIC5-5.6-LATENCY~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: COMPLETED: TCP latency optimization with <50ms round-trip time, MessagePack binary serialization with LZ4 compression, and adaptive performance monitoring~~
+- [x] ~~Epic 5 Story 5.5: Safety System Integration~~
+  - ~~ID: EPIC5-5.5~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: TASK-5.5.2-EMERGENCY-FALLBACK in progress - Automatic safety fallback implementation~~
 - [x] ~~Epic 5 Story 5.4: UI Integration and Operator Workflow~~
-  - ID: EPIC5-5.4
-  - Description: COMPLETED 2025-08-19 - Coordinated interfaces between PISAD web UI and SDR++ desktop with enhanced components
-  - Priority: high
-  - Type: feature
-
+  - ~~ID: EPIC5-5.4~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: COMPLETED 2025-08-19 - Coordinated interfaces between PISAD web UI and SDR++ desktop with enhanced components~~
 - [x] ~~Epic 5 Story 5.3: Dual SDR Coordination Layer~~
-  - ID: EPIC5-5.3
-  - Description: COMPLETED 2025-08-19 - Intelligent coordination between ground SDR++ and drone PISAD with automatic fallback
-  - Priority: high
-  - Type: feature
-
+  - ~~ID: EPIC5-5.3~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: COMPLETED 2025-08-19 - Intelligent coordination between ground SDR++ and drone PISAD with automatic fallback~~
 - [x] ~~Epic 5 Story 5.2: TCP Communication Protocol Implementation~~
-  - ID: EPIC5-5.2
-  - Description: COMPLETED 2025-08-19 - TCP server and SDR++ plugin client fully implemented with professional GUI
-  - Priority: high
-  - Type: feature
-
+  - ~~ID: EPIC5-5.2~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: COMPLETED 2025-08-19 - TCP server and SDR++ plugin client fully implemented with professional GUI~~
 - [x] ~~Epic 5 Story 5.1: SDR++ Plugin Development Framework~~
-  - ID: EPIC5-5.1
-  - Description: COMPLETED 2025-08-18 - SDR++ plugin with TCP communication framework and protocol specification created
-  - Priority: high
-  - Type: feature
-
+  - ~~ID: EPIC5-5.1~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: COMPLETED 2025-08-18 - SDR++ plugin with TCP communication framework and protocol specification created~~
 - [x] ~~Story 4.2: Test Coverage Maintenance~~
-  - Description: UNBLOCKED - Maintain 90% coverage after APIs complete
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: UNBLOCKED - Maintain 90% coverage after APIs complete~~
 - [x] ~~CRITICAL: Verify Story 4.9 Implementation Status ✅~~
-  - Description: RESOLVED 2025-08-17T08:05:00Z - Story 4.9 verification completed. tests/prd/test_state_transitions.py exists and functional (7/9 tests passing). Stories 4.2 and 4.6 unblocked
-  - Priority: medium
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: medium~~
+  - ~~Description: RESOLVED 2025-08-17T08:05:00Z - Story 4.9 verification completed. tests/prd/test_state_transitions.py exists and functional (7/9 tests passing). Stories 4.2 and 4.6 unblocked~~
 - [x] ~~Story 1.1: Project Setup & Development Environment~~
-  - Description: Python 3.13.5 environment with uv, project structure, systemd service, configuration system, logging
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: Python 3.13.5 environment with uv, project structure, systemd service, configuration system, logging~~
 - [x] ~~Story 1.2: SDR Hardware Interface Layer~~
-  - Description: SoapySDR wrapper, HackRF One integration, async IQ streaming, health monitoring
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: SoapySDR wrapper, HackRF One integration, async IQ streaming, health monitoring~~
 - [x] ~~Story 1.3: Signal Processing Pipeline~~
-  - Description: FFT-based RSSI computation, EWMA filtering, noise floor estimation, signal detection
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: FFT-based RSSI computation, EWMA filtering, noise floor estimation, signal detection~~
 - [x] ~~Story 1.4: Enhanced Web-Based Payload UI - INTEGRATED INTO EPIC 5~~
-  - ID: LEGACY-1.4
-  - Description: Foundation complete ✅ Enhanced components (waterfall display, flight controller integration) moved to Epic 5 Story 5.4
-  - Priority: high
-  - Type: feature
-
+  - ~~ID: LEGACY-1.4~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: Foundation complete ✅ Enhanced components (waterfall display, flight controller integration) moved to Epic 5 Story 5.4~~
 - [x] ~~Story 1.5: Configuration Management & Persistence~~
-  - Description: YAML profiles, REST API, preset configurations (WiFi, LoRa, custom)
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: YAML profiles, REST API, preset configurations (WiFi, LoRa, custom)~~
 - [x] ~~Story 2.1: MAVLink Communication Foundation~~
-  - Description: MAVLink 2.0 connection, telemetry parsing, velocity commands, SITL testing
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: MAVLink 2.0 connection, telemetry parsing, velocity commands, SITL testing~~
 - [x] ~~Story 2.2: State Machine Implementation~~
-  - Description: IDLE/SEARCHING/DETECTING/HOMING/HOLDING states with transitions
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: IDLE/SEARCHING/DETECTING/HOMING/HOLDING states with transitions~~
 - [x] ~~Story 2.3: Flight Safety Interlocks~~
-  - Description: Safety systems, emergency procedures, multiple interlock mechanisms
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: Safety systems, emergency procedures, multiple interlock mechanisms~~
 - [x] ~~Story 2.4: Real-time Telemetry Streaming~~
-  - Description: WebSocket telemetry streaming, flight data integration
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: WebSocket telemetry streaming, flight data integration~~
 - [x] ~~Story 2.5: Ground Testing & Safety Validation - INTEGRATED INTO EPIC 5~~
-  - ID: LEGACY-2.5
-  - Description: HARDWARE READY - Test procedures integrated into Epic 5 Story 5.7 Field Testing Campaign
-  - Priority: high
-  - Type: feature
-
+  - ~~ID: LEGACY-2.5~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: HARDWARE READY - Test procedures integrated into Epic 5 Story 5.7 Field Testing Campaign~~
 - [x] ~~Story 3.1: Search Pattern Generation~~
-  - Description: Expanding square patterns, waypoint generation, Mission Planner compatibility
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: Expanding square patterns, waypoint generation, Mission Planner compatibility~~
 - [x] ~~Story 3.2: RSSI Gradient Homing Algorithm~~
-  - Description: Gradient computation, velocity control, approach algorithms
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: Gradient computation, velocity control, approach algorithms~~
 - [x] ~~Story 3.3: Integrated Search and Homing~~
-  - Description: Combined search-to-homing workflow, state transitions
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: Combined search-to-homing workflow, state transitions~~
 - [x] ~~Story 3.4: Field Testing Campaign - INTEGRATED INTO EPIC 5~~
-  - ID: LEGACY-3.4
-  - Description: MVP COMPLETION - Test infrastructure and procedures integrated into Epic 5 Story 5.7
-  - Priority: high
-  - Type: feature
-
+  - ~~ID: LEGACY-3.4~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: MVP COMPLETION - Test infrastructure and procedures integrated into Epic 5 Story 5.7~~
 - [x] ~~Story 3.5: Performance Optimization~~
-  - Description: System performance tuning, latency optimization
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: System performance tuning, latency optimization~~
 - [x] ~~Story 4.1: Frontend Application Stability~~
-  - Description: TypeScript fixes, WebSocket stability, MUI Grid v7 migration
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: TypeScript fixes, WebSocket stability, MUI Grid v7 migration~~
 - [x] ~~Story 4.3: Hardware Service Integration~~
-  - Description: SDR, MAVLink, state machine integration and testing
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: SDR, MAVLink, state machine integration and testing~~
 - [x] ~~Story 4.4: CI/CD Pipeline & Deployment~~
-  - Description: GitHub Actions CI/CD, pre-commit hooks, deployment automation
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: GitHub Actions CI/CD, pre-commit hooks, deployment automation~~
 - [x] ~~Story 4.5: API Implementation & Documentation~~
-  - Description: Complete REST API implementation matching test contracts
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: Complete REST API implementation matching test contracts~~
 - [x] ~~Story 4.6: Safety-Critical Coverage Compliance - INTEGRATED INTO EPIC 5~~
-  - ID: LEGACY-4.6
-  - Description: UNBLOCKED - Safety coverage requirements and SDR++ integration testing moved to Epic 5 Story 5.5
-  - Priority: high
-  - Type: feature
-
+  - ~~ID: LEGACY-4.6~~
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: UNBLOCKED - Safety coverage requirements and SDR++ integration testing moved to Epic 5 Story 5.5~~
 - [x] ~~Story 4.7: Hardware Integration Testing~~
-  - Description: HackRF One and Cube Orange+ integration with performance metrics
-  - Priority: high
-  - Type: feature
-
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: HackRF One and Cube Orange+ integration with performance metrics~~
 - [x] ~~Story 4.9: Code Optimization and Refactoring~~
-  - Description: NEEDS VERIFICATION - Sprint 8 complete but missing test files
-  - Priority: high
-  - Type: feature
+  - ~~Assignee: claude~~
+  - ~~Type: feature~~
+  - ~~Priority: high~~
+  - ~~Description: NEEDS VERIFICATION - Sprint 8 complete but missing test files~~
+
+---
+*To update tasks, use the Kanban board in Clode Studio, ask Claude to modify this file, or use Claude's native TodoWrite system.*

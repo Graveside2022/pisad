@@ -17,13 +17,13 @@ import time
 from datetime import datetime
 from typing import Any
 
-from src.backend.services.sdr_priority_manager import SDRPriorityManager
 from src.backend.services.safety_authority_manager import (
-    SafetyAuthorityManager,
     SafetyAuthorityLevel,
+    SafetyAuthorityManager,
     SafetyDecision,
     SafetyDecisionType,
 )
+from src.backend.services.sdr_priority_manager import SDRPriorityManager
 from src.backend.utils.coordination_optimizer import CoordinationLatencyTracker
 from src.backend.utils.logging import get_logger
 
@@ -39,15 +39,15 @@ class DualSDRCoordinator:
     """
 
     def __init__(
-        self, 
+        self,
         safety_authority: SafetyAuthorityManager | None = None,
-        service_manager: Any = None
+        service_manager: Any = None,
     ) -> None:
         """
         Initialize dual SDR coordinator with safety authority integration.
-        
+
         SUBTASK-5.5.3.4 [11a] - Inject SafetyManager into constructor with proper lifecycle.
-        
+
         Args:
             safety_authority: SafetyAuthorityManager for coordination safety validation
             service_manager: ServiceManager for dependency resolution
@@ -55,7 +55,7 @@ class DualSDRCoordinator:
         # SUBTASK-5.5.3.4 [11a] - Safety authority dependency injection
         self._safety_authority = safety_authority
         self._service_manager = service_manager
-        
+
         # Coordination timing requirements per PRD-NFR2 and Epic 5 Story 5.3
         self.coordination_interval = 0.05  # 50ms for <100ms total latency requirement
         self.fallback_timeout = 10.0  # 10 seconds per PRD specifications
@@ -96,23 +96,33 @@ class DualSDRCoordinator:
     async def initialize(self) -> None:
         """
         SUBTASK-5.5.3.4 [11a] - Initialize coordinator with safety validation.
-        
+
         Validates that SafetyAuthorityManager is properly configured for coordination.
-        
+
         Raises:
             ValueError: If SafetyAuthorityManager is not provided or invalid
         """
         if self._safety_authority is None:
-            raise ValueError("SafetyAuthorityManager is required for safe coordination operations")
-        
+            raise ValueError(
+                "SafetyAuthorityManager is required for safe coordination operations"
+            )
+
         # Validate safety authority is properly initialized
-        if not hasattr(self._safety_authority, 'authorities') or not self._safety_authority.authorities:
+        if (
+            not hasattr(self._safety_authority, "authorities")
+            or not self._safety_authority.authorities
+        ):
             raise ValueError("SafetyAuthorityManager is not properly initialized")
-        
+
         # Verify emergency response capability
-        if SafetyAuthorityLevel.EMERGENCY_STOP not in self._safety_authority.authorities:
-            raise ValueError("SafetyAuthorityManager missing emergency response capability")
-        
+        if (
+            SafetyAuthorityLevel.EMERGENCY_STOP
+            not in self._safety_authority.authorities
+        ):
+            raise ValueError(
+                "SafetyAuthorityManager missing emergency response capability"
+            )
+
         logger.info("DualSDRCoordinator initialized with safety authority integration")
 
     async def start(self) -> None:
@@ -140,8 +150,11 @@ class DualSDRCoordinator:
         logger.info("DualSDRCoordinator stopped")
 
     def set_dependencies(
-        self, signal_processor: Any = None, tcp_bridge: Any = None, safety_manager: Any = None,
-        safety_authority: SafetyAuthorityManager = None
+        self,
+        signal_processor: Any = None,
+        tcp_bridge: Any = None,
+        safety_manager: Any = None,
+        safety_authority: SafetyAuthorityManager = None,
     ) -> None:
         """
         Set service dependencies and initialize priority manager.
@@ -158,7 +171,9 @@ class DualSDRCoordinator:
         self._safety_authority = safety_authority
 
         # Initialize priority manager with dependencies
-        self._priority_manager = SDRPriorityManager(coordinator=self, safety_manager=safety_manager)
+        self._priority_manager = SDRPriorityManager(
+            coordinator=self, safety_manager=safety_manager
+        )
 
         logger.info("Dependencies set and priority manager initialized")
 
@@ -184,9 +199,13 @@ class DualSDRCoordinator:
         ):
             try:
                 await self._tcp_bridge.send_frequency_control(frequency)
-                logger.debug("Ground frequency synchronized to %.3f GHz", frequency / 1e9)
+                logger.debug(
+                    "Ground frequency synchronized to %.3f GHz", frequency / 1e9
+                )
             except Exception as e:
-                logger.warning("Failed to synchronize ground frequency, entering fallback: %s", e)
+                logger.warning(
+                    "Failed to synchronize ground frequency, entering fallback: %s", e
+                )
                 await self._trigger_fallback_mode("frequency_sync_failed")
 
     async def get_best_rssi(self) -> float:
@@ -203,7 +222,9 @@ class DualSDRCoordinator:
         drone_rssi = None
 
         # Get drone RSSI (always available for safety fallback)
-        if self._signal_processor and hasattr(self._signal_processor, "get_current_rssi"):
+        if self._signal_processor and hasattr(
+            self._signal_processor, "get_current_rssi"
+        ):
             try:
                 drone_rssi = self._signal_processor.get_current_rssi()
             except Exception as e:
@@ -218,7 +239,9 @@ class DualSDRCoordinator:
                 return drone_rssi
             else:
                 # Emergency fallback with buffered default if drone unavailable
-                logger.error("Drone RSSI unavailable during fallback mode - using buffered default")
+                logger.error(
+                    "Drone RSSI unavailable during fallback mode - using buffered default"
+                )
                 self.active_source = "drone"
                 return -100.0  # Buffered default for continuity
 
@@ -268,14 +291,19 @@ class DualSDRCoordinator:
         safety_status = await self._check_safety_status()
         if not safety_status["safe"]:
             logger.warning(
-                "Coordination decision delayed due to safety concern: %s", safety_status["reason"]
+                "Coordination decision delayed due to safety concern: %s",
+                safety_status["reason"],
             )
             # [2w] Coordination shutdown on safety system failures - trigger fallback for safety
-            await self._trigger_fallback_mode(f"safety_concern: {safety_status['reason']}")
+            await self._trigger_fallback_mode(
+                f"safety_concern: {safety_status['reason']}"
+            )
             return
 
         # Check ground connection status
-        ground_available = self._tcp_bridge and getattr(self._tcp_bridge, "is_running", False)
+        ground_available = self._tcp_bridge and getattr(
+            self._tcp_bridge, "is_running", False
+        )
 
         if not ground_available and not self.fallback_active:
             # Trigger seamless fallback to drone-only mode per SUBTASK-5.5.2.2[2g]
@@ -330,7 +358,9 @@ class DualSDRCoordinator:
             with contextlib.suppress(Exception):
                 ground_rssi = self._tcp_bridge.get_ground_rssi()
 
-        if self._signal_processor and hasattr(self._signal_processor, "get_current_rssi"):
+        if self._signal_processor and hasattr(
+            self._signal_processor, "get_current_rssi"
+        ):
             with contextlib.suppress(Exception):
                 drone_rssi = self._signal_processor.get_current_rssi()
 
@@ -350,25 +380,27 @@ class DualSDRCoordinator:
     async def select_best_source_with_safety_validation(self) -> dict[str, Any]:
         """
         Select best signal source with safety authority validation.
-        
+
         Implements [9c] - Safety-first decision making in coordination priority choices.
-        
+
         Returns:
             Dictionary with source selection and safety validation results
         """
         # Get basic source selection
         proposed_source = await self.select_best_source()
-        
+
         # If no safety authority, use basic selection
         if not self._safety_authority:
-            logger.warning("No safety authority available - using basic source selection")
+            logger.warning(
+                "No safety authority available - using basic source selection"
+            )
             return {
                 "selected_source": proposed_source,
                 "safety_validated": False,
                 "safety_reason": "No safety authority manager",
                 "response_time_ms": 0,
             }
-        
+
         # Create safety decision for source selection
         safety_decision = SafetyDecision(
             decision_type=SafetyDecisionType.SOURCE_SELECTION,
@@ -377,33 +409,43 @@ class DualSDRCoordinator:
                 "proposed_source": proposed_source,
                 "current_source": self.active_source,
                 "coordination_component": "DualSDRCoordinator",
-                "ground_available": self._tcp_bridge and getattr(self._tcp_bridge, "is_running", False),
+                "ground_available": self._tcp_bridge
+                and getattr(self._tcp_bridge, "is_running", False),
                 "drone_available": self._signal_processor is not None,
-            }
+            },
         )
-        
+
         # Validate decision through safety authority
         try:
-            approved, reason, approving_authority = await self._safety_authority.validate_safety_decision(safety_decision)
-            
+            (
+                approved,
+                reason,
+                approving_authority,
+            ) = await self._safety_authority.validate_safety_decision(safety_decision)
+
             if approved:
                 # Safety approved - use proposed source
                 selected_source = proposed_source
-                logger.info(f"Source selection '{proposed_source}' approved by {approving_authority} ({safety_decision.response_time_ms}ms)")
+                logger.info(
+                    f"Source selection '{proposed_source}' approved by {approving_authority} ({safety_decision.response_time_ms}ms)"
+                )
             else:
                 # Safety rejected - fallback to drone for safety
                 selected_source = "drone"
-                logger.warning(f"Source selection '{proposed_source}' rejected by safety authority: {reason}")
-            
+                logger.warning(
+                    f"Source selection '{proposed_source}' rejected by safety authority: {reason}"
+                )
+
             return {
                 "selected_source": selected_source,
                 "safety_validated": approved,
                 "safety_reason": reason,
                 "approving_authority": approving_authority,
                 "response_time_ms": safety_decision.response_time_ms,
-                "safety_compliant": safety_decision.response_time_ms <= 10000,  # <10s requirement
+                "safety_compliant": safety_decision.response_time_ms
+                <= 10000,  # <10s requirement
             }
-            
+
         except Exception as e:
             logger.error(f"Safety validation failed: {e} - defaulting to drone")
             return {
@@ -416,40 +458,42 @@ class DualSDRCoordinator:
     async def trigger_emergency_safety_override(self, reason: str) -> dict[str, Any]:
         """
         Trigger emergency safety override that bypasses all coordination.
-        
+
         Implements [9c] - Emergency pathways with <500ms response time.
-        
+
         Args:
             reason: Reason for emergency override
-            
+
         Returns:
             Emergency override result with timing
         """
         start_time = asyncio.get_event_loop().time()
-        
+
         logger.critical(f"EMERGENCY SAFETY OVERRIDE TRIGGERED: {reason}")
-        
+
         # Immediately switch to drone-only mode
         old_source = self.active_source
         self.active_source = "drone"
         self.fallback_active = True
-        
+
         # Trigger safety authority emergency override if available
         safety_override_result = {}
         if self._safety_authority:
             try:
-                safety_override_result = await self._safety_authority.trigger_emergency_override(reason)
+                safety_override_result = (
+                    await self._safety_authority.trigger_emergency_override(reason)
+                )
             except Exception as e:
                 logger.error(f"Safety authority emergency override failed: {e}")
-        
+
         # Stop coordination loop if running
-        if hasattr(self, '_coordination_task') and self._coordination_task:
+        if hasattr(self, "_coordination_task") and self._coordination_task:
             self._coordination_task.cancel()
             logger.warning("Coordination task cancelled due to emergency override")
-        
+
         end_time = asyncio.get_event_loop().time()
         response_time_ms = int((end_time - start_time) * 1000)
-        
+
         result = {
             "emergency_override_active": True,
             "source_switched_to": "drone",
@@ -457,14 +501,17 @@ class DualSDRCoordinator:
             "fallback_active": True,
             "coordination_stopped": True,
             "response_time_ms": response_time_ms,
-            "safety_requirement_met": response_time_ms <= 500,  # <500ms emergency requirement
+            "safety_requirement_met": response_time_ms
+            <= 500,  # <500ms emergency requirement
             "trigger_reason": reason,
             "safety_authority_override": safety_override_result,
             "timestamp": asyncio.get_event_loop().time(),
         }
-        
-        logger.critical(f"Emergency override completed in {response_time_ms}ms - coordination disabled")
-        
+
+        logger.critical(
+            f"Emergency override completed in {response_time_ms}ms - coordination disabled"
+        )
+
         return result
 
     async def get_health_status(self) -> dict[str, Any]:
@@ -479,7 +526,9 @@ class DualSDRCoordinator:
         # Calculate average coordination latency
         avg_latency = 0.0
         if self._coordination_latencies:
-            avg_latency = sum(self._coordination_latencies) / len(self._coordination_latencies)
+            avg_latency = sum(self._coordination_latencies) / len(
+                self._coordination_latencies
+            )
 
         # [2i1] Calculate fallback duration and metrics
         current_time = time.time()
@@ -492,11 +541,14 @@ class DualSDRCoordinator:
             "coordination_active": self.is_running,
             "active_source": self.active_source,
             "ground_connection_status": (
-                getattr(self._tcp_bridge, "is_running", False) if self._tcp_bridge else False
+                getattr(self._tcp_bridge, "is_running", False)
+                if self._tcp_bridge
+                else False
             ),
             "drone_signal_quality": (
                 self._signal_processor.get_current_rssi()
-                if self._signal_processor and hasattr(self._signal_processor, "get_current_rssi")
+                if self._signal_processor
+                and hasattr(self._signal_processor, "get_current_rssi")
                 else -100.0
             ),
             "coordination_latency_ms": avg_latency,
@@ -509,7 +561,9 @@ class DualSDRCoordinator:
             health_status.update(
                 {
                     "fallback_duration_ms": fallback_duration_ms,
-                    "fallback_trigger_count": getattr(self, "_fallback_trigger_count", 0),
+                    "fallback_trigger_count": getattr(
+                        self, "_fallback_trigger_count", 0
+                    ),
                     "fallback_start_time": getattr(self, "_fallback_start_time", 0.0),
                     "fallback_reason": getattr(self, "_fallback_reason", "unknown"),
                 }
@@ -670,7 +724,9 @@ class DualSDRCoordinator:
             )
 
             # Integration with existing notification system via TCP bridge
-            if self._tcp_bridge and hasattr(self._tcp_bridge, "auto_notify_communication_issue"):
+            if self._tcp_bridge and hasattr(
+                self._tcp_bridge, "auto_notify_communication_issue"
+            ):
                 notification_data = {
                     "degradation_type": notification_type,
                     "timestamp": time.time(),
@@ -681,7 +737,9 @@ class DualSDRCoordinator:
                 )
 
             # Also notify safety manager if available
-            if self._safety_manager and hasattr(self._safety_manager, "handle_communication_loss"):
+            if self._safety_manager and hasattr(
+                self._safety_manager, "handle_communication_loss"
+            ):
                 degradation_event = {
                     "event_type": "feature_degradation",
                     "notification_type": notification_type,
@@ -689,8 +747,12 @@ class DualSDRCoordinator:
                     "timestamp": time.time(),
                 }
 
-                if asyncio.iscoroutinefunction(self._safety_manager.handle_communication_loss):
-                    await self._safety_manager.handle_communication_loss(degradation_event)
+                if asyncio.iscoroutinefunction(
+                    self._safety_manager.handle_communication_loss
+                ):
+                    await self._safety_manager.handle_communication_loss(
+                        degradation_event
+                    )
                 else:
                     self._safety_manager.handle_communication_loss(degradation_event)
 
@@ -700,7 +762,8 @@ class DualSDRCoordinator:
     async def _coordination_loop(self) -> None:
         """Main coordination loop running at specified interval."""
         logger.info(
-            "Starting coordination loop with %.1fms interval", self.coordination_interval * 1000
+            "Starting coordination loop with %.1fms interval",
+            self.coordination_interval * 1000,
         )
 
         while self.is_running:
@@ -788,7 +851,10 @@ class DualSDRCoordinator:
             try:
                 priority_status = await self._priority_manager.get_priority_status()
                 base_status.update(
-                    {"priority_management": priority_status, "priority_manager_active": True}
+                    {
+                        "priority_management": priority_status,
+                        "priority_manager_active": True,
+                    }
                 )
             except Exception as e:
                 logger.warning(f"Failed to get priority status: {e}")
@@ -823,7 +889,9 @@ class DualSDRCoordinator:
         Returns:
             Drone RSSI in dBm or None if unavailable
         """
-        if self._signal_processor and hasattr(self._signal_processor, "get_current_rssi"):
+        if self._signal_processor and hasattr(
+            self._signal_processor, "get_current_rssi"
+        ):
             try:
                 return self._signal_processor.get_current_rssi()
             except Exception as e:
@@ -889,7 +957,8 @@ class DualSDRCoordinator:
             ),
             "performance_status": (
                 "optimal"
-                if latency_stats["meets_requirements"] and latency_stats["active_alerts"] == 0
+                if latency_stats["meets_requirements"]
+                and latency_stats["active_alerts"] == 0
                 else "degraded" if latency_stats["active_alerts"] > 0 else "baseline"
             ),
         }
@@ -954,9 +1023,13 @@ class DualSDRCoordinator:
                 "degradation_level": features["degradation_level"],
                 "fallback_reason": reason,
             }
-            await self._notify_feature_degradation("feature_degradation", degradation_details)
+            await self._notify_feature_degradation(
+                "feature_degradation", degradation_details
+            )
         except Exception as e:
-            logger.warning("Failed to notify feature degradation during fallback: %s", e)
+            logger.warning(
+                "Failed to notify feature degradation during fallback: %s", e
+            )
 
         # [2i] Add fallback status monitoring and reporting
         logger.info(
@@ -990,11 +1063,15 @@ class DualSDRCoordinator:
 
             for attr in required_attrs:
                 if not hasattr(self, attr):
-                    raise ValueError(f"Missing required fallback state attribute: {attr}")
+                    raise ValueError(
+                        f"Missing required fallback state attribute: {attr}"
+                    )
 
             # Validate state consistency
             if not self.fallback_active:
-                raise ValueError("fallback_active must be True during fallback validation")
+                raise ValueError(
+                    "fallback_active must be True during fallback validation"
+                )
 
             if self.active_source != "drone":
                 raise ValueError(
@@ -1047,14 +1124,18 @@ class DualSDRCoordinator:
             self.active_source = "drone"
 
         # Notify safety manager of recovery
-        if self._safety_manager and hasattr(self._safety_manager, "handle_communication_restored"):
+        if self._safety_manager and hasattr(
+            self._safety_manager, "handle_communication_restored"
+        ):
             try:
                 await self._safety_manager.handle_communication_restored()
                 logger.info("Safety manager notified of communication recovery")
             except Exception as e:
                 logger.error("Failed to notify safety manager of recovery: %s", e)
 
-        logger.info("Recovery mode completed: source=%s, reason=%s", self.active_source, reason)
+        logger.info(
+            "Recovery mode completed: source=%s, reason=%s", self.active_source, reason
+        )
 
     async def _notify_operator_fallback_activation(self, reason: str) -> None:
         """
@@ -1065,7 +1146,9 @@ class DualSDRCoordinator:
         """
         try:
             # Notify through TCP bridge notification system if available
-            if self._tcp_bridge and hasattr(self._tcp_bridge, "auto_notify_communication_issue"):
+            if self._tcp_bridge and hasattr(
+                self._tcp_bridge, "auto_notify_communication_issue"
+            ):
                 await self._tcp_bridge.auto_notify_communication_issue(
                     "fallback_activated",
                     {
@@ -1077,7 +1160,9 @@ class DualSDRCoordinator:
                 )
 
             # Also notify safety manager if available
-            if self._safety_manager and hasattr(self._safety_manager, "handle_communication_loss"):
+            if self._safety_manager and hasattr(
+                self._safety_manager, "handle_communication_loss"
+            ):
                 safety_event = {
                     "event_type": "coordination_fallback",
                     "reason": reason,
@@ -1085,7 +1170,9 @@ class DualSDRCoordinator:
                     "timestamp": time.time(),
                 }
                 # Check if it's async before awaiting
-                if asyncio.iscoroutinefunction(self._safety_manager.handle_communication_loss):
+                if asyncio.iscoroutinefunction(
+                    self._safety_manager.handle_communication_loss
+                ):
                     await self._safety_manager.handle_communication_loss(safety_event)
                 else:
                     self._safety_manager.handle_communication_loss(safety_event)
@@ -1139,16 +1226,18 @@ class DualSDRCoordinator:
             # [2w] On safety system failure, assume unsafe for coordination
             return {"safe": False, "reason": f"safety_check_failed: {e}"}
 
-    def validate_command_before_execution(self, command: str, params: dict[str, Any]) -> dict[str, Any]:
+    def validate_command_before_execution(
+        self, command: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         SUBTASK-5.5.3.2 [9d] - Validate coordination commands before execution.
-        
+
         Integrates SafetyAuthorityManager validation into all coordination commands.
-        
+
         Args:
             command: Command type to validate
             params: Command parameters
-            
+
         Returns:
             Dict containing validation result
         """
@@ -1157,14 +1246,14 @@ class DualSDRCoordinator:
             return {
                 "authorized": False,
                 "message": "Safety authority not available",
-                "validation_time_ms": 0
+                "validation_time_ms": 0,
             }
-        
+
         try:
             # Map command to authority level and details
             authority_level = SafetyAuthorityLevel.COMMUNICATION  # Default level
             command_type = command
-            
+
             if command in ["emergency_stop", "system_shutdown"]:
                 authority_level = SafetyAuthorityLevel.EMERGENCY_STOP
                 command_type = "emergency_stop"
@@ -1174,15 +1263,17 @@ class DualSDRCoordinator:
             elif command in ["coordination_override", "fallback_trigger"]:
                 authority_level = SafetyAuthorityLevel.FLIGHT_MODE
                 command_type = "coordination_override"
-            
+
             # Validate with timing requirement
-            authorized, message = self._safety_authority.validate_coordination_command_real_time(
-                command_type=command_type,
-                authority_level=authority_level,
-                details=params,
-                response_time_limit_ms=50  # Strict 50ms requirement for coordination
+            authorized, message = (
+                self._safety_authority.validate_coordination_command_real_time(
+                    command_type=command_type,
+                    authority_level=authority_level,
+                    details=params,
+                    response_time_limit_ms=50,  # Strict 50ms requirement for coordination
+                )
             )
-            
+
             # Log the validation for audit trail
             if self._safety_authority:
                 self._safety_authority.log_coordination_decision(
@@ -1190,22 +1281,22 @@ class DualSDRCoordinator:
                     decision_type=f"command_validation_{command}",
                     decision_details=params,
                     authority_level=authority_level,
-                    outcome="authorized" if authorized else "denied"
+                    outcome="authorized" if authorized else "denied",
                 )
-            
+
             return {
                 "authorized": authorized,
                 "message": message,
                 "command": command,
                 "authority_level": authority_level.value,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
-            
+
         except Exception as e:
             logger.error(f"Command validation failed for {command}: {e}")
             return {
                 "authorized": False,
                 "message": f"Validation error: {str(e)}",
                 "command": command,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
