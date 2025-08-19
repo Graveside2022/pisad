@@ -31,6 +31,11 @@ class SafetyEventType(Enum):
     SAFETY_ENABLED = "safety_enabled"
     SAFETY_DISABLED = "safety_disabled"
     SAFETY_WARNING = "safety_warning"
+    # SDR++ Coordination safety events
+    COORDINATION_HEALTH_DEGRADED = "coordination_health_degraded"
+    COMMUNICATION_LOSS = "communication_loss"
+    DUAL_SOURCE_CONFLICT = "dual_source_conflict"
+    COORDINATION_LATENCY_EXCEEDED = "coordination_latency_exceeded"
 
 
 class SafetyTrigger(Enum):
@@ -44,6 +49,11 @@ class SafetyTrigger(Enum):
     EMERGENCY_STOP = "emergency_stop"
     TIMEOUT = "timeout"
     MANUAL_OVERRIDE = "manual_override"
+    # SDR++ Coordination triggers
+    COORDINATION_FAILURE = "coordination_failure"
+    COMMUNICATION_TIMEOUT = "communication_timeout"
+    SOURCE_CONFLICT = "source_conflict"
+    LATENCY_VIOLATION = "latency_violation"
 
 
 @dataclass
@@ -409,7 +419,11 @@ class GeofenceCheck(SafetyCheck):
         return R * c
 
     def set_geofence(
-        self, center_lat: float, center_lon: float, radius_meters: float, altitude: float = None
+        self,
+        center_lat: float,
+        center_lon: float,
+        radius_meters: float,
+        altitude: float | None = None,
     ) -> None:
         """Set geofence parameters.
 
@@ -426,7 +440,7 @@ class GeofenceCheck(SafetyCheck):
         self.fence_enabled = True
         logger.info(f"Geofence set: center=({center_lat}, {center_lon}), radius={radius_meters}m")
 
-    def update_position(self, lat: float, lon: float, alt: float = None) -> None:
+    def update_position(self, lat: float, lon: float, alt: float | None = None) -> None:
         """Update current position.
 
         Args:
@@ -459,27 +473,200 @@ class GeofenceCheck(SafetyCheck):
         )
 
 
+class CoordinationHealthCheck(SafetyCheck):
+    """Monitors SDR++ coordination system health."""
+
+    def __init__(self, latency_threshold_ms: float = 100.0, health_timeout_s: int = 30):
+        """Initialize coordination health check.
+
+        Args:
+            latency_threshold_ms: Maximum allowed coordination latency
+            health_timeout_s: Timeout for coordination health responses
+        """
+        super().__init__("coordination_health")
+        self.latency_threshold_ms = latency_threshold_ms
+        self.health_timeout_s = health_timeout_s
+        self.coordination_active = False
+        self.last_coordination_response: datetime | None = None
+        self.current_latency_ms = 0.0
+        self.communication_quality = 0.0  # 0-1 scale
+        self.dual_sdr_coordinator: Any | None = None
+
+    async def check(self) -> bool:
+        """Check coordination system health.
+
+        Returns:
+            True if coordination system is healthy, False otherwise
+        """
+        self.last_check = datetime.now(UTC)
+
+        # If coordination not active, consider safe (drone-only mode)
+        if not self.coordination_active:
+            self.is_safe = True
+            self.failure_reason = None
+            return True
+
+        # Check coordination health if coordinator is available
+        if self.dual_sdr_coordinator:
+            try:
+                health_status = await self.dual_sdr_coordinator.get_health_status()
+                self.current_latency_ms = health_status.get("coordination_latency_ms", 0.0)
+                self.communication_quality = health_status.get("ground_connection_status", 0.0)
+
+                # Check latency threshold
+                if self.current_latency_ms > self.latency_threshold_ms:
+                    self.is_safe = False
+                    self.failure_reason = f"Coordination latency {self.current_latency_ms:.1f}ms exceeds {self.latency_threshold_ms}ms"
+                    return False
+
+                # Check communication quality
+                if self.communication_quality < 0.5:  # Below 50% quality
+                    self.is_safe = False
+                    self.failure_reason = (
+                        f"Communication quality poor: {self.communication_quality:.1%}"
+                    )
+                    return False
+
+                self.last_coordination_response = self.last_check
+                self.is_safe = True
+                self.failure_reason = None
+                return True
+
+            except Exception as e:
+                self.is_safe = False
+                self.failure_reason = f"Coordination health check failed: {e}"
+                return False
+
+        # No coordinator available - check timeout
+        if self.last_coordination_response:
+            time_since_response = self.last_check - self.last_coordination_response
+            if time_since_response.total_seconds() > self.health_timeout_s:
+                self.is_safe = False
+                self.failure_reason = (
+                    f"No coordination response for {time_since_response.total_seconds():.1f}s"
+                )
+                return False
+
+        self.is_safe = True
+        self.failure_reason = None
+        return True
+
+    def set_coordination_status(self, active: bool, coordinator: Any = None) -> None:
+        """Update coordination system status.
+
+        Args:
+            active: Whether coordination is active
+            coordinator: DualSDRCoordinator instance if available
+        """
+        self.coordination_active = active
+        self.dual_sdr_coordinator = coordinator
+        if active and coordinator is None:
+            logger.warning("Coordination marked active but no coordinator provided")
+
+
+class DualSourceSignalCheck(SafetyCheck):
+    """Enhanced signal monitoring with dual SDR sources."""
+
+    def __init__(self, snr_threshold: float = 6.0, conflict_threshold: float = 10.0):
+        """Initialize dual source signal check.
+
+        Args:
+            snr_threshold: Minimum SNR in dB for each source
+            conflict_threshold: Maximum allowed difference between sources in dB
+        """
+        super().__init__("dual_source_signal")
+        self.snr_threshold = snr_threshold
+        self.conflict_threshold = conflict_threshold
+        self.ground_snr = 0.0
+        self.drone_snr = 0.0
+        self.source_conflict_detected = False
+        self.signal_processor: Any | None = None
+        self.dual_sdr_coordinator: Any | None = None
+
+    async def check(self) -> bool:
+        """Check signal quality from both sources.
+
+        Returns:
+            True if signal quality acceptable, False otherwise
+        """
+        self.last_check = datetime.now(UTC)
+
+        # Get current signal values
+        if self.dual_sdr_coordinator:
+            try:
+                ground_rssi = self.dual_sdr_coordinator.get_ground_rssi()
+                drone_rssi = self.dual_sdr_coordinator.get_drone_rssi()
+                self.ground_snr = ground_rssi if ground_rssi is not None else -100.0
+                self.drone_snr = drone_rssi if drone_rssi is not None else -100.0
+            except Exception as e:
+                logger.warning(f"Failed to get dual source signals: {e}")
+                self.ground_snr = -100.0
+                self.drone_snr = -100.0
+
+        # Check if either source meets threshold
+        ground_ok = self.ground_snr >= self.snr_threshold
+        drone_ok = self.drone_snr >= self.snr_threshold
+
+        # At least one source must be good
+        if not (ground_ok or drone_ok):
+            self.is_safe = False
+            self.failure_reason = f"Both sources below threshold: ground={self.ground_snr:.1f}dB, drone={self.drone_snr:.1f}dB"
+            return False
+
+        # Check for conflicts between sources when both are active
+        if ground_ok and drone_ok:
+            signal_diff = abs(self.ground_snr - self.drone_snr)
+            if signal_diff > self.conflict_threshold:
+                self.source_conflict_detected = True
+                logger.warning(f"Signal conflict detected: {signal_diff:.1f}dB difference")
+                # This is a warning, not a failure - coordination should handle this
+            else:
+                self.source_conflict_detected = False
+
+        self.is_safe = True
+        self.failure_reason = None
+        return True
+
+    def update_signal_sources(self, signal_processor: Any, coordinator: Any) -> None:
+        """Update signal source references.
+
+        Args:
+            signal_processor: Signal processor instance
+            coordinator: DualSDRCoordinator instance
+        """
+        self.signal_processor = signal_processor
+        self.dual_sdr_coordinator = coordinator
+
+
 class SafetyInterlockSystem:
     """Main safety interlock system coordinator."""
 
     def __init__(self) -> None:
-        """Initialize safety interlock system."""
+        """Initialize safety interlock system with SDR++ coordination awareness."""
         self.checks: dict[str, SafetyCheck] = {
             "mode": ModeCheck(),
             "operator": OperatorActivationCheck(),
             "signal": SignalLossCheck(),
             "battery": BatteryCheck(),
             "geofence": GeofenceCheck(),
+            # SDR++ Coordination safety checks
+            "coordination_health": CoordinationHealthCheck(),
+            "dual_source_signal": DualSourceSignalCheck(),
         }
 
         self.emergency_stopped = False
         self.safety_events: list[SafetyEvent] = []
         self.max_events = 1000  # Keep last 1000 events
 
+        # SDR++ Coordination integration
+        self.dual_sdr_coordinator: Any | None = None
+        self.coordination_active = False
+        self.coordination_safety_enabled = True
+
         self._check_task: asyncio.Task | None = None
         self._check_interval = 0.1  # 100ms for mode detection requirement
 
-        logger.info("Safety interlock system initialized")
+        logger.info("Safety interlock system initialized with SDR++ coordination awareness")
 
     async def start_monitoring(self) -> None:
         """Start continuous safety monitoring."""
@@ -664,7 +851,7 @@ class SafetyInterlockSystem:
         if isinstance(signal_check, SignalLossCheck):
             signal_check.update_snr(snr)
 
-    def update_position(self, lat: float, lon: float, alt: float = None) -> None:
+    def update_position(self, lat: float, lon: float, alt: float | None = None) -> None:
         """Update current position.
 
         Args:
@@ -752,5 +939,234 @@ class SafetyInterlockSystem:
             "signal": SafetyTrigger.SIGNAL_LOSS,
             "battery": SafetyTrigger.LOW_BATTERY,
             "geofence": SafetyTrigger.GEOFENCE_VIOLATION,
+            # SDR++ Coordination triggers
+            "coordination_health": SafetyTrigger.COORDINATION_FAILURE,
+            "dual_source_signal": SafetyTrigger.SOURCE_CONFLICT,
         }
         return trigger_map.get(check_name, SafetyTrigger.MANUAL_OVERRIDE)
+
+    # SDR++ Coordination integration methods
+
+    def set_coordination_system(self, coordinator: Any, active: bool = True) -> None:
+        """
+        [1g] Set SDR++ coordination system for safety monitoring.
+
+        Args:
+            coordinator: DualSDRCoordinator instance
+            active: Whether coordination is active
+        """
+        self.dual_sdr_coordinator = coordinator
+        self.coordination_active = active
+
+        # Update coordination health check
+        if "coordination_health" in self.checks:
+            coord_check = self.checks["coordination_health"]
+            if isinstance(coord_check, CoordinationHealthCheck):
+                coord_check.set_coordination_status(active, coordinator)
+
+        # Update dual source signal check
+        if "dual_source_signal" in self.checks:
+            signal_check = self.checks["dual_source_signal"]
+            if isinstance(signal_check, DualSourceSignalCheck):
+                signal_check.update_signal_sources(None, coordinator)
+
+        logger.info(
+            f"Coordination system {'enabled' if active else 'disabled'} for safety monitoring"
+        )
+
+    async def check_coordination_health(self) -> dict[str, Any]:
+        """
+        [1i] Check coordination system health and trigger safety events if needed.
+
+        Returns:
+            Coordination health status
+        """
+        if not self.coordination_safety_enabled or not self.coordination_active:
+            return {"enabled": False, "status": "disabled"}
+
+        # Check coordination health
+        coord_check = self.checks.get("coordination_health")
+        if coord_check and isinstance(coord_check, CoordinationHealthCheck):
+            is_healthy = await coord_check.check()
+
+            if not is_healthy:
+                # Trigger safety event for coordination health degradation
+                await self._log_safety_event(
+                    SafetyEventType.COORDINATION_HEALTH_DEGRADED,
+                    SafetyTrigger.COORDINATION_FAILURE,
+                    {
+                        "reason": coord_check.failure_reason,
+                        "latency_ms": coord_check.current_latency_ms,
+                        "communication_quality": coord_check.communication_quality,
+                    },
+                )
+
+            return {
+                "enabled": True,
+                "healthy": is_healthy,
+                "latency_ms": coord_check.current_latency_ms,
+                "communication_quality": coord_check.communication_quality,
+                "failure_reason": coord_check.failure_reason,
+            }
+
+        return {"enabled": False, "status": "no_health_check"}
+
+    async def check_dual_source_signals(self) -> dict[str, Any]:
+        """
+        [1h] Check dual source signal quality and detect conflicts.
+
+        Returns:
+            Dual source signal status
+        """
+        signal_check = self.checks.get("dual_source_signal")
+        if signal_check and isinstance(signal_check, DualSourceSignalCheck):
+            is_safe = await signal_check.check()
+
+            if signal_check.source_conflict_detected:
+                # Log warning for source conflict
+                await self._log_safety_event(
+                    SafetyEventType.DUAL_SOURCE_CONFLICT,
+                    SafetyTrigger.SOURCE_CONFLICT,
+                    {
+                        "ground_snr": signal_check.ground_snr,
+                        "drone_snr": signal_check.drone_snr,
+                        "difference": abs(signal_check.ground_snr - signal_check.drone_snr),
+                    },
+                )
+
+            return {
+                "safe": is_safe,
+                "ground_snr": signal_check.ground_snr,
+                "drone_snr": signal_check.drone_snr,
+                "conflict_detected": signal_check.source_conflict_detected,
+                "failure_reason": signal_check.failure_reason,
+            }
+
+        return {"enabled": False, "status": "no_dual_source_check"}
+
+    async def trigger_coordination_emergency_stop(
+        self, reason: str = "Safety emergency stop"
+    ) -> dict[str, Any]:
+        """
+        [1j] Trigger emergency stop through coordination system.
+
+        Args:
+            reason: Reason for emergency stop
+
+        Returns:
+            Emergency stop result with coordination system response
+        """
+        logger.critical(f"COORDINATION EMERGENCY STOP: {reason}")
+
+        # First trigger standard emergency stop
+        await self.emergency_stop(reason)
+
+        # Then trigger coordination system emergency stop
+        coordination_result = {}
+        if self.dual_sdr_coordinator:
+            try:
+                coordination_result = await self.dual_sdr_coordinator.trigger_emergency_override()
+                logger.info(f"Coordination emergency override result: {coordination_result}")
+            except Exception as e:
+                logger.error(f"Coordination emergency override failed: {e}")
+                coordination_result = {"error": str(e), "coordination_override": False}
+
+        # Log coordination emergency event
+        await self._log_safety_event(
+            SafetyEventType.EMERGENCY_STOP,
+            SafetyTrigger.EMERGENCY_STOP,
+            {
+                "reason": reason,
+                "coordination_triggered": True,
+                "coordination_result": coordination_result,
+            },
+        )
+
+        return {
+            "safety_emergency_stop": True,
+            "coordination_emergency_stop": coordination_result,
+            "reason": reason,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+
+    def get_coordination_safety_status(self) -> dict[str, Any]:
+        """
+        [1k] Get comprehensive coordination safety status.
+
+        Returns:
+            Complete coordination safety status including all checks
+        """
+        base_status = self.get_safety_status()
+
+        # Add coordination-specific status
+        coordination_status = {
+            "coordination_active": self.coordination_active,
+            "coordination_safety_enabled": self.coordination_safety_enabled,
+            "dual_sdr_coordinator_available": self.dual_sdr_coordinator is not None,
+        }
+
+        # Add coordination check statuses
+        if "coordination_health" in self.checks:
+            coord_check = self.checks["coordination_health"]
+            if isinstance(coord_check, CoordinationHealthCheck):
+                coordination_status["coordination_health"] = {
+                    "active": coord_check.coordination_active,
+                    "latency_ms": coord_check.current_latency_ms,
+                    "communication_quality": coord_check.communication_quality,
+                    "last_response": (
+                        coord_check.last_coordination_response.isoformat()
+                        if coord_check.last_coordination_response
+                        else None
+                    ),
+                }
+
+        if "dual_source_signal" in self.checks:
+            signal_check = self.checks["dual_source_signal"]
+            if isinstance(signal_check, DualSourceSignalCheck):
+                coordination_status["dual_source_signal"] = {
+                    "ground_snr": signal_check.ground_snr,
+                    "drone_snr": signal_check.drone_snr,
+                    "conflict_detected": signal_check.source_conflict_detected,
+                }
+
+        base_status["coordination"] = coordination_status
+        return base_status
+
+    def enable_coordination_safety(self, enabled: bool = True) -> None:
+        """
+        Enable or disable coordination safety monitoring.
+
+        Args:
+            enabled: Whether to enable coordination safety checks
+        """
+        self.coordination_safety_enabled = enabled
+        logger.info(f"Coordination safety monitoring {'enabled' if enabled else 'disabled'}")
+
+    async def coordination_latency_check(self, latency_ms: float) -> bool:
+        """
+        [1l] Monitor coordination latency and trigger events if exceeded.
+
+        Args:
+            latency_ms: Current coordination latency in milliseconds
+
+        Returns:
+            True if latency acceptable, False if exceeded
+        """
+        coord_check = self.checks.get("coordination_health")
+        if (
+            coord_check
+            and isinstance(coord_check, CoordinationHealthCheck)
+            and latency_ms > coord_check.latency_threshold_ms
+        ):
+            await self._log_safety_event(
+                SafetyEventType.COORDINATION_LATENCY_EXCEEDED,
+                SafetyTrigger.LATENCY_VIOLATION,
+                {
+                    "measured_latency_ms": latency_ms,
+                    "threshold_ms": coord_check.latency_threshold_ms,
+                    "violation_amount_ms": latency_ms - coord_check.latency_threshold_ms,
+                },
+            )
+            return False
+
+        return True

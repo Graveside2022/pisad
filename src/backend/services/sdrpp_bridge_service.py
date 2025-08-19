@@ -12,12 +12,14 @@ PRD References:
 
 import asyncio
 import json
-import logging
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from src.backend.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class SDRPPBridgeService:
@@ -48,7 +50,26 @@ class SDRPPBridgeService:
         self.heartbeat_timeout = 30.0  # 30 seconds for SDR++ connections
         self.client_heartbeats: dict[tuple[str, int], float] = {}
 
-        logger.info("SDRPPBridgeService initialized with port %s", self.port)
+        # [1m] Safety manager integration for communication health monitoring
+        self._safety_manager: Any | None = None
+        self._safety_timeout = 10.0  # <10s timeout for safety notifications
+        self._last_safety_notification = 0.0
+        self._communication_quality_threshold = 0.5  # 50% quality threshold
+
+        # [1n] Communication loss detection with safety event triggers
+        self._connection_lost_callbacks: list[Callable[..., Any]] = []
+        self._connection_restored_callbacks: list[Callable[..., Any]] = []
+        self._last_connection_check = time.time()
+        self._consecutive_failures = 0
+        self._failure_threshold = 3  # 3 consecutive failures trigger safety event
+
+        # [1q] Network quality assessment metrics
+        self._message_latency_history: list[float] = []
+        self._message_success_count = 0
+        self._message_failure_count = 0
+        self._connection_start_time = 0.0
+
+        logger.info("SDRPPBridgeService initialized with safety integration on port %s", self.port)
 
     async def start(self) -> None:
         """Start the TCP server for SDR++ plugin connections."""
@@ -205,6 +226,33 @@ class SDRPPBridgeService:
         """
         self._signal_processor = signal_processor
         logger.debug("Signal processor service configured for RSSI streaming")
+
+    def set_safety_manager(self, safety_manager: Any) -> None:
+        """[1m] Set safety manager for communication health monitoring.
+
+        Args:
+            safety_manager: Safety manager service instance for health notifications
+        """
+        self._safety_manager = safety_manager
+        logger.info("Safety manager configured for communication health monitoring")
+
+    def add_connection_lost_callback(self, callback: Callable[..., Any]) -> None:
+        """[1n] Add callback for communication loss detection.
+
+        Args:
+            callback: Function to call when communication is lost
+        """
+        self._connection_lost_callbacks.append(callback)
+        logger.debug("Connection lost callback registered")
+
+    def add_connection_restored_callback(self, callback: Callable[..., Any]) -> None:
+        """[1n] Add callback for communication restoration.
+
+        Args:
+            callback: Function to call when communication is restored
+        """
+        self._connection_restored_callbacks.append(callback)
+        logger.debug("Connection restored callback registered")
 
     async def handle_rssi_request(self) -> dict[str, Any]:
         """Handle RSSI streaming request from SDR++ client.
@@ -444,6 +492,274 @@ class SDRPPBridgeService:
 
         except Exception as e:
             logger.error("Error disconnecting client %s: %s", client_addr, e)
+
+    async def get_communication_health_status(self) -> dict[str, Any]:
+        """[1q] Get comprehensive communication health status for safety decision matrix.
+
+        Returns:
+            Communication health metrics for safety system integration
+        """
+        try:
+            current_time = time.time()
+            connection_duration = (
+                current_time - self._connection_start_time if self._connection_start_time > 0 else 0
+            )
+
+            # Calculate communication quality metrics
+            total_messages = self._message_success_count + self._message_failure_count
+            success_rate = (
+                (self._message_success_count / total_messages) if total_messages > 0 else 0.0
+            )
+
+            # Calculate average latency
+            avg_latency = (
+                sum(self._message_latency_history) / len(self._message_latency_history)
+                if self._message_latency_history
+                else 0.0
+            )
+
+            # Determine overall health status
+            is_healthy = (
+                len(self.clients) > 0  # At least one client connected
+                and success_rate
+                >= self._communication_quality_threshold  # Success rate above threshold
+                and avg_latency < 1000.0  # Latency under 1 second
+                and self._consecutive_failures < self._failure_threshold  # Not in failure state
+            )
+
+            health_status = {
+                "healthy": is_healthy,
+                "connected_clients": len(self.clients),
+                "connection_duration_seconds": connection_duration,
+                "message_success_rate": success_rate,
+                "average_latency_ms": avg_latency,
+                "consecutive_failures": self._consecutive_failures,
+                "communication_quality": success_rate,
+                "last_heartbeat_age": (
+                    min([current_time - hb for hb in self.client_heartbeats.values()])
+                    if self.client_heartbeats
+                    else float("inf")
+                ),
+                "total_messages_processed": total_messages,
+                "quality_threshold": self._communication_quality_threshold,
+            }
+
+            return health_status
+
+        except Exception as e:
+            logger.error("Error getting communication health status: %s", e)
+            return {
+                "healthy": False,
+                "error": str(e),
+                "connected_clients": 0,
+                "message_success_rate": 0.0,
+            }
+
+    async def safety_communication_loss(self, reason: str = "Communication timeout") -> None:
+        """[1n] Handle communication loss with safety event triggers.
+
+        Args:
+            reason: Reason for communication loss
+        """
+        try:
+            logger.warning("Communication loss detected: %s", reason)
+
+            # Notify safety manager if available
+            if self._safety_manager:
+                try:
+                    # Create safety event for communication loss
+                    safety_event = {
+                        "event_type": "communication_loss",
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "source": "sdrpp_bridge",
+                        "reason": reason,
+                        "clients_affected": len(self.clients),
+                        "consecutive_failures": self._consecutive_failures,
+                    }
+
+                    # Trigger safety manager notification
+                    await self._safety_manager.handle_communication_loss(safety_event)
+                    logger.info("Safety manager notified of communication loss")
+
+                except Exception as e:
+                    logger.error("Failed to notify safety manager of communication loss: %s", e)
+
+            # Execute registered callbacks
+            for callback in self._connection_lost_callbacks:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(reason)
+                    else:
+                        callback(reason)
+                except Exception as e:
+                    logger.error("Error executing connection lost callback: %s", e)
+
+            self._last_safety_notification = time.time()
+
+        except Exception as e:
+            logger.error("Error handling communication loss: %s", e)
+
+    async def safety_communication_restored(self) -> None:
+        """[1n] Handle communication restoration with safety notifications."""
+        try:
+            logger.info("Communication restored - notifying safety systems")
+
+            # Reset failure counters
+            self._consecutive_failures = 0
+            self._connection_start_time = time.time()
+
+            # Notify safety manager if available
+            if self._safety_manager:
+                try:
+                    safety_event = {
+                        "event_type": "communication_restored",
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "source": "sdrpp_bridge",
+                        "connected_clients": len(self.clients),
+                    }
+
+                    await self._safety_manager.handle_communication_restored(safety_event)
+                    logger.info("Safety manager notified of communication restoration")
+
+                except Exception as e:
+                    logger.error(
+                        "Failed to notify safety manager of communication restoration: %s", e
+                    )
+
+            # Execute registered callbacks
+            for callback in self._connection_restored_callbacks:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback()
+                    else:
+                        callback()
+                except Exception as e:
+                    logger.error("Error executing connection restored callback: %s", e)
+
+        except Exception as e:
+            logger.error("Error handling communication restoration: %s", e)
+
+    async def check_safety_timeout(self) -> bool:
+        """[1p] Check if communication safety timeout has been exceeded.
+
+        Returns:
+            True if safety timeout exceeded, False otherwise
+        """
+        try:
+            current_time = time.time()
+
+            # Check if we have any active connections
+            if not self.clients:
+                time_since_last_connection = current_time - self._last_connection_check
+                if time_since_last_connection > self._safety_timeout:
+                    logger.warning(
+                        "Safety timeout exceeded: %.1f seconds without connection",
+                        time_since_last_connection,
+                    )
+                    await self.safety_communication_loss(
+                        f"Safety timeout exceeded: {time_since_last_connection:.1f}s"
+                    )
+                    return True
+            else:
+                self._last_connection_check = current_time
+
+            return False
+
+        except Exception as e:
+            logger.error("Error checking safety timeout: %s", e)
+            return True  # Err on the side of caution
+
+    async def emergency_disconnect(self, reason: str = "Emergency safety disconnect") -> None:
+        """[1o] Emergency disconnect for safety-triggered coordination shutdown.
+
+        Args:
+            reason: Reason for emergency disconnect
+        """
+        try:
+            logger.critical("EMERGENCY DISCONNECT: %s", reason)
+
+            # Immediately stop accepting new connections
+            self.running = False
+
+            # Notify all clients of emergency disconnect
+            emergency_message = {
+                "type": "emergency_disconnect",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "data": {"reason": reason, "status": "emergency_shutdown"},
+                "sequence": self._get_next_sequence(),
+            }
+
+            # Send emergency message to all clients before disconnecting
+            for client in self.clients[:]:
+                try:
+                    if not client.is_closing():
+                        message_data = json.dumps(emergency_message).encode("utf-8")
+                        client.write(message_data + b"\n")
+                        await client.drain()
+                except Exception as e:
+                    logger.warning("Failed to send emergency message to client: %s", e)
+
+            # Trigger safety communication loss
+            await self.safety_communication_loss(f"Emergency disconnect: {reason}")
+
+            # Force disconnect all clients
+            for client in self.clients[:]:
+                try:
+                    if not client.is_closing():
+                        client.close()
+                        await client.wait_closed()
+                except Exception as e:
+                    logger.warning("Error during emergency client disconnect: %s", e)
+
+            self.clients.clear()
+            self.client_heartbeats.clear()
+
+            logger.critical("Emergency disconnect completed")
+
+        except Exception as e:
+            logger.error("Error during emergency disconnect: %s", e)
+            # Still complete emergency shutdown
+            self.running = False
+            self.clients.clear()
+            self.client_heartbeats.clear()
+
+    async def get_safety_status_integration(self) -> dict[str, Any]:
+        """[1r] Get communication status for safety status dashboard integration.
+
+        Returns:
+            Communication status formatted for safety dashboard
+        """
+        try:
+            health_status = await self.get_communication_health_status()
+
+            # Format for safety dashboard
+            safety_status = {
+                "communication_bridge": {
+                    "status": "healthy" if health_status["healthy"] else "degraded",
+                    "connected_clients": health_status["connected_clients"],
+                    "quality_percentage": int(health_status["message_success_rate"] * 100),
+                    "latency_ms": health_status["average_latency_ms"],
+                    "consecutive_failures": health_status["consecutive_failures"],
+                    "connection_duration": health_status["connection_duration_seconds"],
+                    "last_update": datetime.now(UTC).isoformat(),
+                },
+                "safety_integration": {
+                    "safety_manager_connected": self._safety_manager is not None,
+                    "safety_timeout_threshold": self._safety_timeout,
+                    "quality_threshold": self._communication_quality_threshold,
+                    "callbacks_registered": len(self._connection_lost_callbacks)
+                    + len(self._connection_restored_callbacks),
+                },
+            }
+
+            return safety_status
+
+        except Exception as e:
+            logger.error("Error getting safety status integration: %s", e)
+            return {
+                "communication_bridge": {"status": "error", "error": str(e)},
+                "safety_integration": {"safety_manager_connected": False},
+            }
 
     async def shutdown(self) -> None:
         """Shutdown SDR++ bridge service following ServiceManager pattern.
