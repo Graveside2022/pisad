@@ -1296,7 +1296,7 @@ class DualSDRCoordinator:
             logger.error(f"Command validation failed for {command}: {e}")
             return {
                 "authorized": False,
-                "message": f"Validation error: {str(e)}",
+                "message": f"Validation error: {e!s}",
                 "command": command,
                 "timestamp": datetime.now().isoformat(),
             }

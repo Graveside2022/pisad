@@ -7,7 +7,7 @@ between .NET and Python exception systems.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class ASVInteropError(Exception):
         message: str,
         dotnet_exception: Exception | None = None,
         error_code: str = "ASV_GENERAL",
-        context: Dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Initialize ASV interop error.
 
@@ -42,7 +42,7 @@ class ASVInteropError(Exception):
         if context:
             logger.error(f"  Context: {context}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert exception to dictionary for serialization."""
         return {
             "error_type": self.__class__.__name__,
@@ -83,7 +83,7 @@ class ASVHardwareError(ASVInteropError):
         message: str,
         hardware_type: str = "unknown",
         dotnet_exception: Exception | None = None,
-        context: Dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
     ):
         context = context or {}
         context["hardware_type"] = hardware_type
@@ -228,7 +228,7 @@ class ASVSignalProcessingError(ASVAnalyzerError):
 
 
 def translate_dotnet_exception(
-    dotnet_exception: Exception, context: Dict[str, Any] | None = None
+    dotnet_exception: Exception, context: dict[str, Any] | None = None
 ) -> ASVInteropError:
     """Translate .NET exception to appropriate Python ASV exception.
 
@@ -310,7 +310,7 @@ class ASVExceptionHandler:
         self,
         operation: str,
         exception: Exception,
-        context: Dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> ASVInteropError:
         """Handle and translate exception with context.
 
@@ -355,7 +355,7 @@ class ASVExceptionHandler:
 
         return translated
 
-    def get_error_statistics(self) -> Dict[str, Any]:
+    def get_error_statistics(self) -> dict[str, Any]:
         """Get error statistics for monitoring."""
         return {
             "error_counts": self._error_counts.copy(),

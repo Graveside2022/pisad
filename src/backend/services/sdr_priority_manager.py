@@ -547,7 +547,7 @@ class SDRPriorityManager:
             return {
                 "validation_result": {
                     "authorized": False,
-                    "message": f"Validation error: {str(e)}",
+                    "message": f"Validation error: {e!s}",
                     "decision_type": decision_type,
                     "timestamp": time.time(),
                 }
@@ -599,6 +599,6 @@ class SDRPriorityManager:
             return {
                 "safety_authority_valid": False,
                 "integration_ready": False,
-                "error": f"Validation failed: {str(e)}",
+                "error": f"Validation failed: {e!s}",
                 "timestamp": time.time(),
             }

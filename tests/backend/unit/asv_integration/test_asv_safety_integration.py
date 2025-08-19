@@ -275,13 +275,9 @@ class TestASVSafetyIntegration:
             )
 
             if should_pass:
-                assert (
-                    authorized
-                ), f"Command {command_type} should be authorized at level {authority_level.name}: {message}"
+                assert authorized, f"Command {command_type} should be authorized at level {authority_level.name}: {message}"
             else:
-                assert (
-                    not authorized
-                ), f"Command {command_type} should NOT be authorized at level {authority_level.name}: {message}"
+                assert not authorized, f"Command {command_type} should NOT be authorized at level {authority_level.name}: {message}"
 
     @pytest.mark.asyncio
     async def test_asv_coordination_safety_decision_integration(

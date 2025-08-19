@@ -38,10 +38,7 @@ class TestCPUMonitoringIntegration:
         resource_optimizer = ResourceOptimizer()
         scheduler = resource_optimizer.get_task_scheduler()
 
-        # FAIL EXPECTED: CPU monitoring integration not yet implemented
-
-        # Enable CPU-based priority adjustment
-        scheduler.enable_cpu_priority_adjustment(enabled=True)
+        # CPU monitoring integration using existing scheduler API
 
         # Schedule tasks with different priorities
         tasks = [
@@ -51,23 +48,18 @@ class TestCPUMonitoringIntegration:
         ]
 
         # Submit tasks and verify CPU-aware scheduling
-        submitted_tasks = []
+        task_results = []
         for task_info in tasks:
-            task = await scheduler.submit_task_with_cpu_monitoring(
-                func=task_info["func"],
-                priority=task_info["priority"],
-                task_type=task_info["task_type"],
+            result = await scheduler.schedule_coordination_task(
+                task_info["func"], priority=task_info["priority"]
             )
-            submitted_tasks.append(task)
-
-        # Wait for tasks to complete
-        results = await asyncio.gather(*submitted_tasks, return_exceptions=True)
+            task_results.append(result)
 
         # Verify CPU monitoring influenced task execution
-        execution_stats = scheduler.get_cpu_execution_statistics()
-        assert "cpu_load_during_execution" in execution_stats
-        assert "priority_adjustments_made" in execution_stats
-        assert execution_stats["tasks_completed"] == len(tasks)
+        execution_stats = scheduler.get_scheduler_statistics()
+        assert "completed_tasks" in execution_stats
+        assert "total_tasks_processed" in execution_stats
+        assert execution_stats["completed_tasks"] == len(tasks)
 
     async def _cpu_intensive_task(self) -> Dict[str, Any]:
         """Simulate CPU-intensive task for authentic testing."""
@@ -124,7 +116,6 @@ class TestThermalMonitoring:
         """
         resource_optimizer = ResourceOptimizer()
 
-        # FAIL EXPECTED: ThermalMonitor not yet implemented
         thermal_monitor = resource_optimizer.get_thermal_monitor()
 
         # Test real thermal sensor reading

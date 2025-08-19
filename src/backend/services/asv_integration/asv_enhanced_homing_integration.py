@@ -10,7 +10,7 @@ enhanced precision and reliability.
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -19,6 +19,7 @@ from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
     ASVBearingCalculation,
     ASVEnhancedSignalProcessor,
 )
+
 # Import GradientVector locally to avoid circular import
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class ASVEnhancedGradient:
     def to_gradient_vector(self):
         """Convert to standard GradientVector for compatibility."""
         from src.backend.services.homing_algorithm import GradientVector
+
         return GradientVector(
             magnitude=self.magnitude,
             direction=self.direction,
@@ -64,14 +66,14 @@ class ASVEnhancedHomingIntegration:
     - Fallback to RSSI gradient when ASV unavailable
     """
 
-    def __init__(self, asv_factory: Optional[ASVAnalyzerFactory] = None):
+    def __init__(self, asv_factory: ASVAnalyzerFactory | None = None):
         """Initialize ASV-enhanced homing integration.
 
         Args:
             asv_factory: ASV analyzer factory for professional signal processing
         """
         self._asv_factory = asv_factory
-        self._signal_processor: Optional[ASVEnhancedSignalProcessor] = None
+        self._signal_processor: ASVEnhancedSignalProcessor | None = None
         self._rssi_fallback_enabled = True
 
         # Performance tracking
@@ -80,7 +82,7 @@ class ASVEnhancedHomingIntegration:
         self._average_precision_improvement = 0.0
 
         # RSSI fallback data storage (for gradient calculation)
-        self._rssi_samples: List[Dict[str, Any]] = []
+        self._rssi_samples: list[dict[str, Any]] = []
         self._max_rssi_samples = 10
 
         logger.info("ASV-Enhanced Homing Integration initialized")
@@ -117,8 +119,8 @@ class ASVEnhancedHomingIntegration:
         position_y: float,
         current_heading_deg: float,
         rssi_dbm: float,
-        timestamp_ns: Optional[int] = None,
-    ) -> Optional[ASVEnhancedGradient]:
+        timestamp_ns: int | None = None,
+    ) -> ASVEnhancedGradient | None:
         """Calculate enhanced gradient using ASV professional algorithms.
 
         Args:
@@ -222,7 +224,7 @@ class ASVEnhancedHomingIntegration:
         rssi_dbm: float,
         timestamp_ns: int,
         calculation_start: float,
-    ) -> Optional[ASVEnhancedGradient]:
+    ) -> ASVEnhancedGradient | None:
         """Calculate gradient using RSSI fallback method."""
         # Store RSSI sample for gradient calculation
         sample = {
@@ -315,7 +317,7 @@ class ASVEnhancedHomingIntegration:
                 + (1 - alpha) * self._average_precision_improvement
             )
 
-    def get_integration_metrics(self) -> Dict[str, Any]:
+    def get_integration_metrics(self) -> dict[str, Any]:
         """Get integration performance metrics."""
         total_calculations = self._asv_calculations + self._fallback_calculations
 
@@ -349,9 +351,9 @@ class ASVEnhancedHomingIntegration:
 
     def configure_integration_parameters(
         self,
-        rssi_fallback_enabled: Optional[bool] = None,
-        max_rssi_samples: Optional[int] = None,
-        asv_processor_config: Optional[Dict[str, Any]] = None,
+        rssi_fallback_enabled: bool | None = None,
+        max_rssi_samples: int | None = None,
+        asv_processor_config: dict[str, Any] | None = None,
     ) -> None:
         """Configure integration parameters."""
         if rssi_fallback_enabled is not None:
@@ -402,7 +404,7 @@ class ASVEnhancedHomingIntegration:
             logger.error(f"Failed to update ASV analyzer: {e}")
             return False
 
-    def get_bearing_history(self, max_samples: int = 10) -> List[ASVBearingCalculation]:
+    def get_bearing_history(self, max_samples: int = 10) -> list[ASVBearingCalculation]:
         """Get recent bearing calculation history from ASV processor."""
         if self._signal_processor:
             return self._signal_processor.get_bearing_history(max_samples)
@@ -419,7 +421,7 @@ class ASVEnhancedHomingIntegration:
         """Check if ASV professional processing is available."""
         return self._signal_processor is not None and self._asv_factory is not None
 
-    def get_processing_status(self) -> Dict[str, Any]:
+    def get_processing_status(self) -> dict[str, Any]:
         """Get current processing status information."""
         status = {
             "asv_available": self.is_asv_available(),

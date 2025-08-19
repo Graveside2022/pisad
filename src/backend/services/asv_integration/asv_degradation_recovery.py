@@ -24,7 +24,6 @@ from typing import Any, Optional, Protocol
 from src.backend.services.homing_algorithm import VelocityCommand
 from src.backend.services.safety_authority_manager import (
     SafetyAuthorityLevel,
-    SafetyAuthorityManager,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 class ASVMetricsProtocol(Protocol):
     """Protocol for ASV signal metrics compatibility."""
-    
+
     confidence: float
     signal_strength_dbm: float
     interference_detected: bool
@@ -42,12 +41,10 @@ class ASVMetricsProtocol(Protocol):
 
 class SafetyManagerProtocol(Protocol):
     """Protocol for safety manager compatibility."""
-    
-    def get_current_authority_level(self) -> SafetyAuthorityLevel:
-        ...
-    
-    def validate_command(self, command: Any) -> bool:
-        ...
+
+    def get_current_authority_level(self) -> SafetyAuthorityLevel: ...
+
+    def validate_command(self, command: Any) -> bool: ...
 
 
 class DegradationSeverity(Enum):
@@ -276,10 +273,14 @@ class ASVRecoveryManager:
                 current_position, signal_loss_severity
             )
         elif strategy == RecoveryStrategy.SPIRAL_SEARCH:
-            recovery_action = self._generate_spiral_search(current_position, signal_loss_severity)
+            recovery_action = self._generate_spiral_search(
+                current_position, signal_loss_severity
+            )
         else:
             # Default fallback
-            recovery_action = RecoveryAction(strategy=strategy, estimated_time_seconds=10.0)
+            recovery_action = RecoveryAction(
+                strategy=strategy, estimated_time_seconds=10.0
+            )
 
         # Send operator notification if requested
         if notify_operator and self.operator_notifier:
@@ -316,14 +317,18 @@ class ASVRecoveryManager:
         """
         if not self.safety_manager:
             # No safety manager - generate basic action
-            return self.generate_recovery_action(strategy, current_position, degradation_severity)
+            return self.generate_recovery_action(
+                strategy, current_position, degradation_severity
+            )
 
         # Check safety authority level
         authority_level = self.safety_manager.get_current_authority_level()
 
         # Emergency stop blocks all recovery
         if authority_level == SafetyAuthorityLevel.EMERGENCY_STOP:
-            raise RecoveryBlockedException("Recovery blocked by EMERGENCY_STOP authority level")
+            raise RecoveryBlockedException(
+                "Recovery blocked by EMERGENCY_STOP authority level"
+            )
 
         # Generate recovery action
         recovery_action = self.generate_recovery_action(
@@ -331,7 +336,9 @@ class ASVRecoveryManager:
         )
 
         # Validate with safety manager
-        is_valid = self.safety_manager.validate_command(recovery_action.velocity_command)
+        is_valid = self.safety_manager.validate_command(
+            recovery_action.velocity_command
+        )
 
         if not is_valid:
             raise RecoveryBlockedException("Recovery action failed safety validation")
@@ -350,7 +357,10 @@ class ASVRecoveryManager:
         if not self._good_positions:
             # No good positions recorded - use current position
             target = LastGoodPosition(
-                x=current_position[0], y=current_position[1], confidence=0.5, timestamp=time.time()
+                x=current_position[0],
+                y=current_position[1],
+                confidence=0.5,
+                timestamp=time.time(),
             )
         else:
             target = self._good_positions[-1]  # Most recent
@@ -370,7 +380,9 @@ class ASVRecoveryManager:
             velocity = VelocityCommand(forward_velocity=0.0, yaw_rate=0.0)
 
         estimated_time = (
-            distance / max(velocity.forward_velocity, 0.1) if velocity.forward_velocity > 0 else 5.0
+            distance / max(velocity.forward_velocity, 0.1)
+            if velocity.forward_velocity > 0
+            else 5.0
         )
 
         return RecoveryAction(

@@ -11,7 +11,7 @@ Story 5.5 - SUBTASK-5.5.3.2 [9a] implementation
 import asyncio
 from datetime import datetime, timedelta
 from enum import Enum, IntEnum
-from typing import Any, Optional
+from typing import Any
 
 from src.backend.services.safety_integration_analysis import SafetyIntegrationAnalyzer
 from src.backend.utils.logging import get_logger
@@ -63,7 +63,7 @@ class SafetyAuthority:
         self.override_capability = override_capability
         self.coordination_integration = coordination_integration
         self.active = True
-        self.last_trigger: Optional[datetime] = None
+        self.last_trigger: datetime | None = None
 
 
 class SafetyDecision:
@@ -74,15 +74,15 @@ class SafetyDecision:
         decision_type: SafetyDecisionType,
         requesting_authority: SafetyAuthorityLevel,
         details: dict[str, Any],
-        timestamp: Optional[datetime] = None,
+        timestamp: datetime | None = None,
     ):
         self.decision_type = decision_type
         self.requesting_authority = requesting_authority
         self.details = details
         self.timestamp = timestamp or datetime.now()
         self.approved = False
-        self.approving_authority: Optional[SafetyAuthorityLevel] = None
-        self.response_time_ms: Optional[int] = None
+        self.approving_authority: SafetyAuthorityLevel | None = None
+        self.response_time_ms: int | None = None
 
 
 class SafetyAuthorityManager:
@@ -178,7 +178,7 @@ class SafetyAuthorityManager:
 
     async def validate_safety_decision(
         self, decision: SafetyDecision
-    ) -> tuple[bool, str, Optional[SafetyAuthorityLevel]]:
+    ) -> tuple[bool, str, SafetyAuthorityLevel | None]:
         """
         Validate safety decision against authority hierarchy.
 
@@ -268,15 +268,11 @@ class SafetyAuthorityManager:
 
     def _find_approving_authority(
         self, decision: SafetyDecision
-    ) -> Optional[SafetyAuthorityLevel]:
+    ) -> SafetyAuthorityLevel | None:
         """Find the appropriate authority level to approve this decision type"""
 
         # Emergency stop can only be approved by level 1
-        if decision.decision_type == SafetyDecisionType.EMERGENCY_STOP:
-            return SafetyAuthorityLevel.EMERGENCY_STOP
-
-        # System shutdown requires level 1 or 2
-        elif decision.decision_type == SafetyDecisionType.SYSTEM_SHUTDOWN:
+        if decision.decision_type == SafetyDecisionType.EMERGENCY_STOP or decision.decision_type == SafetyDecisionType.SYSTEM_SHUTDOWN:
             return SafetyAuthorityLevel.EMERGENCY_STOP
 
         # Coordination override can be approved by levels 1-3
@@ -525,7 +521,7 @@ class SafetyAuthorityManager:
             logger.error(
                 f"Command validation error for {command_type}: {e} ({response_time_ms}ms)"
             )
-            return False, f"Command validation failed: {str(e)}"
+            return False, f"Command validation failed: {e!s}"
 
     def validate_coordination_command_with_metrics(
         self,
@@ -1939,7 +1935,7 @@ class SafetyAuthorityManager:
                 # If no recent escalations, conditions are likely safe
                 return len(recent_escalations) == 0
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Safety condition validation timed out after 1.0 seconds")
             return False
         except Exception as e:

@@ -127,7 +127,9 @@ class ASVAnalyzerFactory:
                 self._active_analyzer_id = None
                 self._current_frequency_hz = None
 
-                logger.warning(f"Emergency stop completed for analyzer {self._active_analyzer_id}")
+                logger.warning(
+                    f"Emergency stop completed for analyzer {self._active_analyzer_id}"
+                )
 
             # Mark factory as stopped
             self._is_running = False
@@ -186,7 +188,10 @@ class ASVAnalyzerFactory:
             raise ASVAnalyzerError(f"Analyzer {analyzer_id} already exists")
 
         # Enforce single analyzer limit for single-frequency processing
-        if len(self._analyzers) >= self._max_active_analyzers and self._active_analyzer_id:
+        if (
+            len(self._analyzers) >= self._max_active_analyzers
+            and self._active_analyzer_id
+        ):
             logger.info(
                 f"Single-frequency mode: Removing existing analyzer {self._active_analyzer_id} "
                 f"to create new analyzer {analyzer_id}"
@@ -201,7 +206,9 @@ class ASVAnalyzerFactory:
                 dotnet_type = f"Asv.Drones.Sdr.Core.IAnalyzer{config.analyzer_type}"
 
                 if dotnet_type in analyzer_types:
-                    dotnet_instance = self.interop_service.create_analyzer_instance(dotnet_type)
+                    dotnet_instance = self.interop_service.create_analyzer_instance(
+                        dotnet_type
+                    )
 
             # Create Python wrapper
             analyzer = create_analyzer(config.analyzer_type, config, dotnet_instance)
@@ -225,7 +232,9 @@ class ASVAnalyzerFactory:
 
         except Exception as e:
             logger.error(f"Failed to create analyzer {analyzer_id}: {e}")
-            raise ASVAnalyzerError(f"Analyzer creation failed for {analyzer_id}: {e}", e)
+            raise ASVAnalyzerError(
+                f"Analyzer creation failed for {analyzer_id}: {e}", e
+            )
 
     async def remove_analyzer(self, analyzer_id: str) -> None:
         """Remove and shutdown an analyzer instance (single-frequency mode).
@@ -284,7 +293,9 @@ class ASVAnalyzerFactory:
                 and self._active_analyzer_id == analyzer_id
                 and analyzer_id in self._analyzers
             ):
-                logger.debug(f"Frequency switch not needed - already at {config.frequency_hz:,} Hz")
+                logger.debug(
+                    f"Frequency switch not needed - already at {config.frequency_hz:,} Hz"
+                )
                 return self._active_analyzer_id
 
             # Create new analyzer for target frequency
@@ -297,7 +308,9 @@ class ASVAnalyzerFactory:
             return new_analyzer_id
 
         except Exception as e:
-            logger.error(f"Failed to switch to frequency {config.frequency_hz:,} Hz: {e}")
+            logger.error(
+                f"Failed to switch to frequency {config.frequency_hz:,} Hz: {e}"
+            )
             raise ASVAnalyzerError(
                 f"Frequency switching failed for {config.frequency_hz:,} Hz: {e}", e
             )
@@ -350,7 +363,9 @@ class ASVAnalyzerFactory:
 
         try:
             # Process signal with single analyzer (not concurrent)
-            analyzer_id = target_analyzers[0]  # Only one analyzer in single-frequency mode
+            analyzer_id = target_analyzers[
+                0
+            ]  # Only one analyzer in single-frequency mode
             analyzer = self._analyzers[analyzer_id]
 
             result = await analyzer.process_signal(iq_data)
@@ -482,7 +497,9 @@ class ASVAnalyzerFactory:
 class ASVMultiAnalyzerCoordinator:
     """Coordinator for managing concurrent multi-analyzer operations."""
 
-    def __init__(self, analyzer_factory: ASVAnalyzerFactory, config_manager: Any | None = None):
+    def __init__(
+        self, analyzer_factory: ASVAnalyzerFactory, config_manager: Any | None = None
+    ):
         """Initialize multi-analyzer coordinator.
 
         Args:
@@ -575,8 +592,12 @@ class ASVMultiAnalyzerCoordinator:
                 "analyzers_used": len(results),
                 "strongest_signal": (
                     {
-                        "analyzer": (strongest_signal.analyzer_type if strongest_signal else None),
-                        "strength_dbm": (strongest_strength if strongest_signal else None),
+                        "analyzer": (
+                            strongest_signal.analyzer_type if strongest_signal else None
+                        ),
+                        "strength_dbm": (
+                            strongest_strength if strongest_signal else None
+                        ),
                         "frequency_hz": (
                             strongest_signal.frequency_hz if strongest_signal else None
                         ),
@@ -593,7 +614,9 @@ class ASVMultiAnalyzerCoordinator:
             self._processing_stats["total_processed"] += 1
             self._processing_stats["failed_processing"] += 1
 
-            logger.error(f"Multi-analyzer processing failed after {processing_time:.2f}ms: {e}")
+            logger.error(
+                f"Multi-analyzer processing failed after {processing_time:.2f}ms: {e}"
+            )
 
             return {
                 "status": "error",
@@ -606,8 +629,12 @@ class ASVMultiAnalyzerCoordinator:
         """Get processing performance statistics."""
         stats = self._processing_stats.copy()
         if stats["total_processed"] > 0:
-            stats["success_rate"] = stats["successful_processing"] / stats["total_processed"]
-            stats["failure_rate"] = stats["failed_processing"] / stats["total_processed"]
+            stats["success_rate"] = (
+                stats["successful_processing"] / stats["total_processed"]
+            )
+            stats["failure_rate"] = (
+                stats["failed_processing"] / stats["total_processed"]
+            )
         else:
             stats["success_rate"] = 0.0
             stats["failure_rate"] = 0.0

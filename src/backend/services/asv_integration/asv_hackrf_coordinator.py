@@ -269,7 +269,9 @@ class ASVHackRFCoordinator(BaseService):
         try:
             # Immediately stop coordination loop
             self._coordination_active = False
-            self._coordination_running = False if hasattr(self, "_coordination_running") else None
+            self._coordination_running = (
+                False if hasattr(self, "_coordination_running") else None
+            )
 
             # Cancel coordination tasks immediately without waiting
             if self._coordination_task:
@@ -281,7 +283,9 @@ class ASVHackRFCoordinator(BaseService):
                 # Don't wait for cancellation - proceed immediately
 
             # Emergency stop analyzer factory if available
-            if self._analyzer_factory and hasattr(self._analyzer_factory, "emergency_stop"):
+            if self._analyzer_factory and hasattr(
+                self._analyzer_factory, "emergency_stop"
+            ):
                 await self._analyzer_factory.emergency_stop()
 
             # Clear active analyzers immediately
@@ -296,7 +300,9 @@ class ASVHackRFCoordinator(BaseService):
             logger.error(f"Error during ASVHackRFCoordinator emergency stop: {e}")
             # Even if there's an error, ensure coordination is stopped
             self._coordination_active = False
-            self._coordination_running = False if hasattr(self, "_coordination_running") else None
+            self._coordination_running = (
+                False if hasattr(self, "_coordination_running") else None
+            )
             # Emergency stop must always succeed
 
     async def _load_frequency_channels(self) -> None:
@@ -373,7 +379,9 @@ class ASVHackRFCoordinator(BaseService):
                     )
 
                     # Get the analyzer instance from factory
-                    analyzer = self._analyzer_factory._analyzers.get(created_analyzer_id)
+                    analyzer = self._analyzer_factory._analyzers.get(
+                        created_analyzer_id
+                    )
                     if analyzer:
                         self._active_analyzers[analyzer_id] = analyzer
                         logger.info(
@@ -381,17 +389,23 @@ class ASVHackRFCoordinator(BaseService):
                             f"{config.frequency_hz/1e6:.3f} MHz ({config.analyzer_type})"
                         )
                     else:
-                        logger.warning(f"Failed to get analyzer instance: {analyzer_id}")
+                        logger.warning(
+                            f"Failed to get analyzer instance: {analyzer_id}"
+                        )
 
                 except Exception as e:
                     logger.error(f"Error creating analyzer {analyzer_id}: {e}")
                     continue
 
-            logger.info(f"Initialized {len(self._active_analyzers)} default ASV analyzers")
+            logger.info(
+                f"Initialized {len(self._active_analyzers)} default ASV analyzers"
+            )
 
         except Exception as e:
             logger.error(f"Failed to initialize default analyzers: {e}")
-            raise ASVAnalyzerError(f"Default analyzer initialization failed: {e}") from e
+            raise ASVAnalyzerError(
+                f"Default analyzer initialization failed: {e}"
+            ) from e
 
     async def _coordination_loop(self) -> None:
         """
@@ -414,7 +428,9 @@ class ASVHackRFCoordinator(BaseService):
                         continue
 
                     # Step 2: Determine optimal frequency for current cycle
-                    target_frequency, analyzer_id = await self._select_optimal_frequency()
+                    target_frequency, analyzer_id = (
+                        await self._select_optimal_frequency()
+                    )
 
                     # Step 3: Switch HackRF frequency if needed
                     if target_frequency != self._current_frequency_hz:
@@ -424,12 +440,16 @@ class ASVHackRFCoordinator(BaseService):
                             self._current_frequency_hz = target_frequency
                             self._active_channel_id = analyzer_id
 
-                            switch_duration = (time.perf_counter() - switch_start) * 1000
+                            switch_duration = (
+                                time.perf_counter() - switch_start
+                            ) * 1000
                             self._frequency_switch_times.append(switch_duration)
 
                             # Keep only recent samples for performance metrics
                             if len(self._frequency_switch_times) > 100:
-                                self._frequency_switch_times = self._frequency_switch_times[-50:]
+                                self._frequency_switch_times = (
+                                    self._frequency_switch_times[-50:]
+                                )
 
                     # Step 4: Collect IQ samples from HackRF
                     iq_samples = await self._collect_iq_samples()
@@ -438,7 +458,9 @@ class ASVHackRFCoordinator(BaseService):
                         # Step 5: Process samples through active analyzers
                         fusion_start = time.perf_counter()
 
-                        signal_results = await self._process_concurrent_analysis(iq_samples)
+                        signal_results = await self._process_concurrent_analysis(
+                            iq_samples
+                        )
 
                         fusion_duration = (time.perf_counter() - fusion_start) * 1000
                         self._signal_fusion_times.append(fusion_duration)
@@ -451,16 +473,22 @@ class ASVHackRFCoordinator(BaseService):
 
                         # Step 7: Signal fusion and bearing calculation
                         if signal_results:
-                            fused_result = await self._fuse_signal_results(signal_results)
+                            fused_result = await self._fuse_signal_results(
+                                signal_results
+                            )
 
                             # Step 8: Publish results to PISAD signal processing chain
                             await self._publish_signal_results(fused_result)
 
                     # Maintain coordination timing
                     coordination_duration = time.perf_counter() - coordination_start
-                    sleep_time = max(0, self.coordination_interval - coordination_duration)
+                    sleep_time = max(
+                        0, self.coordination_interval - coordination_duration
+                    )
 
-                    if sleep_time < self.coordination_interval * 0.1:  # Less than 10% sleep time
+                    if (
+                        sleep_time < self.coordination_interval * 0.1
+                    ):  # Less than 10% sleep time
                         logger.warning(
                             f"Coordination loop running at capacity - duration: {coordination_duration*1000:.1f}ms"
                         )
@@ -500,25 +528,32 @@ class ASVHackRFCoordinator(BaseService):
                 return True
 
             # Check emergency override state - highest priority safety check
-            if hasattr(self._safety_authority, "emergency_override_active") and self._safety_authority.emergency_override_active:
+            if (
+                hasattr(self._safety_authority, "emergency_override_active")
+                and self._safety_authority.emergency_override_active
+            ):
                 logger.warning("ASV coordination blocked by emergency override")
                 return False
 
             # Validate coordination command with safety authority
             try:
-                authorized, reason = self._safety_authority.validate_coordination_command(
-                    command_type="asv_coordination",
-                    authority_level=SafetyAuthorityLevel.SIGNAL,  # ASV coordination requires signal authority
-                    details={
-                        "component": "ASVHackRFCoordinator",
-                        "operation": "frequency_coordination",
-                        "current_frequency": self._current_frequency_hz,
-                        "active_analyzers": len(self._active_analyzers),
-                    },
+                authorized, reason = (
+                    self._safety_authority.validate_coordination_command(
+                        command_type="asv_coordination",
+                        authority_level=SafetyAuthorityLevel.SIGNAL,  # ASV coordination requires signal authority
+                        details={
+                            "component": "ASVHackRFCoordinator",
+                            "operation": "frequency_coordination",
+                            "current_frequency": self._current_frequency_hz,
+                            "active_analyzers": len(self._active_analyzers),
+                        },
+                    )
                 )
 
                 if not authorized:
-                    logger.info(f"ASV coordination blocked by safety authority: {reason}")
+                    logger.info(
+                        f"ASV coordination blocked by safety authority: {reason}"
+                    )
                     return False
 
                 # Log successful coordination validation for audit trail
@@ -598,7 +633,9 @@ class ASVHackRFCoordinator(BaseService):
         """Get currently active analyzers with their types."""
         return {
             analyzer_id: (
-                analyzer.analyzer_type if hasattr(analyzer, "analyzer_type") else "unknown"
+                analyzer.analyzer_type
+                if hasattr(analyzer, "analyzer_type")
+                else "unknown"
             )
             for analyzer_id, analyzer in self._active_analyzers.items()
         }
@@ -623,20 +660,25 @@ class ASVHackRFCoordinator(BaseService):
                         try:
                             if hasattr(analyzer, "get_health_status"):
                                 health_status = await analyzer.get_health_status()
-                                self._coordination_metrics.analyzer_health_status[analyzer_id] = (
-                                    health_status
-                                )
+                                self._coordination_metrics.analyzer_health_status[
+                                    analyzer_id
+                                ] = health_status
                             else:
                                 # Assume healthy if no explicit health check
-                                self._coordination_metrics.analyzer_health_status[analyzer_id] = (
-                                    True
-                                )
+                                self._coordination_metrics.analyzer_health_status[
+                                    analyzer_id
+                                ] = True
                         except Exception as e:
-                            logger.warning(f"Health check failed for analyzer {analyzer_id}: {e}")
-                            if self._coordination_metrics.analyzer_health_status is not None:
-                                self._coordination_metrics.analyzer_health_status[analyzer_id] = (
-                                    False
-                                )
+                            logger.warning(
+                                f"Health check failed for analyzer {analyzer_id}: {e}"
+                            )
+                            if (
+                                self._coordination_metrics.analyzer_health_status
+                                is not None
+                            ):
+                                self._coordination_metrics.analyzer_health_status[
+                                    analyzer_id
+                                ] = False
 
                     # Monitor coordination performance metrics
                     if self._frequency_switch_times:
@@ -650,7 +692,9 @@ class ASVHackRFCoordinator(BaseService):
                         ) / len(self._signal_fusion_times)
 
                     # Update total active analyzers
-                    self._coordination_metrics.total_analyzers_active = len(self._active_analyzers)
+                    self._coordination_metrics.total_analyzers_active = len(
+                        self._active_analyzers
+                    )
 
                     # Check for performance degradation
                     if self._coordination_metrics.average_switching_latency_ms > 100.0:
@@ -691,9 +735,13 @@ class ASVHackRFCoordinator(BaseService):
 
             success = await self._hackrf_interface.set_freq(target_frequency_hz)
             if success:
-                logger.debug(f"HackRF frequency switched to {target_frequency_hz/1e6:.3f} MHz")
+                logger.debug(
+                    f"HackRF frequency switched to {target_frequency_hz/1e6:.3f} MHz"
+                )
             else:
-                logger.warning(f"Failed to switch HackRF to {target_frequency_hz/1e6:.3f} MHz")
+                logger.warning(
+                    f"Failed to switch HackRF to {target_frequency_hz/1e6:.3f} MHz"
+                )
 
             return success
 
@@ -750,9 +798,13 @@ class ASVHackRFCoordinator(BaseService):
                         results[analyzer_id] = result
                         logger.debug(f"Processed signal through analyzer {analyzer_id}")
                     else:
-                        logger.warning(f"Analyzer {analyzer_id} missing process_signal method")
+                        logger.warning(
+                            f"Analyzer {analyzer_id} missing process_signal method"
+                        )
                 except Exception as e:
-                    logger.error(f"Error processing signal with analyzer {analyzer_id}: {e}")
+                    logger.error(
+                        f"Error processing signal with analyzer {analyzer_id}: {e}"
+                    )
                     continue
 
             return results
@@ -768,7 +820,9 @@ class ASVHackRFCoordinator(BaseService):
             self._coordination_metrics.last_update_timestamp = datetime.now(UTC)
 
             # Update analyzer count
-            self._coordination_metrics.total_analyzers_active = len(self._active_analyzers)
+            self._coordination_metrics.total_analyzers_active = len(
+                self._active_analyzers
+            )
 
             # Update frequency switching metrics
             if self._frequency_switch_times:
@@ -787,7 +841,9 @@ class ASVHackRFCoordinator(BaseService):
         except Exception as e:
             logger.error(f"Error updating coordination metrics: {e}")
 
-    async def _fuse_signal_results(self, signal_results: dict[str, Any]) -> dict[str, Any]:
+    async def _fuse_signal_results(
+        self, signal_results: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Fuse signal results from analyzers into unified output.
 
@@ -819,7 +875,9 @@ class ASVHackRFCoordinator(BaseService):
                         "analyzer_id": analyzer_id,
                         "analyzer_type": getattr(result, "analyzer_type", "unknown"),
                         "frequency_hz": getattr(result, "frequency_hz", 0),
-                        "signal_strength_dbm": getattr(result, "signal_strength_dbm", -999),
+                        "signal_strength_dbm": getattr(
+                            result, "signal_strength_dbm", -999
+                        ),
                         "signal_quality": getattr(result, "signal_quality", 0.0),
                         "timestamp_ns": getattr(result, "timestamp_ns", 0),
                     }
@@ -856,7 +914,9 @@ class ASVHackRFCoordinator(BaseService):
                 else:
                     logger.debug("Published signal results: no signals detected")
             else:
-                logger.warning(f"Published error result: {fused_result.get('error', 'unknown')}")
+                logger.warning(
+                    f"Published error result: {fused_result.get('error', 'unknown')}"
+                )
 
         except Exception as e:
             logger.error(f"Error publishing signal results: {e}")
@@ -865,7 +925,9 @@ class ASVHackRFCoordinator(BaseService):
     # PUBLIC API METHODS (SUBTASK-6.1.2.2 [15d-1] - API Integration)
     # ========================================================================
 
-    async def switch_frequency(self, frequency_hz: int, analyzer_type: str = "GP") -> bool:
+    async def switch_frequency(
+        self, frequency_hz: int, analyzer_type: str = "GP"
+    ) -> bool:
         """Switch to specific frequency for API integration.
 
         Args:
@@ -886,7 +948,9 @@ class ASVHackRFCoordinator(BaseService):
             if success:
                 # Update current frequency tracking
                 self._current_frequency_hz = frequency_hz
-                logger.info(f"API frequency switch successful: {frequency_hz/1e6:.3f} MHz")
+                logger.info(
+                    f"API frequency switch successful: {frequency_hz/1e6:.3f} MHz"
+                )
             else:
                 logger.error(f"API frequency switch failed: {frequency_hz/1e6:.3f} MHz")
 

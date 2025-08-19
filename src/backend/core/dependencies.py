@@ -382,13 +382,7 @@ class ServiceManager:
                             "tcp_port": service.port,
                             "heartbeat_tracking": len(service.client_heartbeats),
                         }
-                    elif service_name == "dual_sdr_coordinator":
-                        service_health = {
-                            "status": "healthy",  # Always healthy if initialized
-                            "has_safety_authority": hasattr(service, "safety_authority")
-                            and service.safety_authority is not None,
-                        }
-                    elif service_name == "sdr_priority_manager":
+                    elif service_name == "dual_sdr_coordinator" or service_name == "sdr_priority_manager":
                         service_health = {
                             "status": "healthy",  # Always healthy if initialized
                             "has_safety_authority": hasattr(service, "safety_authority")

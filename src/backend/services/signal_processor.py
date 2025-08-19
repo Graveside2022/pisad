@@ -1070,7 +1070,7 @@ class SignalProcessor:
         Returns:
             Estimated noise floor in dBm
         """
-        if not rssi_history:
+        if rssi_history is None or len(rssi_history) == 0:
             return self.noise_floor
 
         # Convert to NumPy array for efficient computation

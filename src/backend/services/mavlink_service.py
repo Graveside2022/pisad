@@ -147,7 +147,9 @@ class MAVLinkService:
 
                 # Send RSSI at configured rate
                 if current_time - last_rssi_time >= rssi_interval:
-                    self.send_named_value_float("PISAD_RSSI", self._rssi_value, current_time)
+                    self.send_named_value_float(
+                        "PISAD_RSSI", self._rssi_value, current_time
+                    )
                     last_rssi_time = current_time
 
                 # Send health status every configured interval
@@ -170,7 +172,11 @@ class MAVLinkService:
                 await asyncio.sleep(1.0)
 
     def send_named_value_float(
-        self, name: str, value: float, timestamp: float | None = None, time_ms: int | None = None
+        self,
+        name: str,
+        value: float,
+        timestamp: float | None = None,
+        time_ms: int | None = None,
     ) -> bool:
         """Send NAMED_VALUE_FLOAT message for continuous telemetry.
 
@@ -201,13 +207,16 @@ class MAVLinkService:
                 assert timestamp is not None
                 time_boot_ms = int((timestamp % 86400) * 1000)
 
-            self.connection.mav.named_value_float_send(time_boot_ms, name.encode("utf-8"), value)
+            self.connection.mav.named_value_float_send(
+                time_boot_ms, name.encode("utf-8"), value
+            )
 
             logger.debug(f"NAMED_VALUE_FLOAT sent: {name}={value:.2f}")
             return True
         except (AttributeError, ConnectionError, ValueError) as e:
             logger.error(
-                f"Failed to send NAMED_VALUE_FLOAT: {e}", extra={"name": name, "value": value}
+                f"Failed to send NAMED_VALUE_FLOAT: {e}",
+                extra={"name": name, "value": value},
             )
             return False
 
@@ -268,7 +277,11 @@ class MAVLinkService:
             health = {
                 "cpu": round(psutil.cpu_percent(interval=0.1), 1),
                 "mem": round(psutil.virtual_memory().percent, 1),
-                "sdr": "OK" if hasattr(self, "_sdr_connected") and self._sdr_connected else "ERR",
+                "sdr": (
+                    "OK"
+                    if hasattr(self, "_sdr_connected") and self._sdr_connected
+                    else "ERR"
+                ),
             }
 
             # Get CPU temperature on Raspberry Pi
@@ -296,7 +309,8 @@ class MAVLinkService:
 
         except (AttributeError, KeyError, ConnectionError) as e:
             logger.error(
-                f"Failed to send health status: {e}", extra={"error_type": type(e).__name__}
+                f"Failed to send health status: {e}",
+                extra={"error_type": type(e).__name__},
             )
 
     def update_rssi_value(self, rssi: float) -> None:
@@ -315,7 +329,9 @@ class MAVLinkService:
             config: Dictionary with telemetry configuration values
         """
         if "rssi_rate_hz" in config:
-            self._telemetry_config["rssi_rate_hz"] = max(0.1, min(10.0, config["rssi_rate_hz"]))
+            self._telemetry_config["rssi_rate_hz"] = max(
+                0.1, min(10.0, config["rssi_rate_hz"])
+            )
         if "health_interval_seconds" in config:
             self._telemetry_config["health_interval_seconds"] = max(
                 1, min(60, config["health_interval_seconds"])
@@ -368,7 +384,9 @@ class MAVLinkService:
             old_state = self.state
             self.state = new_state
             self.connection_state = new_state  # Update alias
-            logger.info(f"MAVLink connection state changed: {old_state.value} -> {new_state.value}")
+            logger.info(
+                f"MAVLink connection state changed: {old_state.value} -> {new_state.value}"
+            )
 
             for callback in self._state_callbacks:
                 try:
@@ -475,7 +493,9 @@ class MAVLinkService:
 
             # Exponential backoff for reconnection
             await asyncio.sleep(self._reconnect_delay)
-            self._reconnect_delay = min(self._reconnect_delay * 2, self._max_reconnect_delay)
+            self._reconnect_delay = min(
+                self._reconnect_delay * 2, self._max_reconnect_delay
+            )
 
     async def _heartbeat_sender(self) -> None:
         """Send heartbeat messages at 1Hz."""
@@ -570,15 +590,15 @@ class MAVLinkService:
         self.telemetry["position"]["lat"] = lat
         self.telemetry["position"]["lon"] = lon
         self.telemetry["position"]["alt"] = msg.alt / 1000.0  # mm to meters
-        
+
         # Extract velocity data (convert from cm/s to m/s)
-        vx_ms = msg.vx / 100.0 if hasattr(msg, 'vx') else 0.0  # North velocity
-        vy_ms = msg.vy / 100.0 if hasattr(msg, 'vy') else 0.0  # East velocity  
-        vz_ms = msg.vz / 100.0 if hasattr(msg, 'vz') else 0.0  # Down velocity
-        
+        vx_ms = msg.vx / 100.0 if hasattr(msg, "vx") else 0.0  # North velocity
+        vy_ms = msg.vy / 100.0 if hasattr(msg, "vy") else 0.0  # East velocity
+        vz_ms = msg.vz / 100.0 if hasattr(msg, "vz") else 0.0  # Down velocity
+
         # Calculate ground speed
-        ground_speed_ms = (vx_ms**2 + vy_ms**2)**0.5
-        
+        ground_speed_ms = (vx_ms**2 + vy_ms**2) ** 0.5
+
         self.telemetry["velocity"]["vx"] = vx_ms
         self.telemetry["velocity"]["vy"] = vy_ms
         self.telemetry["velocity"]["vz"] = vz_ms
@@ -602,9 +622,13 @@ class MAVLinkService:
     def _process_sys_status(self, msg: Any) -> None:
         """Process SYS_STATUS message."""
         if msg.voltage_battery != -1:
-            self.telemetry["battery"]["voltage"] = msg.voltage_battery / 1000.0  # mV to V
+            self.telemetry["battery"]["voltage"] = (
+                msg.voltage_battery / 1000.0
+            )  # mV to V
         if msg.current_battery != -1:
-            self.telemetry["battery"]["current"] = msg.current_battery / 100.0  # cA to A
+            self.telemetry["battery"]["current"] = (
+                msg.current_battery / 100.0
+            )  # cA to A
         if msg.battery_remaining != -1:
             old_percentage = self.telemetry["battery"]["percentage"]
             new_percentage = msg.battery_remaining
@@ -665,7 +689,9 @@ class MAVLinkService:
                     time_since_heartbeat = time.time() - self.last_heartbeat_received
 
                     if time_since_heartbeat > self.heartbeat_timeout:
-                        logger.warning(f"Heartbeat timeout ({time_since_heartbeat:.1f}s)")
+                        logger.warning(
+                            f"Heartbeat timeout ({time_since_heartbeat:.1f}s)"
+                        )
                         self._set_state(ConnectionState.DISCONNECTED)
 
                         if self.connection:
@@ -690,19 +716,19 @@ class MAVLinkService:
 
     def get_platform_velocity(self) -> PlatformVelocity | None:
         """Get current platform velocity for Doppler compensation.
-        
+
         Returns:
             PlatformVelocity object with velocity components or None if unavailable
         """
         velocity = self.telemetry.get("velocity")
         if not velocity:
             return None
-            
+
         return PlatformVelocity(
             vx_ms=velocity["vx"],
-            vy_ms=velocity["vy"], 
+            vy_ms=velocity["vy"],
             vz_ms=velocity["vz"],
-            ground_speed_ms=velocity["ground_speed"]
+            ground_speed_ms=velocity["ground_speed"],
         )
 
     def is_connected(self) -> bool:
@@ -787,7 +813,9 @@ class MAVLinkService:
         current_time = time.time()
         time_since_last = current_time - self._last_velocity_command_time
         if time_since_last < self._velocity_command_rate_limit:
-            logger.debug(f"Rate limiting velocity command ({time_since_last:.3f}s since last)")
+            logger.debug(
+                f"Rate limiting velocity command ({time_since_last:.3f}s since last)"
+            )
             return False
 
         # Velocity bounds checking
@@ -886,10 +914,14 @@ class MAVLinkService:
 
         try:
             # Request mission clear
-            self.connection.mav.mission_clear_all_send(self.target_system, self.target_component)
+            self.connection.mav.mission_clear_all_send(
+                self.target_system, self.target_component
+            )
 
             # Wait for acknowledgment
-            ack = self.connection.recv_match(type="MISSION_ACK", blocking=True, timeout=2)
+            ack = self.connection.recv_match(
+                type="MISSION_ACK", blocking=True, timeout=2
+            )
             if not ack:
                 logger.error("Mission clear not acknowledged")
                 return False
@@ -902,7 +934,9 @@ class MAVLinkService:
             # Upload each waypoint
             for seq, wp in enumerate(waypoints):
                 # Wait for mission request
-                req = self.connection.recv_match(type="MISSION_REQUEST", blocking=True, timeout=2)
+                req = self.connection.recv_match(
+                    type="MISSION_REQUEST", blocking=True, timeout=2
+                )
                 if not req or req.seq != seq:
                     logger.error(f"Mission request mismatch for waypoint {seq}")
                     return False
@@ -926,7 +960,9 @@ class MAVLinkService:
                 )
 
             # Wait for final acknowledgment
-            final_ack = self.connection.recv_match(type="MISSION_ACK", blocking=True, timeout=2)
+            final_ack = self.connection.recv_match(
+                type="MISSION_ACK", blocking=True, timeout=2
+            )
             if not final_ack:
                 logger.error("Mission upload not acknowledged")
                 return False
@@ -960,7 +996,9 @@ class MAVLinkService:
                 return False
 
             self.connection.mav.set_mode_send(
-                self.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id
+                self.target_system,
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                mode_id,
             )
 
             # Arm the vehicle if not armed
@@ -1089,7 +1127,9 @@ class MAVLinkService:
                 return False
 
             self.connection.mav.set_mode_send(
-                self.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id
+                self.target_system,
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                mode_id,
             )
 
             logger.info("Mission stopped, switched to LOITER/GUIDED mode")
@@ -1117,7 +1157,9 @@ class MAVLinkService:
             )
 
             # Get response
-            msg = self.connection.recv_match(type="MISSION_CURRENT", blocking=True, timeout=1)
+            msg = self.connection.recv_match(
+                type="MISSION_CURRENT", blocking=True, timeout=1
+            )
             if msg:
                 current_wp = msg.seq
 
@@ -1188,7 +1230,9 @@ class MAVLinkService:
                     try:
                         self.baud_rate = int(parts[1])
                     except ValueError:
-                        logger.error(f"Invalid baud rate in connection string: {parts[1]}")
+                        logger.error(
+                            f"Invalid baud rate in connection string: {parts[1]}"
+                        )
                         return False
             else:
                 self.device_path = connection_string
@@ -1317,7 +1361,9 @@ class MAVLinkService:
             self.send_named_value_float("DET_CONF", confidence)
 
             # Send status text with detection info
-            text = f"Detection: RSSI={rssi:.1f}dBm SNR={snr:.1f}dB Conf={confidence:.0f}%"
+            text = (
+                f"Detection: RSSI={rssi:.1f}dBm SNR={snr:.1f}dB Conf={confidence:.0f}%"
+            )
             self.send_statustext(text, severity=6)  # INFO level
 
             # Log detection event
@@ -1384,7 +1430,9 @@ class MAVLinkService:
             return
 
         try:
-            self.send_statustext("Signal lost - returning to search", severity=5)  # NOTICE level
+            self.send_statustext(
+                "Signal lost - returning to search", severity=5
+            )  # NOTICE level
             self.send_named_value_float("SIGNAL", 0.0)  # Signal indicator = 0
         except Exception as e:
             logger.error(f"Failed to send signal lost telemetry: {e}")

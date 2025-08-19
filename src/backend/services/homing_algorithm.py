@@ -15,6 +15,7 @@ from backend.core.config import get_config
 from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
     ASVEnhancedHomingIntegration,
 )
+
 # TASK-6.1.16d - Doppler compensation integration
 from src.backend.utils.doppler_compensation import DopplerCompensator, PlatformVelocity
 
@@ -102,7 +103,9 @@ class RSSISample:
 class HomingAlgorithm:
     """RSSI gradient-based homing algorithm with ASV enhancement."""
 
-    def __init__(self, asv_integration: ASVEnhancedHomingIntegration | None = None) -> None:
+    def __init__(
+        self, asv_integration: ASVEnhancedHomingIntegration | None = None
+    ) -> None:
         """Initialize homing algorithm with configuration and ASV integration.
 
         Args:
@@ -142,17 +145,21 @@ class HomingAlgorithm:
         # Enhanced gradient data for ASV calculations
         self._last_iq_samples: bytes | None = None
         self._current_heading_deg: float = 0.0
-        
+
         # TASK-6.1.16d - Doppler compensation integration
         self._doppler_compensator = DopplerCompensator()
         self._enable_doppler_compensation = True
         self._current_platform_velocity: PlatformVelocity | None = None
-        self._signal_frequency_hz: float = 406_000_000  # Default emergency beacon frequency
+        self._signal_frequency_hz: float = (
+            406_000_000  # Default emergency beacon frequency
+        )
 
         # Task 16c: Adaptive search pattern state variables
         self._spiral_angle: float = 0.0  # Current spiral angle
         self._spiral_radius: float = SPIRAL_INITIAL_RADIUS  # Current spiral radius
-        self._adaptive_pattern_active: bool = False  # Track if adaptive pattern is running
+        self._adaptive_pattern_active: bool = (
+            False  # Track if adaptive pattern is running
+        )
         self._pattern_type: str = "original"  # Track active pattern type
 
         # Geofence boundaries for adaptive pattern safety
@@ -168,7 +175,9 @@ class HomingAlgorithm:
         ):
             set_debug_mode(True)
 
-        logger.info("Homing algorithm initialized with ASV-enhanced gradient calculation and adaptive search patterns")
+        logger.info(
+            "Homing algorithm initialized with ASV-enhanced gradient calculation and adaptive search patterns"
+        )
 
     def add_rssi_sample(
         self,
@@ -203,18 +212,20 @@ class HomingAlgorithm:
             self._last_iq_samples = iq_samples
         self._current_heading_deg = heading
 
-        logger.debug(f"Added RSSI sample: {rssi:.1f} dBm at ({position_x:.1f}, {position_y:.1f})")
+        logger.debug(
+            f"Added RSSI sample: {rssi:.1f} dBm at ({position_x:.1f}, {position_y:.1f})"
+        )
 
     def set_platform_velocity(self, velocity: PlatformVelocity | None) -> None:
         """Update platform velocity for Doppler compensation.
-        
+
         TASK-6.1.16d: Store current platform velocity for Doppler shift calculations.
-        
+
         Args:
             velocity: Current platform velocity components or None if unavailable
         """
         self._current_platform_velocity = velocity
-        
+
         if velocity and _debug_mode_enabled:
             logger.debug(
                 f"Platform velocity updated: vx={velocity.vx_ms:.1f} m/s, "
@@ -223,53 +234,54 @@ class HomingAlgorithm:
 
     def set_signal_frequency(self, frequency_hz: float) -> None:
         """Update signal frequency for Doppler compensation.
-        
+
         TASK-6.1.16d: Set the beacon signal frequency for accurate Doppler calculations.
-        
+
         Args:
             frequency_hz: Signal frequency in Hz (e.g., 406_000_000 for emergency beacon)
         """
         self._signal_frequency_hz = frequency_hz
-        
+
         if _debug_mode_enabled:
             logger.debug(f"Signal frequency set to {frequency_hz:,} Hz")
 
     def _apply_doppler_compensation(self, gradient: GradientVector) -> GradientVector:
         """Apply Doppler compensation to gradient calculation.
-        
+
         TASK-6.1.16d: Adjust signal processing based on platform motion to compensate
         for Doppler shifts that could affect bearing accuracy.
-        
+
         Args:
             gradient: Original gradient vector
-            
+
         Returns:
             Doppler-compensated gradient vector
         """
         if not self._enable_doppler_compensation or not self._current_platform_velocity:
             return gradient
-            
+
         try:
             # Calculate Doppler shift based on current platform velocity and gradient direction
             compensated_frequency = self._doppler_compensator.apply_compensation(
                 self._signal_frequency_hz,
-                self._current_platform_velocity, 
-                gradient.direction  # Use gradient direction as bearing to signal
+                self._current_platform_velocity,
+                gradient.direction,  # Use gradient direction as bearing to signal
             )
-            
+
             # Calculate frequency shift ratio for gradient magnitude adjustment
             frequency_shift_ratio = compensated_frequency / self._signal_frequency_hz
-            
+
             # Adjust gradient magnitude based on frequency compensation
             # Higher frequency (approaching) may indicate stronger gradient
             compensated_magnitude = gradient.magnitude * frequency_shift_ratio
-            
+
             compensated_gradient = GradientVector(
                 magnitude=max(0.0, compensated_magnitude),  # Ensure non-negative
                 direction=gradient.direction,
-                confidence=gradient.confidence * 0.95  # Slight confidence reduction for compensation
+                confidence=gradient.confidence
+                * 0.95,  # Slight confidence reduction for compensation
             )
-            
+
             if _debug_mode_enabled:
                 freq_shift_hz = compensated_frequency - self._signal_frequency_hz
                 logger.debug(
@@ -277,9 +289,9 @@ class HomingAlgorithm:
                     f"ratio={frequency_shift_ratio:.4f}, "
                     f"magnitude: {gradient.magnitude:.3f} -> {compensated_magnitude:.3f}"
                 )
-            
+
             return compensated_gradient
-            
+
         except Exception as e:
             logger.warning(f"Doppler compensation failed, using original gradient: {e}")
             return gradient
@@ -299,7 +311,11 @@ class HomingAlgorithm:
             return None
 
         # Try ASV-enhanced calculation first for precision improvement
-        if self._use_asv_enhancement and self._asv_integration and self._last_iq_samples:
+        if (
+            self._use_asv_enhancement
+            and self._asv_integration
+            and self._last_iq_samples
+        ):
             gradient = self._calculate_asv_enhanced_gradient()
             if gradient:
                 # TASK-6.1.16d: Apply Doppler compensation to ASV gradient
@@ -312,7 +328,7 @@ class HomingAlgorithm:
         if gradient:
             # TASK-6.1.16d: Apply Doppler compensation to fallback gradient
             return self._apply_doppler_compensation(gradient)
-        
+
         return None
 
     def _calculate_asv_enhanced_gradient(self) -> GradientVector | None:
@@ -335,7 +351,10 @@ class HomingAlgorithm:
             # Since this is called from sync context, we need to handle async call
             # For now, we'll create a simplified synchronous version
             enhanced_gradient = self._calculate_asv_bearing_sync(
-                iq_samples, latest_sample.position_x, latest_sample.position_y, latest_sample.rssi
+                iq_samples,
+                latest_sample.position_x,
+                latest_sample.position_y,
+                latest_sample.rssi,
             )
 
             if enhanced_gradient:
@@ -431,7 +450,9 @@ class HomingAlgorithm:
             # Calculate confidence based on fit quality (R-squared)
             if len(residuals) > 0 and len(rssi_values) > len(coeffs):
                 rss = residuals[0]  # Residual sum of squares
-                tss = np.sum((rssi_values - np.mean(rssi_values)) ** 2)  # Total sum of squares
+                tss = np.sum(
+                    (rssi_values - np.mean(rssi_values)) ** 2
+                )  # Total sum of squares
                 r_squared = 1 - (rss / tss) if tss > 0 else 0
                 confidence = max(0, min(100, r_squared * 100))
             else:
@@ -503,7 +524,9 @@ class HomingAlgorithm:
         logger.debug(f"Scaled velocity: {scaled_velocity:.2f} m/s")
         return scaled_velocity
 
-    def calculate_yaw_rate(self, current_heading: float, target_heading: float) -> float:
+    def calculate_yaw_rate(
+        self, current_heading: float, target_heading: float
+    ) -> float:
         """Calculate yaw rate to point toward gradient direction.
 
         Args:
@@ -532,7 +555,10 @@ class HomingAlgorithm:
         return float(yaw_rate)
 
     def generate_velocity_command(
-        self, gradient: GradientVector | None, current_heading: float, current_time: float
+        self,
+        gradient: GradientVector | None,
+        current_heading: float,
+        current_time: float,
     ) -> VelocityCommand:
         """Generate velocity command based on gradient and current state.
 
@@ -570,7 +596,11 @@ class HomingAlgorithm:
         # Check for plateau (holding pattern)
         if self._detect_plateau():
             if _debug_mode_enabled and self.current_substage != HomingSubstage.HOLDING:
-                variance = np.var([s.rssi for s in self.rssi_history]) if self.rssi_history else 0
+                variance = (
+                    np.var([s.rssi for s in self.rssi_history])
+                    if self.rssi_history
+                    else 0
+                )
                 logger.debug(
                     f"[State Change] {self.current_substage.value} -> HOLDING, "
                     f"plateau detected, rssi_variance={variance:.2f} < {self.plateau_variance:.2f}"
@@ -593,7 +623,10 @@ class HomingAlgorithm:
             return command
 
         # Normal gradient climbing
-        if _debug_mode_enabled and self.current_substage != HomingSubstage.GRADIENT_CLIMB:
+        if (
+            _debug_mode_enabled
+            and self.current_substage != HomingSubstage.GRADIENT_CLIMB
+        ):
             logger.debug(
                 f"[State Change] {self.current_substage.value} -> GRADIENT_CLIMB, "
                 f"gradient ready, conf={gradient.confidence:.1f}%, mag={gradient.magnitude:.3f} dB/m"
@@ -625,7 +658,9 @@ class HomingAlgorithm:
             yaw_rate = 0.0
 
         logger.info(f"Approach mode: reduced velocity to {self.approach_velocity} m/s")
-        return VelocityCommand(forward_velocity=self.approach_velocity, yaw_rate=yaw_rate)
+        return VelocityCommand(
+            forward_velocity=self.approach_velocity, yaw_rate=yaw_rate
+        )
 
     def _generate_holding_command(self, current_time: float) -> VelocityCommand:
         """Generate circular holding pattern command."""
@@ -638,23 +673,23 @@ class HomingAlgorithm:
 
     def _check_geofence_boundary(self, target_x: float, target_y: float) -> bool:
         """Check if target position is within geofence boundaries.
-        
+
         Args:
             target_x: Target X position in meters
             target_y: Target Y position in meters
-            
+
         Returns:
             True if within geofence, False otherwise
         """
         distance = math.sqrt(
-            (target_x - self._geofence_center_x) ** 2 +
-            (target_y - self._geofence_center_y) ** 2
+            (target_x - self._geofence_center_x) ** 2
+            + (target_y - self._geofence_center_y) ** 2
         )
         return distance <= self._geofence_radius
 
     def _generate_spiral_search_command(self, current_time: float) -> VelocityCommand:
         """Generate spiral search pattern command for very low confidence scenarios.
-        
+
         Task 16c-2: Spiral search with expanding radius based on confidence.
         """
         if self.sampling_start_time is None:
@@ -667,11 +702,15 @@ class HomingAlgorithm:
         elapsed = current_time - self.sampling_start_time
 
         # Update spiral parameters
-        self._spiral_angle += SPIRAL_ANGULAR_VELOCITY * (current_time - (self.sampling_start_time + elapsed - 0.1))
+        self._spiral_angle += SPIRAL_ANGULAR_VELOCITY * (
+            current_time - (self.sampling_start_time + elapsed - 0.1)
+        )
 
         # Expand radius based on time/revolutions
         revolutions = self._spiral_angle / (2 * math.pi)
-        self._spiral_radius = SPIRAL_INITIAL_RADIUS + (SPIRAL_EXPANSION_RATE * revolutions)
+        self._spiral_radius = SPIRAL_INITIAL_RADIUS + (
+            SPIRAL_EXPANSION_RATE * revolutions
+        )
 
         # Calculate spiral position offset
         spiral_x = self._spiral_radius * math.cos(self._spiral_angle)
@@ -687,12 +726,16 @@ class HomingAlgorithm:
         yaw_rate = SPIRAL_ANGULAR_VELOCITY
         forward_velocity = min(SAMPLING_FORWARD_VELOCITY, self._spiral_radius * 0.3)
 
-        logger.debug(f"Spiral search: radius={self._spiral_radius:.1f}m, angle={math.degrees(self._spiral_angle):.1f}°")
+        logger.debug(
+            f"Spiral search: radius={self._spiral_radius:.1f}m, angle={math.degrees(self._spiral_angle):.1f}°"
+        )
         return VelocityCommand(forward_velocity=forward_velocity, yaw_rate=yaw_rate)
 
-    def _generate_optimized_s_turn_command(self, current_time: float) -> VelocityCommand:
+    def _generate_optimized_s_turn_command(
+        self, current_time: float
+    ) -> VelocityCommand:
         """Generate optimized S-turn pattern using ASV signal quality feedback.
-        
+
         Task 16c-3: S-turn optimization based on ASV signal quality feedback.
         """
         if self.sampling_start_time is None:
@@ -704,9 +747,13 @@ class HomingAlgorithm:
 
         # Get ASV signal quality feedback if available
         signal_quality_factor = 1.0  # Default
-        if self._asv_integration and hasattr(self._asv_integration, 'get_signal_quality'):
+        if self._asv_integration and hasattr(
+            self._asv_integration, "get_signal_quality"
+        ):
             try:
-                signal_quality = getattr(self._asv_integration, 'get_signal_quality', lambda: 0.5)()
+                signal_quality = getattr(
+                    self._asv_integration, "get_signal_quality", lambda: 0.5
+                )()
                 signal_quality_factor = signal_quality * S_TURN_OPTIMIZATION_FACTOR
             except Exception as e:
                 logger.debug(f"ASV signal quality feedback unavailable: {e}")
@@ -719,20 +766,28 @@ class HomingAlgorithm:
 
         # Optimized S-turn pattern with signal quality feedback
         phase = (elapsed / self.sampling_duration) * 2 * math.pi
-        base_yaw_rate = self.sampling_direction * SAMPLING_YAW_AMPLITUDE * math.sin(phase)
+        base_yaw_rate = (
+            self.sampling_direction * SAMPLING_YAW_AMPLITUDE * math.sin(phase)
+        )
 
         # Apply signal quality optimization
         optimized_yaw_rate = base_yaw_rate * signal_quality_factor
-        optimized_velocity = SAMPLING_FORWARD_VELOCITY * (0.5 + signal_quality_factor * 0.5)
+        optimized_velocity = SAMPLING_FORWARD_VELOCITY * (
+            0.5 + signal_quality_factor * 0.5
+        )
 
-        logger.debug(f"Optimized S-turn: quality_factor={signal_quality_factor:.2f}, yaw_rate={optimized_yaw_rate:.3f}")
-        return VelocityCommand(forward_velocity=optimized_velocity, yaw_rate=optimized_yaw_rate)
+        logger.debug(
+            f"Optimized S-turn: quality_factor={signal_quality_factor:.2f}, yaw_rate={optimized_yaw_rate:.3f}"
+        )
+        return VelocityCommand(
+            forward_velocity=optimized_velocity, yaw_rate=optimized_yaw_rate
+        )
 
     def _generate_sampling_command(
         self, current_heading: float, current_time: float
     ) -> VelocityCommand:
         """Generate adaptive sampling maneuver command based on confidence levels.
-        
+
         Task 16c-1: Enhanced sampling with adaptive patterns based on signal confidence.
         """
         # Adaptive pattern selection based on confidence
@@ -761,10 +816,16 @@ class HomingAlgorithm:
 
             # Original S-turn pattern
             phase = (elapsed / self.sampling_duration) * 2 * math.pi
-            yaw_rate = self.sampling_direction * SAMPLING_YAW_AMPLITUDE * math.sin(phase)
+            yaw_rate = (
+                self.sampling_direction * SAMPLING_YAW_AMPLITUDE * math.sin(phase)
+            )
 
-            logger.debug(f"Original sampling: elapsed={elapsed:.1f}s, yaw_rate={yaw_rate:.3f}")
-            return VelocityCommand(forward_velocity=SAMPLING_FORWARD_VELOCITY, yaw_rate=yaw_rate)
+            logger.debug(
+                f"Original sampling: elapsed={elapsed:.1f}s, yaw_rate={yaw_rate:.3f}"
+            )
+            return VelocityCommand(
+                forward_velocity=SAMPLING_FORWARD_VELOCITY, yaw_rate=yaw_rate
+            )
 
     def get_status(self) -> dict[str, Any]:
         """Get algorithm status for telemetry.
@@ -779,8 +840,12 @@ class HomingAlgorithm:
             "rssi_history_size": len(self.rssi_history),
             "last_rssi": self.rssi_history[-1].rssi if self.rssi_history else None,
             "sample_count": len(self.rssi_history),
-            "gradient_magnitude": self.last_gradient.magnitude if self.last_gradient else 0,
-            "gradient_direction": self.last_gradient.direction if self.last_gradient else 0,
+            "gradient_magnitude": (
+                self.last_gradient.magnitude if self.last_gradient else 0
+            ),
+            "gradient_direction": (
+                self.last_gradient.direction if self.last_gradient else 0
+            ),
             "debug_mode": _debug_mode_enabled,
             "last_command": {
                 "forward_velocity": (
@@ -833,7 +898,9 @@ class HomingAlgorithm:
                     "position_spread_y": max(s.position_y for s in samples)
                     - min(s.position_y for s in samples),
                     "time_span": (
-                        samples[-1].timestamp - samples[0].timestamp if len(samples) > 1 else 0
+                        samples[-1].timestamp - samples[0].timestamp
+                        if len(samples) > 1
+                        else 0
                     ),
                     "sampling_active": self.sampling_start_time is not None,
                 }
@@ -855,7 +922,9 @@ class HomingAlgorithm:
         mean_rssi = np.mean(recent_rssi)
 
         # Plateau conditions: low variance AND strong signal
-        is_plateau = bool(variance < self.plateau_variance and mean_rssi > STRONG_SIGNAL_THRESHOLD)
+        is_plateau = bool(
+            variance < self.plateau_variance and mean_rssi > STRONG_SIGNAL_THRESHOLD
+        )
 
         if is_plateau:
             logger.info(

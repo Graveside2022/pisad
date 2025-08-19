@@ -18,7 +18,10 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from src.backend.services.safety_authority_manager import SafetyAuthorityLevel, SafetyAuthorityManager
+from src.backend.services.safety_authority_manager import (
+    SafetyAuthorityLevel,
+    SafetyAuthorityManager,
+)
 from src.backend.utils.logging import get_logger
 from src.backend.utils.resource_optimizer import IntelligentMessageQueue
 
@@ -78,7 +81,9 @@ class TCPLatencyTracker:
 class SDRPPBridgeService:
     """TCP server service for SDR++ plugin communication."""
 
-    def __init__(self, safety_authority: "SafetyAuthorityManager | None" = None) -> None:
+    def __init__(
+        self, safety_authority: "SafetyAuthorityManager | None" = None
+    ) -> None:
         """
         Initialize SDR++ bridge service with safety authority integration.
 
@@ -232,7 +237,9 @@ class SDRPPBridgeService:
             await self._stop_queue_processor()
 
             # Close all client connections
-            for client in self.clients[:]:  # Copy list to avoid modification during iteration
+            for client in self.clients[
+                :
+            ]:  # Copy list to avoid modification during iteration
                 try:
                     client.close()
                     await client.wait_closed()
@@ -348,7 +355,9 @@ class SDRPPBridgeService:
                     self.clients.remove(client)
 
         batch_time_ms = (time.perf_counter() - batch_start) * 1000
-        logger.debug(f"Sent batch of {len(message_batch)} messages in {batch_time_ms:.1f}ms")
+        logger.debug(
+            f"Sent batch of {len(message_batch)} messages in {batch_time_ms:.1f}ms"
+        )
 
     async def _queue_message_for_transmission(
         self, message: dict[str, Any], priority: str = "normal"
@@ -397,7 +406,9 @@ class SDRPPBridgeService:
         try:
             message_json = json.dumps(message).encode("utf-8")
 
-            for client in self.clients[:]:  # Copy list to avoid modification during iteration
+            for client in self.clients[
+                :
+            ]:  # Copy list to avoid modification during iteration
                 try:
                     if not client.is_closing():
                         client.write(len(message_json).to_bytes(4, "big"))
@@ -426,12 +437,20 @@ class SDRPPBridgeService:
                 logger.debug("TCP_NODELAY enabled for latency optimization")
 
             if self._tcp_recv_buffer_size > 0:
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self._tcp_recv_buffer_size)
-                logger.debug("TCP receive buffer set to %d bytes", self._tcp_recv_buffer_size)
+                sock.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_RCVBUF, self._tcp_recv_buffer_size
+                )
+                logger.debug(
+                    "TCP receive buffer set to %d bytes", self._tcp_recv_buffer_size
+                )
 
             if self._tcp_send_buffer_size > 0:
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, self._tcp_send_buffer_size)
-                logger.debug("TCP send buffer set to %d bytes", self._tcp_send_buffer_size)
+                sock.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_SNDBUF, self._tcp_send_buffer_size
+                )
+                logger.debug(
+                    "TCP send buffer set to %d bytes", self._tcp_send_buffer_size
+                )
 
             if self._tcp_keepalive:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -486,7 +505,9 @@ class SDRPPBridgeService:
                         break
 
                     # Process message and measure latency
-                    response = await self._process_message_optimized(message_data.decode("utf-8"))
+                    response = await self._process_message_optimized(
+                        message_data.decode("utf-8")
+                    )
 
                     # TASK-5.6.8c [8c3] - Queue response for intelligent transmission
                     if response:
@@ -528,7 +549,9 @@ class SDRPPBridgeService:
                 pass
             logger.info("Optimized SDR++ client %s disconnected", client_addr)
 
-    async def _process_message_optimized(self, message_data: str) -> dict[str, Any] | None:
+    async def _process_message_optimized(
+        self, message_data: str
+    ) -> dict[str, Any] | None:
         """
         SUBTASK-5.6.1.1 [1c] - Optimized JSON message processing for minimal overhead.
 
@@ -549,7 +572,11 @@ class SDRPPBridgeService:
 
             # Optimized message type handling
             if message_type == "PING":
-                return {"type": "PONG", "timestamp": current_time, "latency_tracking": True}
+                return {
+                    "type": "PONG",
+                    "timestamp": current_time,
+                    "latency_tracking": True,
+                }
             elif message_type == "PERFORMANCE_TEST":
                 return {
                     "type": "PERFORMANCE_RESPONSE",
@@ -573,7 +600,9 @@ class SDRPPBridgeService:
             logger.error("Error in optimized message processing: %s", e)
             return {"type": "error", "message": str(e)}
 
-    async def _fallback_message_processing(self, parsed: dict[str, Any]) -> dict[str, Any]:
+    async def _fallback_message_processing(
+        self, parsed: dict[str, Any]
+    ) -> dict[str, Any]:
         """Fallback to original message processing for complex messages."""
         # Use existing message processing logic for complex cases
         # This would call the original _parse_message and related methods
@@ -921,7 +950,9 @@ class SDRPPBridgeService:
             # Disconnect timed out clients
             for client_addr in timed_out_clients:
                 await self._disconnect_client(client_addr)
-                logger.warning("Client %s disconnected due to heartbeat timeout", client_addr)
+                logger.warning(
+                    "Client %s disconnected due to heartbeat timeout", client_addr
+                )
 
         except Exception as e:
             logger.error("Error checking heartbeat timeouts: %s", e)
@@ -939,7 +970,9 @@ class SDRPPBridgeService:
 
             # Find and close the client connection
             clients_to_remove = []
-            for client in self.clients[:]:  # Copy to avoid modification during iteration
+            for client in self.clients[
+                :
+            ]:  # Copy to avoid modification during iteration
                 try:
                     if client.get_extra_info("peername") == client_addr:
                         if not client.is_closing():
@@ -947,7 +980,9 @@ class SDRPPBridgeService:
                             await client.wait_closed()
                         clients_to_remove.append(client)
                 except Exception as e:
-                    logger.warning("Error closing client connection %s: %s", client_addr, e)
+                    logger.warning(
+                        "Error closing client connection %s: %s", client_addr, e
+                    )
                     clients_to_remove.append(client)
 
             # Remove from client list
@@ -967,13 +1002,17 @@ class SDRPPBridgeService:
         try:
             current_time = time.time()
             connection_duration = (
-                current_time - self._connection_start_time if self._connection_start_time > 0 else 0
+                current_time - self._connection_start_time
+                if self._connection_start_time > 0
+                else 0
             )
 
             # Calculate communication quality metrics
             total_messages = self._message_success_count + self._message_failure_count
             success_rate = (
-                (self._message_success_count / total_messages) if total_messages > 0 else 0.0
+                (self._message_success_count / total_messages)
+                if total_messages > 0
+                else 0.0
             )
 
             # Calculate average latency
@@ -989,7 +1028,8 @@ class SDRPPBridgeService:
                 and success_rate
                 >= self._communication_quality_threshold  # Success rate above threshold
                 and avg_latency < 1000.0  # Latency under 1 second
-                and self._consecutive_failures < self._failure_threshold  # Not in failure state
+                and self._consecutive_failures
+                < self._failure_threshold  # Not in failure state
             )
 
             health_status = {
@@ -1020,7 +1060,9 @@ class SDRPPBridgeService:
                 "message_success_rate": 0.0,
             }
 
-    async def safety_communication_loss(self, reason: str = "Communication timeout") -> None:
+    async def safety_communication_loss(
+        self, reason: str = "Communication timeout"
+    ) -> None:
         """[1n] Handle communication loss with safety event triggers.
 
         Args:
@@ -1047,7 +1089,9 @@ class SDRPPBridgeService:
                     logger.info("Safety manager notified of communication loss")
 
                 except Exception as e:
-                    logger.error("Failed to notify safety manager of communication loss: %s", e)
+                    logger.error(
+                        "Failed to notify safety manager of communication loss: %s", e
+                    )
 
             # Execute registered callbacks
             for callback in self._connection_lost_callbacks:
@@ -1083,7 +1127,9 @@ class SDRPPBridgeService:
                         "connected_clients": len(self.clients),
                     }
 
-                    await self._safety_manager.handle_communication_restored(safety_event)
+                    await self._safety_manager.handle_communication_restored(
+                        safety_event
+                    )
                     logger.info("Safety manager notified of communication restoration")
 
                 except Exception as e:
@@ -1135,7 +1181,9 @@ class SDRPPBridgeService:
             logger.error("Error checking safety timeout: %s", e)
             return True  # Err on the side of caution
 
-    async def emergency_disconnect(self, reason: str = "Emergency safety disconnect") -> None:
+    async def emergency_disconnect(
+        self, reason: str = "Emergency safety disconnect"
+    ) -> None:
         """[1o] Emergency disconnect for safety-triggered coordination shutdown.
 
         Args:
@@ -1203,7 +1251,9 @@ class SDRPPBridgeService:
                 "communication_bridge": {
                     "status": "healthy" if health_status["healthy"] else "degraded",
                     "connected_clients": health_status["connected_clients"],
-                    "quality_percentage": int(health_status["message_success_rate"] * 100),
+                    "quality_percentage": int(
+                        health_status["message_success_rate"] * 100
+                    ),
                     "latency_ms": health_status["average_latency_ms"],
                     "consecutive_failures": health_status["consecutive_failures"],
                     "connection_duration": health_status["connection_duration_seconds"],
@@ -1327,7 +1377,9 @@ class SDRPPBridgeService:
             return True  # Err on the side of caution
 
     # [2c] Safety event triggers for communication degradation
-    async def trigger_communication_degradation(self, reason: str, metric_value: float) -> None:
+    async def trigger_communication_degradation(
+        self, reason: str, metric_value: float
+    ) -> None:
         """
         Trigger safety event for communication degradation.
 
@@ -1349,7 +1401,9 @@ class SDRPPBridgeService:
                     "severity": "medium" if metric_value < 200.0 else "high",
                 }
 
-                await self._safety_manager.handle_communication_degradation(degradation_event)
+                await self._safety_manager.handle_communication_degradation(
+                    degradation_event
+                )
                 logger.warning(
                     "Communication degradation triggered: %s (%.1f)",
                     reason,
@@ -1372,7 +1426,9 @@ class SDRPPBridgeService:
 
             # Calculate heartbeat statistics
             if self.client_heartbeats:
-                heartbeat_ages = [current_time - hb for hb in self.client_heartbeats.values()]
+                heartbeat_ages = [
+                    current_time - hb for hb in self.client_heartbeats.values()
+                ]
                 avg_interval = sum(heartbeat_ages) / len(heartbeat_ages)
                 max_age = max(heartbeat_ages)
             else:
@@ -1456,12 +1512,16 @@ class SDRPPBridgeService:
             elif avg_latency <= 100.0:
                 quality_score = 0.8 - (avg_latency - 50.0) / 50.0 * 0.3  # 0.8 to 0.5
             else:
-                quality_score = max(0.1, 0.5 - (avg_latency - 100.0) / 200.0 * 0.4)  # 0.5 to 0.1
+                quality_score = max(
+                    0.1, 0.5 - (avg_latency - 100.0) / 200.0 * 0.4
+                )  # 0.5 to 0.1
 
             # Store in quality history
             self._connection_quality_history.append(quality_score)
             if len(self._connection_quality_history) > 50:
-                self._connection_quality_history = self._connection_quality_history[-50:]
+                self._connection_quality_history = self._connection_quality_history[
+                    -50:
+                ]
 
             return quality_score
 
@@ -1534,7 +1594,9 @@ class SDRPPBridgeService:
             self.running = False
 
             # Disconnect all clients gracefully
-            for client in self.clients[:]:  # Copy list to avoid modification during iteration
+            for client in self.clients[
+                :
+            ]:  # Copy list to avoid modification during iteration
                 try:
                     if not client.is_closing():
                         client.close()
@@ -1615,15 +1677,17 @@ class SDRPPBridgeService:
 
             # Validate with strict timing for real-time commands
             start_time = time.time()
-            authorized, message = self._safety_authority.validate_coordination_command_real_time(
-                command_type=validation_command_type,
-                authority_level=authority_level,
-                details={
-                    "source": "sdrpp_ground_station",
-                    "command_type": command_type,
-                    "command_data": command_data,
-                },
-                response_time_limit_ms=25,  # Very strict timing for bridge commands
+            authorized, message = (
+                self._safety_authority.validate_coordination_command_real_time(
+                    command_type=validation_command_type,
+                    authority_level=authority_level,
+                    details={
+                        "source": "sdrpp_ground_station",
+                        "command_type": command_type,
+                        "command_data": command_data,
+                    },
+                    response_time_limit_ms=25,  # Very strict timing for bridge commands
+                )
             )
             validation_time_ms = int((time.time() - start_time) * 1000)
 
@@ -1673,10 +1737,14 @@ class SDRPPBridgeService:
         """
         try:
             # Assess communication health
-            if connection_status == "lost" or last_heartbeat_ms > 5000:  # >5s heartbeat loss
+            if (
+                connection_status == "lost" or last_heartbeat_ms > 5000
+            ):  # >5s heartbeat loss
                 communication_health = "critical"
                 safety_concern = True
-            elif connection_status == "degraded" or last_heartbeat_ms > 2000:  # >2s degraded
+            elif (
+                connection_status == "degraded" or last_heartbeat_ms > 2000
+            ):  # >2s degraded
                 communication_health = "degraded"
                 safety_concern = True
             else:

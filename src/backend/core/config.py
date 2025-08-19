@@ -199,6 +199,34 @@ class HardwareConfig:
 
 
 @dataclass
+class NetworkConfig:
+    """Network performance and packet loss threshold configuration."""
+
+    NETWORK_PACKET_LOSS_LOW_THRESHOLD: float = 0.01  # 1%
+    NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD: float = 0.05  # 5%
+    NETWORK_PACKET_LOSS_HIGH_THRESHOLD: float = 0.10  # 10%
+    NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD: float = 0.20  # 20%
+    NETWORK_CONGESTION_DETECTOR_ENABLED: bool = True
+    NETWORK_BASELINE_LATENCY_MS: float = 0.0
+    NETWORK_LATENCY_THRESHOLD_MS: float = 100.0
+
+    def __post_init__(self):
+        """Validate packet loss thresholds are within acceptable bounds."""
+        thresholds = [
+            self.NETWORK_PACKET_LOSS_LOW_THRESHOLD,
+            self.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD,
+            self.NETWORK_PACKET_LOSS_HIGH_THRESHOLD,
+            self.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD,
+        ]
+
+        for threshold in thresholds:
+            if not (0.001 <= threshold <= 0.5):
+                raise ValueError(
+                    f"Packet loss threshold must be between 0.001 and 0.5, got {threshold}"
+                )
+
+
+@dataclass
 class DevelopmentConfig:
     """Development settings."""
 
@@ -225,6 +253,7 @@ class Config:
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     homing: HomingConfig = field(default_factory=HomingConfig)
     hardware: HardwareConfig = field(default_factory=HardwareConfig)
+    network: NetworkConfig = field(default_factory=NetworkConfig)
     development: DevelopmentConfig = field(default_factory=DevelopmentConfig)
 
     def to_dict(self) -> dict[str, Any]:
@@ -244,6 +273,7 @@ class Config:
             "telemetry": self.telemetry.__dict__,
             "homing": self.homing.__dict__,
             "hardware": self.hardware.__dict__,
+            "network": self.network.__dict__,
             "development": self.development.__dict__,
         }
 
@@ -283,10 +313,14 @@ class ConfigLoader:
                     self._apply_yaml_config(yaml_config)
                     logger.info(f"Loaded configuration from {self.config_path}")
             except ConfigurationError as e:
-                logger.error(f"Failed to load configuration from {self.config_path}: {e}")
+                logger.error(
+                    f"Failed to load configuration from {self.config_path}: {e}"
+                )
                 raise
         else:
-            logger.warning(f"Configuration file {self.config_path} not found, using defaults")
+            logger.warning(
+                f"Configuration file {self.config_path} not found, using defaults"
+            )
 
         # Load hardware configuration (with fallback to mock)
         self._load_hardware_config()
@@ -339,7 +373,9 @@ class ConfigLoader:
                     loop.close()
 
             except ImportError:
-                logger.warning("Hardware detector not available, using mock configuration")
+                logger.warning(
+                    "Hardware detector not available, using mock configuration"
+                )
             except SDRError as e:
                 logger.warning(f"Failed to load hardware config: {e}")
 
@@ -375,12 +411,18 @@ class ConfigLoader:
         if "sdr" in hw_config:
             sdr = hw_config["sdr"]
             self.config.hardware.HARDWARE_SDR_DEVICE = sdr.get("device", "hackrf")
-            self.config.hardware.HARDWARE_SDR_FREQUENCY = sdr.get("frequency", 3200000000)
-            self.config.hardware.HARDWARE_SDR_SAMPLE_RATE = sdr.get("sample_rate", 20000000)
+            self.config.hardware.HARDWARE_SDR_FREQUENCY = sdr.get(
+                "frequency", 3200000000
+            )
+            self.config.hardware.HARDWARE_SDR_SAMPLE_RATE = sdr.get(
+                "sample_rate", 20000000
+            )
             self.config.hardware.HARDWARE_SDR_LNA_GAIN = sdr.get("lna_gain", 16)
             self.config.hardware.HARDWARE_SDR_VGA_GAIN = sdr.get("vga_gain", 20)
             self.config.hardware.HARDWARE_SDR_AMP_ENABLE = sdr.get("amp_enable", False)
-            self.config.hardware.HARDWARE_SDR_ANTENNA = sdr.get("antenna", "log_periodic")
+            self.config.hardware.HARDWARE_SDR_ANTENNA = sdr.get(
+                "antenna", "log_periodic"
+            )
 
         # MAVLink configuration
         if "mavlink" in hw_config:
@@ -391,10 +433,14 @@ class ConfigLoader:
             self.config.hardware.HARDWARE_MAVLINK_FALLBACK = mav.get(
                 "fallback", "serial:///dev/ttyACM1:115200"
             )
-            self.config.hardware.HARDWARE_MAVLINK_HEARTBEAT_RATE = mav.get("heartbeat_rate", 1)
+            self.config.hardware.HARDWARE_MAVLINK_HEARTBEAT_RATE = mav.get(
+                "heartbeat_rate", 1
+            )
             self.config.hardware.HARDWARE_MAVLINK_TIMEOUT = mav.get("timeout", 10)
             self.config.hardware.HARDWARE_MAVLINK_SYSTEM_ID = mav.get("system_id", 255)
-            self.config.hardware.HARDWARE_MAVLINK_COMPONENT_ID = mav.get("component_id", 190)
+            self.config.hardware.HARDWARE_MAVLINK_COMPONENT_ID = mav.get(
+                "component_id", 190
+            )
 
         # Beacon configuration
         if "beacon" in hw_config:
@@ -406,8 +452,12 @@ class ConfigLoader:
             self.config.hardware.HARDWARE_BEACON_FREQUENCY_MAX = beacon.get(
                 "frequency_max", 6500000000
             )
-            self.config.hardware.HARDWARE_BEACON_PULSE_WIDTH = beacon.get("pulse_width", 0.001)
-            self.config.hardware.HARDWARE_BEACON_PULSE_PERIOD = beacon.get("pulse_period", 0.1)
+            self.config.hardware.HARDWARE_BEACON_PULSE_WIDTH = beacon.get(
+                "pulse_width", 0.001
+            )
+            self.config.hardware.HARDWARE_BEACON_PULSE_PERIOD = beacon.get(
+                "pulse_period", 0.1
+            )
 
         # Performance configuration
         if "performance" in hw_config:
@@ -415,10 +465,18 @@ class ConfigLoader:
             self.config.hardware.HARDWARE_PERFORMANCE_RSSI_UPDATE_RATE = perf.get(
                 "rssi_update_rate", 1
             )
-            self.config.hardware.HARDWARE_PERFORMANCE_TELEMETRY_RATE = perf.get("telemetry_rate", 4)
-            self.config.hardware.HARDWARE_PERFORMANCE_LOG_LEVEL = perf.get("log_level", "INFO")
-            self.config.hardware.HARDWARE_PERFORMANCE_MAX_MEMORY_MB = perf.get("max_memory_mb", 512)
-            self.config.hardware.HARDWARE_PERFORMANCE_CPU_TARGET = perf.get("cpu_target", 30)
+            self.config.hardware.HARDWARE_PERFORMANCE_TELEMETRY_RATE = perf.get(
+                "telemetry_rate", 4
+            )
+            self.config.hardware.HARDWARE_PERFORMANCE_LOG_LEVEL = perf.get(
+                "log_level", "INFO"
+            )
+            self.config.hardware.HARDWARE_PERFORMANCE_MAX_MEMORY_MB = perf.get(
+                "max_memory_mb", 512
+            )
+            self.config.hardware.HARDWARE_PERFORMANCE_CPU_TARGET = perf.get(
+                "cpu_target", 30
+            )
 
     def _load_default_profile(self) -> None:
         """Load the default configuration profile and apply its settings."""
@@ -431,8 +489,12 @@ class ConfigLoader:
 
                 # Apply SDR configuration
                 if default_profile.sdrConfig:
-                    self.config.sdr.SDR_FREQUENCY = int(default_profile.sdrConfig.frequency)
-                    self.config.sdr.SDR_SAMPLE_RATE = int(default_profile.sdrConfig.sampleRate)
+                    self.config.sdr.SDR_FREQUENCY = int(
+                        default_profile.sdrConfig.frequency
+                    )
+                    self.config.sdr.SDR_SAMPLE_RATE = int(
+                        default_profile.sdrConfig.sampleRate
+                    )
                     if isinstance(default_profile.sdrConfig.gain, int | float):
                         self.config.sdr.SDR_GAIN = int(default_profile.sdrConfig.gain)
 
@@ -448,7 +510,9 @@ class ConfigLoader:
                         default_profile.homingConfig.forwardVelocityMax
                     )
 
-                logger.info(f"Applied settings from default profile: {default_profile.name}")
+                logger.info(
+                    f"Applied settings from default profile: {default_profile.name}"
+                )
 
         except ConfigurationError as e:
             logger.warning(f"Could not load default profile: {e}")
@@ -489,6 +553,8 @@ class ConfigLoader:
                 setattr(self.config.homing, key, value)
             elif key.startswith("HARDWARE_"):
                 setattr(self.config.hardware, key, value)
+            elif key.startswith("NETWORK_"):
+                setattr(self.config.network, key, value)
             elif key.startswith("DEV_"):
                 setattr(self.config.development, key, value)
 
@@ -512,7 +578,9 @@ class ConfigLoader:
             elif config_key.startswith("SIGNAL_"):
                 self._set_config_value(self.config.signal, config_key, env_value)
             elif config_key.startswith("INTERFEROMETRY_"):
-                self._set_config_value(self.config.interferometry, config_key, env_value)
+                self._set_config_value(
+                    self.config.interferometry, config_key, env_value
+                )
             elif config_key.startswith("DB_"):
                 self._set_config_value(self.config.database, config_key, env_value)
             elif config_key.startswith("LOG_"):
@@ -533,6 +601,8 @@ class ConfigLoader:
                 self._set_config_value(self.config.homing, config_key, env_value)
             elif config_key.startswith("HARDWARE_"):
                 self._set_config_value(self.config.hardware, config_key, env_value)
+            elif config_key.startswith("NETWORK_"):
+                self._set_config_value(self.config.network, config_key, env_value)
             elif config_key.startswith("DEV_"):
                 self._set_config_value(self.config.development, config_key, env_value)
 

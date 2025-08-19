@@ -139,7 +139,8 @@ class RSsiCircularBuffer:
 
             # Check for automatic cleanup trigger
             if (
-                len(self._buffer) >= self.config.max_size * self.config.auto_cleanup_threshold
+                len(self._buffer)
+                >= self.config.max_size * self.config.auto_cleanup_threshold
                 and self._total_appends % 100 == 0
             ):  # Check every 100 appends for efficiency
                 self._trigger_automatic_cleanup()
@@ -210,7 +211,9 @@ class MemoryPool:
         self._recycled_objects = 0
         self._new_objects_created = 0
 
-        logger.info(f"MemoryPool initialized for {object_type} with pool size {pool_size}")
+        logger.info(
+            f"MemoryPool initialized for {object_type} with pool size {pool_size}"
+        )
 
     def get_object(self) -> "ProcessorObject":
         """
@@ -252,8 +255,14 @@ class MemoryPool:
             return 0.0
         # Utilization is based on objects in use, not available
         objects_in_use = len(self._in_use_objects)
-        total_capacity = self.pool_size + objects_in_use  # Pool can grow beyond initial size
-        return objects_in_use / max(self.pool_size, total_capacity) if total_capacity > 0 else 0.0
+        total_capacity = (
+            self.pool_size + objects_in_use
+        )  # Pool can grow beyond initial size
+        return (
+            objects_in_use / max(self.pool_size, total_capacity)
+            if total_capacity > 0
+            else 0.0
+        )
 
     def get_recycling_rate(self) -> float:
         """Get object recycling rate (0.0 to 1.0)."""
@@ -345,18 +354,24 @@ class CoordinationStateCompressor:
 
         try:
             # Serialize state to JSON first, then compress
-            state_json = json.dumps(coordination_state, default=str, separators=(",", ":"))
+            state_json = json.dumps(
+                coordination_state, default=str, separators=(",", ":")
+            )
             state_bytes = state_json.encode("utf-8")
 
             # Apply zlib compression
-            compressed_data = zlib.compress(state_bytes, level=6)  # Balanced compression
+            compressed_data = zlib.compress(
+                state_bytes, level=6
+            )  # Balanced compression
 
             # Update statistics
             compression_time_ms = (time.perf_counter() - start_time) * 1000
             original_size = len(state_bytes)
             compressed_size = len(compressed_data)
 
-            self._update_compression_stats(original_size, compressed_size, compression_time_ms)
+            self._update_compression_stats(
+                original_size, compressed_size, compression_time_ms
+            )
             self.compressed_states_count += 1
 
             return compressed_data
@@ -379,7 +394,9 @@ class CoordinationStateCompressor:
             # Update decompression stats
             decompression_time_ms = (time.perf_counter() - start_time) * 1000
             self._compression_stats["decompression_operations"] += 1
-            self._compression_stats["decompression_time_total_ms"] += decompression_time_ms
+            self._compression_stats[
+                "decompression_time_total_ms"
+            ] += decompression_time_ms
 
             return state_dict
 
@@ -473,7 +490,9 @@ class CoordinationStateManager:
             "cycle": state.get("cycle", self._states_processed),
             "timestamp": state.get("timestamp", time.time()),
             "compressed_size": len(self._states[-1]),
-            "source_decision": state.get("source_decision", {}).get("selected_source", "unknown"),
+            "source_decision": state.get("source_decision", {}).get(
+                "selected_source", "unknown"
+            ),
         }
         self._state_metadata.append(metadata)
 
@@ -638,18 +657,20 @@ class StateDeduplicator:
         """Get comprehensive deduplication statistics."""
         total_processed = self._deduplication_stats["total_states_processed"]
 
-        deduplication_ratio = self._deduplication_stats["duplicate_states_eliminated"] / max(
-            1, total_processed
-        )
+        deduplication_ratio = self._deduplication_stats[
+            "duplicate_states_eliminated"
+        ] / max(1, total_processed)
 
-        avg_processing_time = self._deduplication_stats["deduplication_time_total_ms"] / max(
-            1, total_processed
-        )
+        avg_processing_time = self._deduplication_stats[
+            "deduplication_time_total_ms"
+        ] / max(1, total_processed)
 
         return {
             "total_states_processed": total_processed,
             "unique_states_count": self._deduplication_stats["unique_states_count"],
-            "duplicate_states_eliminated": self._deduplication_stats["duplicate_states_eliminated"],
+            "duplicate_states_eliminated": self._deduplication_stats[
+                "duplicate_states_eliminated"
+            ],
             "deduplication_ratio": round(deduplication_ratio, 3),
             "memory_saved_mb": round(self._deduplication_stats["memory_saved_mb"], 2),
             "average_processing_time_ms": round(avg_processing_time, 3),
@@ -660,7 +681,9 @@ class StateDeduplicator:
         """Calculate canonical hash for state (excluding dynamic fields)."""
         # Create normalized state for hashing (exclude timestamp/cycle)
         normalized_state = {
-            k: v for k, v in state.items() if k not in ("timestamp", "cycle", "last_decision_time")
+            k: v
+            for k, v in state.items()
+            if k not in ("timestamp", "cycle", "last_decision_time")
         }
 
         # Sort keys for consistent hashing
@@ -678,7 +701,9 @@ class StateDeduplicator:
 
         return None
 
-    def _calculate_similarity(self, state1: dict[str, Any], state2: dict[str, Any]) -> float:
+    def _calculate_similarity(
+        self, state1: dict[str, Any], state2: dict[str, Any]
+    ) -> float:
         """Calculate similarity between two states (0.0 to 1.0)."""
         # Core state fields for similarity comparison
         core_fields = [
@@ -702,15 +727,26 @@ class StateDeduplicator:
                         matches += 1
                 elif field_name == "priority_scores":
                     # Numeric similarity for priority scores
-                    if self._numeric_dict_similarity(state1[field_name], state2[field_name]) > 0.9:
+                    if (
+                        self._numeric_dict_similarity(
+                            state1[field_name], state2[field_name]
+                        )
+                        > 0.9
+                    ):
                         matches += 1
                 elif field_name == "safety_status":
                     # Boolean field similarity
-                    if self._dict_similarity(state1[field_name], state2[field_name]) > 0.8:
+                    if (
+                        self._dict_similarity(state1[field_name], state2[field_name])
+                        > 0.8
+                    ):
                         matches += 1
                 elif (
                     field_name == "performance_metrics"
-                    and self._numeric_dict_similarity(state1[field_name], state2[field_name]) > 0.85
+                    and self._numeric_dict_similarity(
+                        state1[field_name], state2[field_name]
+                    )
+                    > 0.85
                 ):
                     # Numeric tolerance for performance metrics
                     matches += 1
@@ -801,7 +837,9 @@ class DeduplicatedStateManager:
             dedup_stats = self._deduplicator.get_deduplication_statistics()
 
             # Calculate combined memory efficiency
-            compression_ratio = base_stats["compression_stats"].get("compression_ratio", 0)
+            compression_ratio = base_stats["compression_stats"].get(
+                "compression_ratio", 0
+            )
             deduplication_ratio = dedup_stats.get("deduplication_ratio", 0)
 
             # Combined efficiency: both techniques contribute
@@ -904,7 +942,9 @@ class CPUUsageMonitor:
         if _PSUTIL_AVAILABLE:
             psutil.cpu_percent(percpu=True)  # Prime the measurement
 
-        logger.info(f"CPUUsageMonitor initialized, tracking top {top_processes} processes")
+        logger.info(
+            f"CPUUsageMonitor initialized, tracking top {top_processes} processes"
+        )
 
     def get_current_cpu_usage(self) -> dict[str, Any]:
         """
@@ -929,7 +969,9 @@ class CPUUsageMonitor:
 
             # Get top CPU-consuming processes
             processes = []
-            for proc in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
+            for proc in psutil.process_iter(
+                ["pid", "name", "cpu_percent", "memory_percent"]
+            ):
                 try:
                     pinfo = proc.info
                     if pinfo["cpu_percent"] is not None and pinfo["cpu_percent"] > 0:
@@ -938,12 +980,16 @@ class CPUUsageMonitor:
                     pass
 
             # Sort by CPU usage and take top N
-            top_processes = sorted(processes, key=lambda p: p["cpu_percent"], reverse=True)[
-                : self.top_processes
-            ]
+            top_processes = sorted(
+                processes, key=lambda p: p["cpu_percent"], reverse=True
+            )[: self.top_processes]
 
             # Get load averages
-            load_avg = psutil.getloadavg() if hasattr(psutil, "getloadavg") else (0.0, 0.0, 0.0)
+            load_avg = (
+                psutil.getloadavg()
+                if hasattr(psutil, "getloadavg")
+                else (0.0, 0.0, 0.0)
+            )
 
             return {
                 "overall_percent": overall_cpu,
@@ -990,7 +1036,9 @@ class DynamicResourceAllocator:
         # Baseline limits for recovery
         self.baseline_limits = self.current_limits.copy()
 
-        logger.info("DynamicResourceAllocator initialized with CPU-based resource adjustment")
+        logger.info(
+            "DynamicResourceAllocator initialized with CPU-based resource adjustment"
+        )
 
     def configure_cpu_thresholds(self, thresholds: dict[str, float]) -> None:
         """Configure CPU thresholds for resource allocation decisions."""
@@ -1012,7 +1060,9 @@ class DynamicResourceAllocator:
         if cpu_percent >= self.cpu_thresholds["critical_cpu_threshold"]:
             # Critical CPU load - emergency throttling
             new_limits = {
-                "max_concurrent_tasks": max(1, self.baseline_limits["max_concurrent_tasks"] // 4),
+                "max_concurrent_tasks": max(
+                    1, self.baseline_limits["max_concurrent_tasks"] // 4
+                ),
                 "coordination_workers": 1,
                 "signal_workers": 1,
             }
@@ -1021,8 +1071,12 @@ class DynamicResourceAllocator:
         elif cpu_percent >= self.cpu_thresholds["high_cpu_threshold"]:
             # High CPU load - reduce concurrency
             new_limits = {
-                "max_concurrent_tasks": max(2, self.baseline_limits["max_concurrent_tasks"] // 2),
-                "coordination_workers": max(1, self.baseline_limits["coordination_workers"] // 2),
+                "max_concurrent_tasks": max(
+                    2, self.baseline_limits["max_concurrent_tasks"] // 2
+                ),
+                "coordination_workers": max(
+                    1, self.baseline_limits["coordination_workers"] // 2
+                ),
                 "signal_workers": max(1, self.baseline_limits["signal_workers"]),
             }
             adjustments_made.append(f"High CPU throttling at {cpu_percent}% CPU")
@@ -1030,7 +1084,9 @@ class DynamicResourceAllocator:
         elif cpu_percent <= self.cpu_thresholds["recovery_threshold"]:
             # Low CPU load - restore normal operation
             new_limits = self.baseline_limits.copy()
-            adjustments_made.append(f"CPU recovery at {cpu_percent}% - restoring normal limits")
+            adjustments_made.append(
+                f"CPU recovery at {cpu_percent}% - restoring normal limits"
+            )
 
         else:
             # Normal CPU load - no changes needed
@@ -1040,7 +1096,9 @@ class DynamicResourceAllocator:
         old_limits = self.current_limits.copy()
         self.current_limits = new_limits
 
-        logger.info(f"Resource limits adjusted due to CPU load {cpu_percent}%: {adjustments_made}")
+        logger.info(
+            f"Resource limits adjusted due to CPU load {cpu_percent}%: {adjustments_made}"
+        )
 
         return {
             "adjustments_made": adjustments_made,
@@ -1067,7 +1125,9 @@ class TaskPriorityAdjuster:
             "signal_processing": {"base_priority": "normal", "protected": False},
         }
 
-        logger.info("TaskPriorityAdjuster initialized for CPU-aware priority management")
+        logger.info(
+            "TaskPriorityAdjuster initialized for CPU-aware priority management"
+        )
 
     def update_cpu_load(self, cpu_load: float) -> None:
         """Update current CPU load for priority calculations."""
@@ -1120,7 +1180,9 @@ class ThermalMonitor:
         self.thermal_sensor_path = None
         self._detect_thermal_sensors()
 
-        logger.info(f"ThermalMonitor initialized, sensor path: {self.thermal_sensor_path}")
+        logger.info(
+            f"ThermalMonitor initialized, sensor path: {self.thermal_sensor_path}"
+        )
 
     def _detect_thermal_sensors(self) -> None:
         """Detect available thermal sensors on Raspberry Pi."""
@@ -1233,7 +1295,9 @@ class ResourceOptimizer:
     """
 
     def __init__(self, enable_memory_profiler: bool = True):
-        self.enable_memory_profiler = enable_memory_profiler and _MEMORY_PROFILER_AVAILABLE
+        self.enable_memory_profiler = (
+            enable_memory_profiler and _MEMORY_PROFILER_AVAILABLE
+        )
         self.memory_pools: dict[str, MemoryPool] = {}
         self.circular_buffers: dict[str, RSsiCircularBuffer] = {}
         self.degradation_manager = GracefulDegradationManager()
@@ -1287,7 +1351,9 @@ class ResourceOptimizer:
                 "processed_at": time.time(),
                 "rssi_normalized": (rssi_dbm + 100) / 100,  # Normalize to 0-1 range
                 "frequency_mhz": frequency_hz / 1000000,
-                "processing_latency_ms": ((time.time() - timestamp) * 1000 if timestamp else 0),
+                "processing_latency_ms": (
+                    (time.time() - timestamp) * 1000 if timestamp else 0
+                ),
             }
 
             # Store some processing results (simulates memory accumulation)
@@ -1297,9 +1363,13 @@ class ResourceOptimizer:
 
             # Limit processing results to prevent unbounded growth
             if len(self._processing_results) > 1000:
-                self._processing_results = self._processing_results[-500:]  # Keep most recent 500
+                self._processing_results = self._processing_results[
+                    -500:
+                ]  # Keep most recent 500
 
-    def analyze_memory_usage_patterns(self, memory_samples: list[float]) -> MemoryAnalysis:
+    def analyze_memory_usage_patterns(
+        self, memory_samples: list[float]
+    ) -> MemoryAnalysis:
         """
         SUBTASK-5.6.2.1 [6a] - Analyze memory usage patterns and detect leaks.
 
@@ -1327,7 +1397,9 @@ class ResourceOptimizer:
             first_avg = sum(first_third) / len(first_third)
             last_avg = sum(last_third) / len(last_third)
 
-            growth_percent = ((last_avg - first_avg) / first_avg) * 100 if first_avg > 0 else 0
+            growth_percent = (
+                ((last_avg - first_avg) / first_avg) * 100 if first_avg > 0 else 0
+            )
 
             if growth_percent > 10:
                 trend = "growing"
@@ -1445,7 +1517,9 @@ class ResourceOptimizer:
 
         # Base score on memory utilization consistency
         variance = sum((x - average) ** 2 for x in memory_samples) / len(memory_samples)
-        stability_score = max(0, 100 - (variance / average * 100)) if average > 0 else 50
+        stability_score = (
+            max(0, 100 - (variance / average * 100)) if average > 0 else 50
+        )
 
         # Efficiency based on peak vs average ratio
         utilization_ratio = average / peak if peak > 0 else 0
@@ -1462,7 +1536,9 @@ class ResourceOptimizer:
         Returns configured state compressor with compression statistics tracking.
         """
         compressor = CoordinationStateCompressor()
-        logger.info("Created coordination state compressor for dual-SDR state management")
+        logger.info(
+            "Created coordination state compressor for dual-SDR state management"
+        )
         return compressor
 
     def create_coordination_state_manager(
@@ -1488,14 +1564,18 @@ class ResourceOptimizer:
         )
         return manager
 
-    def create_state_deduplicator(self, similarity_threshold: float = 0.85) -> StateDeduplicator:
+    def create_state_deduplicator(
+        self, similarity_threshold: float = 0.85
+    ) -> StateDeduplicator:
         """
         SUBTASK-5.6.2.1 [6e] - Create state deduplicator for memory footprint reduction.
 
         Returns configured deduplicator with similarity detection algorithms.
         """
         deduplicator = StateDeduplicator(similarity_threshold=similarity_threshold)
-        logger.info(f"Created state deduplicator with similarity threshold: {similarity_threshold}")
+        logger.info(
+            f"Created state deduplicator with similarity threshold: {similarity_threshold}"
+        )
         return deduplicator
 
     def create_deduplicated_state_manager(
@@ -1585,7 +1665,9 @@ class ResourceOptimizer:
 
         if use_py_spy and _SUBPROCESS_AVAILABLE:
             try:
-                hotspots, sampling_method = self._profile_with_py_spy(duration_seconds, process.pid)
+                hotspots, sampling_method = self._profile_with_py_spy(
+                    duration_seconds, process.pid
+                )
             except Exception as e:
                 logger.warning(f"py-spy profiling failed, falling back to psutil: {e}")
                 hotspots = []
@@ -1633,7 +1715,9 @@ class ResourceOptimizer:
         )  # Assume coordination is ~30% of CPU, max 15%
 
         # CPU efficiency score (higher is better, considers consistency and optimal usage)
-        efficiency_score = self._calculate_cpu_efficiency_score(cpu_samples, average_cpu, peak_cpu)
+        efficiency_score = self._calculate_cpu_efficiency_score(
+            cpu_samples, average_cpu, peak_cpu
+        )
 
         logger.info(
             f"CPU profiling complete: avg={average_cpu:.1f}%, peak={peak_cpu:.1f}%, "
@@ -1690,9 +1774,9 @@ class ResourceOptimizer:
         peak_latency = max(decision_latencies)
 
         # Estimate decisions per second
-        total_time = coordination_samples[-1].get("timestamp", 0) - coordination_samples[0].get(
+        total_time = coordination_samples[-1].get(
             "timestamp", 0
-        )
+        ) - coordination_samples[0].get("timestamp", 0)
         decisions_per_second = len(coordination_samples) / max(total_time, 1.0)
 
         # Estimate CPU impact based on decision frequency and complexity
@@ -1865,7 +1949,9 @@ class ResourceOptimizer:
         Returns efficient algorithms for dual-SDR coordination with reduced computational complexity.
         """
         algorithms = OptimizedCoordinationAlgorithms()
-        logger.info("Created optimized coordination algorithms for dual-SDR decision making")
+        logger.info(
+            "Created optimized coordination algorithms for dual-SDR decision making"
+        )
         return algorithms
 
     def create_async_task_scheduler(
@@ -1973,7 +2059,9 @@ class OptimizedCoordinationAlgorithms:
             "average_decision_time_us": 0.0,
         }
 
-        logger.info("OptimizedCoordinationAlgorithms initialized with fast lookup tables")
+        logger.info(
+            "OptimizedCoordinationAlgorithms initialized with fast lookup tables"
+        )
 
     def make_fast_coordination_decision(
         self,
@@ -2020,7 +2108,9 @@ class OptimizedCoordinationAlgorithms:
             )
 
         # Calculate decision confidence using fast approximation
-        confidence = self._calculate_fast_confidence(ground_quality, drone_quality, abs(score_diff))
+        confidence = self._calculate_fast_confidence(
+            ground_quality, drone_quality, abs(score_diff)
+        )
 
         decision_time_us = (time.perf_counter() - start_time) * 1_000_000
         self._update_performance_stats(decision_time_us)
@@ -2079,7 +2169,9 @@ class OptimizedCoordinationAlgorithms:
         batch_time_us = (time.perf_counter() - start_time) * 1_000_000
 
         # Update batch processing statistics
-        avg_decision_time = batch_time_us / len(decision_requests) if decision_requests else 0
+        avg_decision_time = (
+            batch_time_us / len(decision_requests) if decision_requests else 0
+        )
 
         logger.debug(
             f"Batch processed {len(decision_requests)} decisions in {batch_time_us:.1f}μs "
@@ -2140,9 +2232,15 @@ class OptimizedCoordinationAlgorithms:
                 # Significant optimization needed
                 recommendations.update(
                     {
-                        "recommended_cache_size": min(self.quality_score_cache_size * 2, 100),
-                        "recommended_fast_threshold": max(self.fast_decision_threshold - 5.0, 8.0),
-                        "recommended_hysteresis": max(self.hysteresis_threshold - 1.0, 2.0),
+                        "recommended_cache_size": min(
+                            self.quality_score_cache_size * 2, 100
+                        ),
+                        "recommended_fast_threshold": max(
+                            self.fast_decision_threshold - 5.0, 8.0
+                        ),
+                        "recommended_hysteresis": max(
+                            self.hysteresis_threshold - 1.0, 2.0
+                        ),
                         "optimization_level": "aggressive",
                     }
                 )
@@ -2150,9 +2248,15 @@ class OptimizedCoordinationAlgorithms:
                 # Minor optimization needed
                 recommendations.update(
                     {
-                        "recommended_cache_size": min(self.quality_score_cache_size + 10, 75),
-                        "recommended_fast_threshold": max(self.fast_decision_threshold - 2.0, 10.0),
-                        "recommended_hysteresis": max(self.hysteresis_threshold - 0.5, 3.0),
+                        "recommended_cache_size": min(
+                            self.quality_score_cache_size + 10, 75
+                        ),
+                        "recommended_fast_threshold": max(
+                            self.fast_decision_threshold - 2.0, 10.0
+                        ),
+                        "recommended_hysteresis": max(
+                            self.hysteresis_threshold - 0.5, 3.0
+                        ),
                         "optimization_level": "conservative",
                     }
                 )
@@ -2205,7 +2309,9 @@ class OptimizedCoordinationAlgorithms:
             return self._quality_score_cache[cache_key]
 
         # Use lookup table for RSSI component
-        rssi_score = self._rssi_score_lut.get(rssi_int, max(0, min(100, (rssi + 80) * 2)))
+        rssi_score = self._rssi_score_lut.get(
+            rssi_int, max(0, min(100, (rssi + 80) * 2))
+        )
 
         # Add SNR component if available (simplified calculation)
         if snr is not None:
@@ -2266,7 +2372,8 @@ class OptimizedCoordinationAlgorithms:
             self._stats["average_decision_time_us"] = decision_time_us
         else:
             self._stats["average_decision_time_us"] = (
-                alpha * decision_time_us + (1 - alpha) * self._stats["average_decision_time_us"]
+                alpha * decision_time_us
+                + (1 - alpha) * self._stats["average_decision_time_us"]
             )
 
     def _calculate_algorithm_efficiency(self) -> float:
@@ -2280,7 +2387,9 @@ class OptimizedCoordinationAlgorithms:
         cache_rate = self._stats["cached_decisions"] / total
 
         # Target decision time: 10 microseconds
-        timing_efficiency = max(0, min(1, 20.0 / max(self._stats["average_decision_time_us"], 1.0)))
+        timing_efficiency = max(
+            0, min(1, 20.0 / max(self._stats["average_decision_time_us"], 1.0))
+        )
 
         # Combined efficiency score
         efficiency = fast_rate * 40 + cache_rate * 30 + timing_efficiency * 30
@@ -2420,7 +2529,9 @@ class PriorityCalculationCache:
         stability_weight = 0.2
 
         total_score = (
-            rssi_score * rssi_weight + snr_score * snr_weight + stability_score * stability_weight
+            rssi_score * rssi_weight
+            + snr_score * snr_weight
+            + stability_score * stability_weight
         )
 
         # Confidence based on available metrics
@@ -2464,7 +2575,9 @@ class PriorityCalculationCache:
         ground_rssi_key = round(ground_rssi / self.rssi_tolerance) * self.rssi_tolerance
         drone_rssi_key = round(drone_rssi / self.rssi_tolerance) * self.rssi_tolerance
 
-        decision_key = f"dec_{ground_rssi_key:.1f}_{drone_rssi_key:.1f}_{current_source}"
+        decision_key = (
+            f"dec_{ground_rssi_key:.1f}_{drone_rssi_key:.1f}_{current_source}"
+        )
 
         # Fast cache lookup
         if decision_key in self._decision_cache:
@@ -2483,8 +2596,12 @@ class PriorityCalculationCache:
         self._stats["misses"] += 1
 
         # Get signal qualities (these may be cached individually)
-        ground_quality = self.calculate_signal_quality_cached(ground_rssi, ground_snr, 0.85)
-        drone_quality = self.calculate_signal_quality_cached(drone_rssi, drone_snr, 0.80)
+        ground_quality = self.calculate_signal_quality_cached(
+            ground_rssi, ground_snr, 0.85
+        )
+        drone_quality = self.calculate_signal_quality_cached(
+            drone_rssi, drone_snr, 0.80
+        )
 
         # Make priority decision using simplified logic
         score_diff = ground_quality["score"] - drone_quality["score"]
@@ -2605,7 +2722,9 @@ class PriorityCalculationCache:
 
         return f"decision_{ground_rssi_key:.1f}_{drone_rssi_key:.1f}_{ground_snr_key}_{drone_snr_key}_{current_source}"
 
-    def _store_signal_quality_cache(self, cache_key: str, result: dict[str, Any]) -> None:
+    def _store_signal_quality_cache(
+        self, cache_key: str, result: dict[str, Any]
+    ) -> None:
         """Store signal quality result in cache with eviction management."""
         # Check if cache is at capacity
         if (
@@ -2620,7 +2739,9 @@ class PriorityCalculationCache:
     def _store_decision_cache(self, cache_key: str, result: dict[str, Any]) -> None:
         """Store decision result in cache with eviction management."""
         # Check if cache is at capacity
-        if len(self._decision_cache) >= self.max_cache_size // 2:  # Reserve half for signal quality
+        if (
+            len(self._decision_cache) >= self.max_cache_size // 2
+        ):  # Reserve half for signal quality
             self._evict_lru_decision()
 
         self._decision_cache[cache_key] = {"result": result.copy()}
@@ -2690,7 +2811,9 @@ class AsyncTaskScheduler:
         # Semaphores for concurrent task limiting
         self.task_semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
         self.coordination_semaphore = asyncio.Semaphore(self.max_coordination_workers)
-        self.signal_processing_semaphore = asyncio.Semaphore(self.max_signal_processing_workers)
+        self.signal_processing_semaphore = asyncio.Semaphore(
+            self.max_signal_processing_workers
+        )
 
         # Thread pools for CPU-intensive operations
         self.coordination_executor = ThreadPoolExecutor(
@@ -2753,7 +2876,9 @@ class AsyncTaskScheduler:
 
                 try:
                     # Execute task with timeout
-                    result = await asyncio.wait_for(task_func(*args, **kwargs), timeout=timeout)
+                    result = await asyncio.wait_for(
+                        task_func(*args, **kwargs), timeout=timeout
+                    )
 
                     execution_time = time.perf_counter() - start_time
                     self.completed_tasks += 1
@@ -2777,7 +2902,8 @@ class AsyncTaskScheduler:
                     self.timeout_tasks += 1
 
                     logger.warning(
-                        f"Coordination task timed out after {timeout}s, " f"priority: {priority}"
+                        f"Coordination task timed out after {timeout}s, "
+                        f"priority: {priority}"
                     )
 
                     return {
@@ -2913,7 +3039,9 @@ class AsyncTaskScheduler:
         if not tasks:
             return []
 
-        batch_size = max_concurrent_batch or min(self.max_coordination_workers, len(tasks))
+        batch_size = max_concurrent_batch or min(
+            self.max_coordination_workers, len(tasks)
+        )
         start_time = time.perf_counter()
 
         # Create semaphore for batch concurrency control
@@ -3085,7 +3213,8 @@ class AsyncTaskScheduler:
             "timeout_tasks": self.timeout_tasks,
             "success_rate": self.completed_tasks / max(total_tasks, 1),
             "timeout_rate": self.timeout_tasks / max(total_tasks, 1),
-            "average_task_time_seconds": self.total_task_time / max(self.completed_tasks, 1),
+            "average_task_time_seconds": self.total_task_time
+            / max(self.completed_tasks, 1),
             "active_tasks_count": len(self.active_tasks),
             "high_priority_queue_size": self.high_priority_queue.qsize(),
             "normal_priority_queue_size": self.normal_priority_queue.qsize(),
@@ -3102,7 +3231,10 @@ class AsyncTaskScheduler:
                 "total_workers_in_use": (
                     self.max_coordination_workers - self.coordination_semaphore._value
                 )
-                + (self.max_signal_processing_workers - self.signal_processing_semaphore._value),
+                + (
+                    self.max_signal_processing_workers
+                    - self.signal_processing_semaphore._value
+                ),
             },
         }
 
@@ -3125,7 +3257,10 @@ class AsyncTaskScheduler:
         """
         adjustments_made = []
 
-        if new_max_concurrent is not None and new_max_concurrent != self.max_concurrent_tasks:
+        if (
+            new_max_concurrent is not None
+            and new_max_concurrent != self.max_concurrent_tasks
+        ):
             # Adjust semaphore limit
             old_value = self.max_concurrent_tasks
             self.max_concurrent_tasks = new_max_concurrent
@@ -3141,7 +3276,9 @@ class AsyncTaskScheduler:
                 except ValueError:
                     break
 
-            adjustments_made.append(f"max_concurrent: {old_value} -> {new_max_concurrent}")
+            adjustments_made.append(
+                f"max_concurrent: {old_value} -> {new_max_concurrent}"
+            )
 
         if (
             new_coordination_workers is not None
@@ -3186,7 +3323,9 @@ class AsyncTaskScheduler:
             # Schedule shutdown of old executor
             asyncio.create_task(self._shutdown_executor(old_executor))
 
-            adjustments_made.append(f"signal_workers: {old_value} -> {new_signal_workers}")
+            adjustments_made.append(
+                f"signal_workers: {old_value} -> {new_signal_workers}"
+            )
 
         logger.info(
             f"Resource limits adjusted: {', '.join(adjustments_made) if adjustments_made else 'no changes'}"
@@ -3247,7 +3386,10 @@ class IntelligentMessageQueue:
     """
 
     def __init__(
-        self, max_queue_size: int = 1000, batch_size_threshold: int = 5, batch_timeout_ms: int = 100
+        self,
+        max_queue_size: int = 1000,
+        batch_size_threshold: int = 5,
+        batch_timeout_ms: int = 100,
     ) -> None:
         """
         Initialize intelligent message queue with configurable parameters.
@@ -3484,7 +3626,9 @@ class NetworkBandwidthMonitor:
                     }
 
             self._baseline_stats = baseline_stats
-            logger.debug(f"Captured baseline network stats for {len(baseline_stats)} interfaces")
+            logger.debug(
+                f"Captured baseline network stats for {len(baseline_stats)} interfaces"
+            )
             return baseline_stats
 
         except Exception as e:
@@ -3566,7 +3710,9 @@ class NetworkBandwidthMonitor:
             Dictionary with control message traffic metrics
         """
         if not _PSUTIL_AVAILABLE:
-            logger.warning("psutil not available - cannot identify control message traffic")
+            logger.warning(
+                "psutil not available - cannot identify control message traffic"
+            )
             return {
                 "port_8081_connections": {
                     "active_connections": 0,
@@ -3588,7 +3734,11 @@ class NetworkBandwidthMonitor:
 
             # Count active connections on port 8081
             active_connections = len(
-                [conn for conn in port_8081_connections if conn.status == psutil.CONN_ESTABLISHED]
+                [
+                    conn
+                    for conn in port_8081_connections
+                    if conn.status == psutil.CONN_ESTABLISHED
+                ]
             )
 
             # Estimate bytes exchanged (basic implementation for TDD)
@@ -3601,8 +3751,10 @@ class NetworkBandwidthMonitor:
                     "total_bytes_exchanged": total_bytes_exchanged,
                 },
                 "control_message_count": active_connections,  # Simplified for TDD
-                "frequency_control_traffic": total_bytes_exchanged * 0.3,  # 30% frequency control
-                "coordination_message_traffic": total_bytes_exchanged * 0.7,  # 70% coordination
+                "frequency_control_traffic": total_bytes_exchanged
+                * 0.3,  # 30% frequency control
+                "coordination_message_traffic": total_bytes_exchanged
+                * 0.7,  # 70% coordination
             }
 
         except Exception as e:
@@ -3617,7 +3769,9 @@ class NetworkBandwidthMonitor:
                 "coordination_message_traffic": 0,
             }
 
-    def classify_control_message_types(self, message_samples: list[str]) -> dict[str, Any]:
+    def classify_control_message_types(
+        self, message_samples: list[str]
+    ) -> dict[str, Any]:
         """
         SUBTASK-5.6.2.3 [8a3b] - Classify control message types.
 
@@ -3671,7 +3825,9 @@ class NetworkBandwidthMonitor:
                 "coordination_count": len(coordination_messages),
                 "rssi_streaming_count": len(rssi_streaming_messages),
                 "classification_success_rate": len(
-                    frequency_control_messages + coordination_messages + rssi_streaming_messages
+                    frequency_control_messages
+                    + coordination_messages
+                    + rssi_streaming_messages
                 )
                 / max(1, len(message_samples)),
             }
@@ -3709,7 +3865,9 @@ class NetworkBandwidthMonitor:
             Dictionary with interface utilization metrics and activity classification
         """
         if not _PSUTIL_AVAILABLE:
-            logger.warning("psutil not available - returning empty interface utilization")
+            logger.warning(
+                "psutil not available - returning empty interface utilization"
+            )
             return {
                 "interface_utilization": {},
                 "total_network_utilization": {
@@ -3740,10 +3898,12 @@ class NetworkBandwidthMonitor:
                     baseline_counters = self._baseline_stats[interface_name]
                     # Simple delta calculation for TDD GREEN phase
                     bytes_sent_per_sec = max(
-                        0.0, current_counters.bytes_sent - baseline_counters["bytes_sent"]
+                        0.0,
+                        current_counters.bytes_sent - baseline_counters["bytes_sent"],
                     )
                     bytes_recv_per_sec = max(
-                        0.0, current_counters.bytes_recv - baseline_counters["bytes_recv"]
+                        0.0,
+                        current_counters.bytes_recv - baseline_counters["bytes_recv"],
                     )
 
                 # Calculate total throughput
@@ -3801,7 +3961,9 @@ class NetworkBandwidthMonitor:
             Dictionary with frequency control bandwidth metrics
         """
         if not _PSUTIL_AVAILABLE:
-            logger.warning("psutil not available - returning empty frequency control bandwidth")
+            logger.warning(
+                "psutil not available - returning empty frequency control bandwidth"
+            )
             return {
                 "command_bandwidth_bps": 0.0,
                 "command_frequency_hz": 0.0,
@@ -3827,7 +3989,10 @@ class NetworkBandwidthMonitor:
 
                     if interface_name in self._baseline_stats:
                         baseline_counters = self._baseline_stats[interface_name]
-                        bytes_delta = current_counters.bytes_sent - baseline_counters["bytes_sent"]
+                        bytes_delta = (
+                            current_counters.bytes_sent
+                            - baseline_counters["bytes_sent"]
+                        )
 
                         # Simple estimation: assume some portion is control messages
                         if bytes_delta > 0:
@@ -3845,7 +4010,8 @@ class NetworkBandwidthMonitor:
                             # Estimate average command size
                             if estimated_commands_per_sec > 0:
                                 average_command_size_bytes = int(
-                                    estimated_control_bandwidth / estimated_commands_per_sec
+                                    estimated_control_bandwidth
+                                    / estimated_commands_per_sec
                                 )
 
                             # Peak bandwidth (for now, same as current)
@@ -3880,7 +4046,9 @@ class NetworkBandwidthMonitor:
             Dictionary with coordination bandwidth analysis
         """
         if not _PSUTIL_AVAILABLE:
-            logger.warning("psutil not available - returning empty coordination bandwidth")
+            logger.warning(
+                "psutil not available - returning empty coordination bandwidth"
+            )
             return {
                 "bidirectional_bandwidth_bps": 0.0,
                 "priority_decision_bandwidth": 0.0,
@@ -3906,8 +4074,14 @@ class NetworkBandwidthMonitor:
 
                     if interface_name in self._baseline_stats:
                         baseline_counters = self._baseline_stats[interface_name]
-                        sent_delta = current_counters.bytes_sent - baseline_counters["bytes_sent"]
-                        recv_delta = current_counters.bytes_recv - baseline_counters["bytes_recv"]
+                        sent_delta = (
+                            current_counters.bytes_sent
+                            - baseline_counters["bytes_sent"]
+                        )
+                        recv_delta = (
+                            current_counters.bytes_recv
+                            - baseline_counters["bytes_recv"]
+                        )
 
                         # Bidirectional bandwidth includes both directions
                         bidirectional_traffic = sent_delta + recv_delta
@@ -3998,11 +4172,16 @@ class NetworkBandwidthMonitor:
 
                     if interface_name in self._baseline_stats:
                         baseline_counters = self._baseline_stats[interface_name]
-                        bytes_delta = current_counters.bytes_sent - baseline_counters["bytes_sent"]
+                        bytes_delta = (
+                            current_counters.bytes_sent
+                            - baseline_counters["bytes_sent"]
+                        )
 
                         # Estimate command metrics (simple implementation for TDD GREEN)
                         if bytes_delta > 0:
-                            estimated_control_traffic = bytes_delta * 0.1  # 10% control traffic
+                            estimated_control_traffic = (
+                                bytes_delta * 0.1
+                            )  # 10% control traffic
                             total_bandwidth += estimated_control_traffic
 
                             # Estimate command frequency (commands per second)
@@ -4013,9 +4192,13 @@ class NetworkBandwidthMonitor:
 
                             # Message size estimation
                             if estimated_cmd_freq > 0:
-                                avg_msg_size = int(estimated_control_traffic / estimated_cmd_freq)
+                                avg_msg_size = int(
+                                    estimated_control_traffic / estimated_cmd_freq
+                                )
                                 min_size = (
-                                    min(min_size, avg_msg_size) if min_size > 0 else avg_msg_size
+                                    min(min_size, avg_msg_size)
+                                    if min_size > 0
+                                    else avg_msg_size
                                 )
                                 max_size = max(max_size, avg_msg_size)
 
@@ -4109,13 +4292,20 @@ class NetworkBandwidthMonitor:
 
                     if interface_name in self._baseline_stats:
                         baseline_counters = self._baseline_stats[interface_name]
-                        activity = current_counters.bytes_sent - baseline_counters["bytes_sent"]
+                        activity = (
+                            current_counters.bytes_sent
+                            - baseline_counters["bytes_sent"]
+                        )
                         total_activity += activity
 
                 # Routine pattern detection
                 if total_activity > 0:
-                    baseline_frequency = total_activity / 1000  # Simple frequency estimation
-                    pattern_detected = baseline_frequency > 0.1  # Threshold for pattern detection
+                    baseline_frequency = (
+                        total_activity / 1000
+                    )  # Simple frequency estimation
+                    pattern_detected = (
+                        baseline_frequency > 0.1
+                    )  # Threshold for pattern detection
                     average_interval = (
                         1000.0 / baseline_frequency if baseline_frequency > 0 else 0.0
                     )
@@ -4133,8 +4323,12 @@ class NetworkBandwidthMonitor:
                     transition_freq_change = total_activity / 2000
 
             # Pattern classification summary
-            total_patterns = sum([pattern_detected, emergency_detected, state_transition])
-            routine_percentage = (100.0 if pattern_detected else 0.0) if total_patterns > 0 else 0.0
+            total_patterns = sum(
+                [pattern_detected, emergency_detected, state_transition]
+            )
+            routine_percentage = (
+                (100.0 if pattern_detected else 0.0) if total_patterns > 0 else 0.0
+            )
             emergency_percentage = (
                 (100.0 if emergency_detected else 0.0) if total_patterns > 0 else 0.0
             )
@@ -4210,7 +4404,9 @@ class NetworkBandwidthMonitor:
             Dictionary with classified bandwidth patterns and metrics
         """
         if not _PSUTIL_AVAILABLE:
-            logger.warning("psutil not available - returning default pattern classification")
+            logger.warning(
+                "psutil not available - returning default pattern classification"
+            )
             return self._get_default_pattern_classification()
 
         try:
@@ -4225,7 +4421,9 @@ class NetworkBandwidthMonitor:
             predictability_analysis = self._analyze_traffic_predictability_patterns()
 
             # Calculate bandwidth percentages based on actual usage patterns
-            bandwidth_distribution = self._calculate_bandwidth_distribution(total_bandwidth)
+            bandwidth_distribution = self._calculate_bandwidth_distribution(
+                total_bandwidth
+            )
 
             # Classify RSSI streaming pattern (high-frequency, predictable)
             rssi_pattern = {
@@ -4236,16 +4434,26 @@ class NetworkBandwidthMonitor:
 
             # Classify control message pattern (low-frequency, sporadic)
             control_pattern = {
-                "frequency_classification": frequency_analysis["control_frequency_class"],
-                "predictability_score": predictability_analysis["control_predictability"],
+                "frequency_classification": frequency_analysis[
+                    "control_frequency_class"
+                ],
+                "predictability_score": predictability_analysis[
+                    "control_predictability"
+                ],
                 "bandwidth_percentage": bandwidth_distribution["control_percentage"],
             }
 
             # Classify coordination overhead pattern (medium-frequency, adaptive)
             coordination_pattern = {
-                "frequency_classification": frequency_analysis["coordination_frequency_class"],
-                "predictability_score": predictability_analysis["coordination_predictability"],
-                "bandwidth_percentage": bandwidth_distribution["coordination_percentage"],
+                "frequency_classification": frequency_analysis[
+                    "coordination_frequency_class"
+                ],
+                "predictability_score": predictability_analysis[
+                    "coordination_predictability"
+                ],
+                "bandwidth_percentage": bandwidth_distribution[
+                    "coordination_percentage"
+                ],
             }
 
             # Generate classification summary
@@ -4254,7 +4462,10 @@ class NetworkBandwidthMonitor:
                 [
                     ("rssi_streaming", rssi_pattern["bandwidth_percentage"]),
                     ("control_message", control_pattern["bandwidth_percentage"]),
-                    ("coordination_overhead", coordination_pattern["bandwidth_percentage"]),
+                    (
+                        "coordination_overhead",
+                        coordination_pattern["bandwidth_percentage"],
+                    ),
                 ],
                 key=lambda x: x[1],
             )[0]
@@ -4268,7 +4479,9 @@ class NetworkBandwidthMonitor:
             max_bandwidth = max(bandwidth_values)
             min_bandwidth = min(bandwidth_values)
             confidence = (
-                min(1.0, (max_bandwidth - min_bandwidth) / 100.0) if max_bandwidth > 0 else 0.5
+                min(1.0, (max_bandwidth - min_bandwidth) / 100.0)
+                if max_bandwidth > 0
+                else 0.5
             )
 
             classification_summary = {
@@ -4296,7 +4509,8 @@ class NetworkBandwidthMonitor:
             if _PSUTIL_AVAILABLE:
                 net_stats = psutil.net_io_counters(pernic=True)
                 total_packets = sum(
-                    stats.packets_sent + stats.packets_recv for stats in net_stats.values()
+                    stats.packets_sent + stats.packets_recv
+                    for stats in net_stats.values()
                 )
 
                 # Classify based on packet count patterns (simplified heuristic)
@@ -4344,7 +4558,9 @@ class NetworkBandwidthMonitor:
             "coordination_predictability": coordination_predictability,
         }
 
-    def _calculate_bandwidth_distribution(self, total_bandwidth: float) -> dict[str, float]:
+    def _calculate_bandwidth_distribution(
+        self, total_bandwidth: float
+    ) -> dict[str, float]:
         """Calculate bandwidth distribution percentages for each pattern type."""
         if total_bandwidth <= 0:
             # Default distribution when no traffic detected
@@ -4420,8 +4636,12 @@ class NetworkBandwidthMonitor:
         )  # Store 1 hour of data
 
         # Start the metrics collection loop
-        self._metrics_collection_task = asyncio.create_task(self._real_time_metrics_loop())
-        logger.info("Real-time bandwidth metrics collection started with 1-second sampling")
+        self._metrics_collection_task = asyncio.create_task(
+            self._real_time_metrics_loop()
+        )
+        logger.info(
+            "Real-time bandwidth metrics collection started with 1-second sampling"
+        )
 
     def is_real_time_monitoring_active(self) -> bool:
         """Check if real-time monitoring is currently active."""
@@ -4435,7 +4655,9 @@ class NetworkBandwidthMonitor:
             Dictionary with sampling interval and storage configuration
         """
         return {
-            "sampling_interval_seconds": getattr(self, "_sampling_interval_seconds", 1.0),
+            "sampling_interval_seconds": getattr(
+                self, "_sampling_interval_seconds", 1.0
+            ),
             "historical_data_retention": 3600,  # 1 hour retention
             "storage_format": "time_series_deque",
             "max_samples": 3600,
@@ -4519,7 +4741,10 @@ class NetworkBandwidthMonitor:
         Returns:
             Dictionary with latest sample and aggregated metrics summary
         """
-        if not hasattr(self, "_historical_bandwidth_data") or not self._historical_bandwidth_data:
+        if (
+            not hasattr(self, "_historical_bandwidth_data")
+            or not self._historical_bandwidth_data
+        ):
             return {
                 "latest_sample": {
                     "timestamp": 0.0,
@@ -4547,7 +4772,9 @@ class NetworkBandwidthMonitor:
 
         # Calculate metrics summary
         all_samples = list(self._historical_bandwidth_data)
-        bandwidths = [sample["bandwidth_metrics"]["total_bandwidth_bps"] for sample in all_samples]
+        bandwidths = [
+            sample["bandwidth_metrics"]["total_bandwidth_bps"] for sample in all_samples
+        ]
 
         average_bandwidth = sum(bandwidths) / len(bandwidths) if bandwidths else 0.0
         peak_bandwidth = max(bandwidths) if bandwidths else 0.0
@@ -4592,11 +4819,15 @@ class NetworkBandwidthMonitor:
 
         # Analyze bandwidth trends
         all_samples = list(self._historical_bandwidth_data)
-        bandwidths = [sample["bandwidth_metrics"]["total_bandwidth_bps"] for sample in all_samples]
+        bandwidths = [
+            sample["bandwidth_metrics"]["total_bandwidth_bps"] for sample in all_samples
+        ]
 
         # Simple trend analysis (increasing/decreasing/stable)
         if len(bandwidths) >= 2:
-            first_half_avg = sum(bandwidths[: len(bandwidths) // 2]) / (len(bandwidths) // 2)
+            first_half_avg = sum(bandwidths[: len(bandwidths) // 2]) / (
+                len(bandwidths) // 2
+            )
             second_half_avg = sum(bandwidths[len(bandwidths) // 2 :]) / (
                 len(bandwidths) - len(bandwidths) // 2
             )
@@ -4618,7 +4849,9 @@ class NetworkBandwidthMonitor:
         rssi_stability = 0.8  # High stability for RSSI streaming
         control_stability = 0.3  # Low stability for control messages
         coordination_stability = 0.6  # Medium stability for coordination
-        overall_stability = (rssi_stability + control_stability + coordination_stability) / 3
+        overall_stability = (
+            rssi_stability + control_stability + coordination_stability
+        ) / 3
 
         return {
             "trend_analysis": {
@@ -4666,7 +4899,9 @@ class NetworkBandwidthMonitor:
         tracking dropped packets, errors, and retransmissions across interfaces.
         """
         if not _PSUTIL_AVAILABLE:
-            logger.warning("psutil not available - cannot establish packet loss baseline")
+            logger.warning(
+                "psutil not available - cannot establish packet loss baseline"
+            )
             return {
                 "interfaces": {},
                 "total_dropped_packets": 0,
@@ -4709,7 +4944,9 @@ class NetworkBandwidthMonitor:
             # Store baseline for delta calculations
             self._packet_loss_baseline = baseline_data
 
-            logger.debug(f"Established packet loss baseline for {len(interfaces_stats)} interfaces")
+            logger.debug(
+                f"Established packet loss baseline for {len(interfaces_stats)} interfaces"
+            )
             return baseline_data
 
         except Exception as e:
@@ -4783,7 +5020,9 @@ class NetworkBandwidthMonitor:
                 packet_loss_rate = min(1.0, max(0.0, packet_loss_rate))  # Clamp 0.0-1.0
 
             # Calculate delta from baseline
-            baseline_dropped = self._packet_loss_baseline.get("total_dropped_packets", 0)
+            baseline_dropped = self._packet_loss_baseline.get(
+                "total_dropped_packets", 0
+            )
             dropped_packets_delta = total_current_dropped - baseline_dropped
 
             return {
@@ -4922,9 +5161,15 @@ class PacketLossAnalyzer:
             "timestamp": time.time(),
             "packet_loss_rate": packet_loss_data.get("packet_loss_rate", 0.0),
             "interface_stats": {
-                "interfaces_monitored": packet_loss_data.get("interfaces_monitored", []),
-                "dropped_packets_delta": packet_loss_data.get("dropped_packets_delta", 0),
-                "error_rate_per_interface": packet_loss_data.get("error_rate_per_interface", {}),
+                "interfaces_monitored": packet_loss_data.get(
+                    "interfaces_monitored", []
+                ),
+                "dropped_packets_delta": packet_loss_data.get(
+                    "dropped_packets_delta", 0
+                ),
+                "error_rate_per_interface": packet_loss_data.get(
+                    "error_rate_per_interface", {}
+                ),
             },
         }
 
@@ -4958,7 +5203,9 @@ class PacketLossAnalyzer:
         if len(loss_rates) >= 3:
             # Use recent trend analysis
             recent_half = len(loss_rates) // 2
-            early_avg = sum(loss_rates[:recent_half]) / recent_half if recent_half > 0 else 0
+            early_avg = (
+                sum(loss_rates[:recent_half]) / recent_half if recent_half > 0 else 0
+            )
             late_avg = sum(loss_rates[recent_half:]) / (len(loss_rates) - recent_half)
 
             trend_threshold = baseline * 0.1  # 10% change threshold
@@ -4999,7 +5246,9 @@ class AdaptiveRateController:
 
     network_monitor: "NetworkBandwidthMonitor"
     base_frequency_hz: float = 10.0
-    packet_loss_thresholds: list[float] = field(default_factory=lambda: [0.01, 0.05, 0.10])
+    packet_loss_thresholds: list[float] = field(
+        default_factory=lambda: [0.01, 0.05, 0.10]
+    )
     rate_reduction_levels: list[float] = field(default_factory=lambda: [5.0, 2.0, 1.0])
 
     def adjust_transmission_rate(
@@ -5021,9 +5270,7 @@ class AdaptiveRateController:
             if current_packet_loss >= threshold:
                 new_frequency = self.rate_reduction_levels[i]
                 congestion_level = ["low", "medium", "high"][i] if i < 3 else "critical"
-                reduction_reason = (
-                    f"Packet loss {current_packet_loss:.1%} exceeds {threshold:.1%} threshold"
-                )
+                reduction_reason = f"Packet loss {current_packet_loss:.1%} exceeds {threshold:.1%} threshold"
 
         return {
             "new_frequency_hz": new_frequency,
@@ -5045,8 +5292,12 @@ class CongestionClassifier:
     """
 
     network_monitor: "NetworkBandwidthMonitor"
-    packet_loss_thresholds: list[float] = field(default_factory=lambda: [0.01, 0.05, 0.10, 0.20])
-    latency_thresholds_ms: list[float] = field(default_factory=lambda: [50, 100, 200, 500])
+    packet_loss_thresholds: list[float] = field(
+        default_factory=lambda: [0.01, 0.05, 0.10, 0.20]
+    )
+    latency_thresholds_ms: list[float] = field(
+        default_factory=lambda: [50, 100, 200, 500]
+    )
     enable_automatic_fallback: bool = True
 
     def classify_congestion_severity(
@@ -5090,10 +5341,15 @@ class CongestionClassifier:
             "critical": "emergency_fallback_mode",
         }
 
-        adaptive_response = adaptive_responses.get(severity_level, "maintain_normal_operation")
+        adaptive_response = adaptive_responses.get(
+            severity_level, "maintain_normal_operation"
+        )
 
         # Determine fallback trigger
-        fallback_trigger = self.enable_automatic_fallback and severity_level in ["high", "critical"]
+        fallback_trigger = self.enable_automatic_fallback and severity_level in [
+            "high",
+            "critical",
+        ]
 
         # Generate recovery actions
         recovery_actions = []
@@ -5146,8 +5402,12 @@ class NetworkQualityMetrics:
         return {
             "packet_loss_metrics": {
                 "current_rate": packet_loss_data.get("packet_loss_rate", 0.0),
-                "dropped_packets_delta": packet_loss_data.get("dropped_packets_delta", 0),
-                "error_rate_per_interface": packet_loss_data.get("error_rate_per_interface", {}),
+                "dropped_packets_delta": packet_loss_data.get(
+                    "dropped_packets_delta", 0
+                ),
+                "error_rate_per_interface": packet_loss_data.get(
+                    "error_rate_per_interface", {}
+                ),
             },
             "latency_metrics": {
                 "average_latency_ms": 0.0,  # Placeholder - would integrate with ping measurements
@@ -5160,18 +5420,26 @@ class NetworkQualityMetrics:
                 "utilization_percentage": 0.0,
             },
             "congestion_indicators": {
-                "congestion_detected": packet_loss_data.get("packet_loss_rate", 0.0) > 0.01,
+                "congestion_detected": packet_loss_data.get("packet_loss_rate", 0.0)
+                > 0.01,
                 "congestion_severity": (
-                    "low" if packet_loss_data.get("packet_loss_rate", 0.0) > 0.01 else "none"
+                    "low"
+                    if packet_loss_data.get("packet_loss_rate", 0.0) > 0.01
+                    else "none"
                 ),
                 "contributing_factors": (
-                    ["packet_loss"] if packet_loss_data.get("packet_loss_rate", 0.0) > 0.01 else []
+                    ["packet_loss"]
+                    if packet_loss_data.get("packet_loss_rate", 0.0) > 0.01
+                    else []
                 ),
             },
             "interface_health": {
-                "monitored_interfaces": packet_loss_data.get("interfaces_monitored", []),
+                "monitored_interfaces": packet_loss_data.get(
+                    "interfaces_monitored", []
+                ),
                 "interface_status": {
-                    iface: "healthy" for iface in packet_loss_data.get("interfaces_monitored", [])
+                    iface: "healthy"
+                    for iface in packet_loss_data.get("interfaces_monitored", [])
                 },
                 "error_rates": packet_loss_data.get("error_rate_per_interface", {}),
             },
@@ -5219,7 +5487,9 @@ class NetworkQualityMetrics:
         return {
             "network_health_summary": {
                 "overall_status": "healthy",
-                "packet_loss_rate": comprehensive_metrics["packet_loss_metrics"]["current_rate"],
+                "packet_loss_rate": comprehensive_metrics["packet_loss_metrics"][
+                    "current_rate"
+                ],
                 "active_interfaces": len(
                     comprehensive_metrics["interface_health"]["monitored_interfaces"]
                 ),
@@ -5231,7 +5501,9 @@ class NetworkQualityMetrics:
                 "current_severity": comprehensive_metrics["congestion_indicators"][
                     "congestion_severity"
                 ],
-                "trend_direction": comprehensive_metrics["historical_trends"]["trend_direction"],
+                "trend_direction": comprehensive_metrics["historical_trends"][
+                    "trend_direction"
+                ],
                 "recent_changes": "stable network conditions",
             },
             "recommended_actions": (
@@ -5240,7 +5512,9 @@ class NetworkQualityMetrics:
                     "Monitor packet loss trends",
                     "Maintain current RSSI streaming frequency",
                 ]
-                if not comprehensive_metrics["congestion_indicators"]["congestion_detected"]
+                if not comprehensive_metrics["congestion_indicators"][
+                    "congestion_detected"
+                ]
                 else [
                     "Monitor network congestion closely",
                     "Consider reducing RSSI streaming frequency",
@@ -5289,7 +5563,9 @@ class BandwidthThrottle:
         self.enable_congestion_detection = enable_congestion_detection
 
         # SUBTASK-5.6.2.3 [8d1] - Sliding window data structure using deque
-        self._bandwidth_window: deque[tuple[float, int]] = deque()  # (timestamp, bandwidth_bps)
+        self._bandwidth_window: deque[tuple[float, int]] = (
+            deque()
+        )  # (timestamp, bandwidth_bps)
         self._current_window_usage = 0
 
         # SUBTASK-5.6.2.3 [8d3] - Congestion detection state
@@ -5327,7 +5603,9 @@ class BandwidthThrottle:
 
             # Calculate average bandwidth in current window
             total_bandwidth = sum(bw for _, bw in self._bandwidth_window)
-            self._current_window_usage = total_bandwidth // max(len(self._bandwidth_window), 1)
+            self._current_window_usage = total_bandwidth // max(
+                len(self._bandwidth_window), 1
+            )
         else:
             oldest_timestamp = current_time
             newest_timestamp = current_time
@@ -5343,7 +5621,9 @@ class BandwidthThrottle:
             ),
         }
 
-    def track_bandwidth_usage(self, bandwidth_bps: int, timestamp: float | None = None) -> None:
+    def track_bandwidth_usage(
+        self, bandwidth_bps: int, timestamp: float | None = None
+    ) -> None:
         """
         SUBTASK-5.6.2.3 [8d1] - Track bandwidth usage in sliding window.
 
@@ -5392,7 +5672,9 @@ class BandwidthThrottle:
         elif throttle_required:  # At threshold
             throttle_severity = "mild"
             # Reduce below current usage to actually throttle
-            recommended_rate = int(current_bandwidth_bps * 0.85)  # Reduce current usage by 15%
+            recommended_rate = int(
+                current_bandwidth_bps * 0.85
+            )  # Reduce current usage by 15%
         else:
             throttle_severity = "none"
             recommended_rate = current_bandwidth_bps
@@ -5423,7 +5705,9 @@ class BandwidthThrottle:
         Returns network error rates, connection status, and latency metrics.
         """
         if not _PSUTIL_AVAILABLE:
-            logger.warning("psutil not available - returning default congestion metrics")
+            logger.warning(
+                "psutil not available - returning default congestion metrics"
+            )
             return {
                 "packet_loss_rate": 0.0,
                 "connection_errors": 0,
@@ -5453,9 +5737,7 @@ class BandwidthThrottle:
             )
 
             # Estimate latency (simplified implementation)
-            average_latency_ms = (
-                25.0  # Default estimate - real implementation would measure actual latency
-            )
+            average_latency_ms = 25.0  # Default estimate - real implementation would measure actual latency
 
             return {
                 "packet_loss_rate": round(packet_loss_rate, 6),

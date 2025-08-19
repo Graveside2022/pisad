@@ -10,7 +10,7 @@ import logging
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import yaml
 
@@ -44,10 +44,10 @@ class ASVAnalyzerProfile:
     analyzer_id: str
     analyzer_type: str  # GP, VOR, LLZ
     enabled: bool
-    frequency_profiles: List[ASVFrequencyProfile]
-    hardware_config: Dict[str, Any]
-    processing_config: Dict[str, Any]
-    calibration_config: Dict[str, Any]
+    frequency_profiles: list[ASVFrequencyProfile]
+    hardware_config: dict[str, Any]
+    processing_config: dict[str, Any]
+    calibration_config: dict[str, Any]
 
 
 class ASVConfigurationManager:
@@ -62,9 +62,9 @@ class ASVConfigurationManager:
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
-        self._analyzer_profiles: Dict[str, ASVAnalyzerProfile] = {}
-        self._frequency_profiles: Dict[str, ASVFrequencyProfile] = {}
-        self._global_config: Dict[str, Any] = {}
+        self._analyzer_profiles: dict[str, ASVAnalyzerProfile] = {}
+        self._frequency_profiles: dict[str, ASVFrequencyProfile] = {}
+        self._global_config: dict[str, Any] = {}
 
         # Load configuration on initialization
         self._load_configuration()
@@ -75,7 +75,7 @@ class ASVConfigurationManager:
             # Load global ASV configuration
             global_config_path = self.config_dir / "asv_global.yaml"
             if global_config_path.exists():
-                with open(global_config_path, "r") as f:
+                with open(global_config_path) as f:
                     self._global_config = yaml.safe_load(f) or {}
                 logger.info(
                     f"Loaded global ASV configuration from {global_config_path}"
@@ -88,7 +88,7 @@ class ASVConfigurationManager:
             # Load frequency profiles
             freq_profiles_path = self.config_dir / "frequency_profiles.yaml"
             if freq_profiles_path.exists():
-                with open(freq_profiles_path, "r") as f:
+                with open(freq_profiles_path) as f:
                     profiles_data = yaml.safe_load(f) or {}
 
                 for name, profile_data in profiles_data.items():
@@ -109,7 +109,7 @@ class ASVConfigurationManager:
             # Load analyzer profiles
             analyzer_profiles_path = self.config_dir / "analyzer_profiles.yaml"
             if analyzer_profiles_path.exists():
-                with open(analyzer_profiles_path, "r") as f:
+                with open(analyzer_profiles_path) as f:
                     analyzers_data = yaml.safe_load(f) or {}
 
                 for analyzer_id, analyzer_data in analyzers_data.items():
@@ -138,7 +138,7 @@ class ASVConfigurationManager:
             logger.error(f"Failed to load ASV configuration: {e}")
             raise ASVConfigurationError(f"Configuration loading failed: {e}")
 
-    def _get_default_global_config(self) -> Dict[str, Any]:
+    def _get_default_global_config(self) -> dict[str, Any]:
         """Get default global ASV configuration."""
         return {
             "asv_integration": {
@@ -169,7 +169,7 @@ class ASVConfigurationManager:
             },
         }
 
-    def _get_default_frequency_profiles(self) -> Dict[str, ASVFrequencyProfile]:
+    def _get_default_frequency_profiles(self) -> dict[str, ASVFrequencyProfile]:
         """Get default frequency profiles for SAR operations."""
         profiles = {}
 
@@ -227,7 +227,7 @@ class ASVConfigurationManager:
 
         return profiles
 
-    def _get_default_analyzer_profiles(self) -> Dict[str, ASVAnalyzerProfile]:
+    def _get_default_analyzer_profiles(self) -> dict[str, ASVAnalyzerProfile]:
         """Get default analyzer profiles."""
         profiles = {}
 
@@ -357,7 +357,7 @@ class ASVConfigurationManager:
         except Exception as e:
             logger.error(f"Failed to save analyzer profiles: {e}")
 
-    def get_global_config(self, key: str = None) -> Union[Dict[str, Any], Any]:
+    def get_global_config(self, key: str = None) -> dict[str, Any] | Any:
         """Get global configuration value(s).
 
         Args:
@@ -419,7 +419,7 @@ class ASVConfigurationManager:
 
         return self._frequency_profiles[name]
 
-    def get_all_frequency_profiles(self) -> Dict[str, ASVFrequencyProfile]:
+    def get_all_frequency_profiles(self) -> dict[str, ASVFrequencyProfile]:
         """Get all frequency profiles."""
         return self._frequency_profiles.copy()
 
@@ -456,7 +456,7 @@ class ASVConfigurationManager:
 
         return self._analyzer_profiles[analyzer_id]
 
-    def get_all_analyzer_profiles(self) -> Dict[str, ASVAnalyzerProfile]:
+    def get_all_analyzer_profiles(self) -> dict[str, ASVAnalyzerProfile]:
         """Get all analyzer profiles."""
         return self._analyzer_profiles.copy()
 
@@ -502,7 +502,7 @@ class ASVConfigurationManager:
                 (min_freq, max_freq),
             )
 
-    def get_pisad_compatible_config(self, analyzer_id: str) -> Dict[str, Any]:
+    def get_pisad_compatible_config(self, analyzer_id: str) -> dict[str, Any]:
         """Get analyzer configuration in PISAD-compatible format.
 
         Args:
@@ -554,7 +554,7 @@ class ASVConfigurationManager:
         logger.info("Reloading ASV configuration")
         self._load_configuration()
 
-    def get_configuration_summary(self) -> Dict[str, Any]:
+    def get_configuration_summary(self) -> dict[str, Any]:
         """Get summary of current configuration.
 
         Returns:
@@ -589,7 +589,7 @@ class ASVConfigurationManager:
             },
         }
 
-    def get_dotnet_runtime_path(self) -> Optional[str]:
+    def get_dotnet_runtime_path(self) -> str | None:
         """Get .NET runtime path for pythonnet integration.
 
         Returns:

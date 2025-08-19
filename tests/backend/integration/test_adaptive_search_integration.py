@@ -1,6 +1,6 @@
 """Integration test for adaptive search patterns with existing homing system.
 
-SUBTASK-6.1.2.3 [16c] - Integration test to verify adaptive search patterns work correctly 
+SUBTASK-6.1.2.3 [16c] - Integration test to verify adaptive search patterns work correctly
 with the complete homing algorithm system, including ASV integration and safety systems.
 """
 
@@ -9,14 +9,14 @@ from unittest.mock import Mock
 
 import pytest
 
+from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
+    ASVEnhancedHomingIntegration,
+)
 from src.backend.services.homing_algorithm import (
+    GradientVector,
     HomingAlgorithm,
     HomingSubstage,
     VelocityCommand,
-    GradientVector,
-)
-from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
-    ASVEnhancedHomingIntegration,
 )
 
 
@@ -41,14 +41,16 @@ class TestAdaptiveSearchIntegration:
                 position_x=float(i * 2),
                 position_y=float(i * 1.5),
                 heading=float(i * 30),
-                timestamp=current_time + i
+                timestamp=current_time + i,
             )
 
         # Act: Generate command with very low confidence
         low_confidence_gradient = GradientVector(
-            magnitude=0.5, direction=90.0, confidence=5.0  # Very low confidence
+            magnitude=0.5,
+            direction=90.0,
+            confidence=5.0,  # Very low confidence
         )
-        
+
         command = homing_algorithm.generate_velocity_command(
             low_confidence_gradient, 45.0, current_time + 5
         )
@@ -62,23 +64,23 @@ class TestAdaptiveSearchIntegration:
     def test_adaptive_pattern_transitions(self, homing_algorithm):
         """Test transitions between different adaptive patterns based on confidence."""
         current_time = time.time()
-        
+
         # Test very low confidence -> spiral search
         homing_algorithm.gradient_confidence = 5.0
         spiral_command = homing_algorithm._generate_sampling_command(0.0, current_time)
         assert homing_algorithm._pattern_type == "spiral"
-        
+
         # Reset for next pattern test
         homing_algorithm.sampling_start_time = None
-        
+
         # Test moderate confidence -> optimized S-turn
         homing_algorithm.gradient_confidence = 25.0
         s_turn_command = homing_algorithm._generate_sampling_command(0.0, current_time + 1)
         assert homing_algorithm._pattern_type == "optimized_s_turn"
-        
+
         # Reset for next pattern test
         homing_algorithm.sampling_start_time = None
-        
+
         # Test higher confidence -> original pattern
         homing_algorithm.gradient_confidence = 50.0
         original_command = homing_algorithm._generate_sampling_command(0.0, current_time + 2)
@@ -90,13 +92,13 @@ class TestAdaptiveSearchIntegration:
         homing_algorithm._geofence_center_x = 0.0
         homing_algorithm._geofence_center_y = 0.0
         homing_algorithm._geofence_radius = 50.0  # 50m radius
-        
+
         # Test position within boundary
         assert homing_algorithm._check_geofence_boundary(30.0, 30.0) is True
-        
+
         # Test position outside boundary
         assert homing_algorithm._check_geofence_boundary(60.0, 60.0) is False
-        
+
         # Test boundary edge case
         assert homing_algorithm._check_geofence_boundary(50.0, 0.0) is True
         assert homing_algorithm._check_geofence_boundary(50.1, 0.0) is False
@@ -107,17 +109,17 @@ class TestAdaptiveSearchIntegration:
         homing_algorithm.gradient_confidence = 5.0
         current_time = time.time()
         homing_algorithm._generate_sampling_command(0.0, current_time)
-        
+
         # Get status
         status = homing_algorithm.get_status()
-        
+
         # Verify adaptive pattern status is included
         assert "adaptive_pattern" in status
         assert status["adaptive_pattern"]["pattern_type"] == "spiral"
         assert "spiral_radius" in status["adaptive_pattern"]
         assert "spiral_angle_deg" in status["adaptive_pattern"]
-        
-        # Verify geofence status is included  
+
+        # Verify geofence status is included
         assert "geofence" in status
         assert "center_x" in status["geofence"]
         assert "center_y" in status["geofence"]
@@ -126,27 +128,29 @@ class TestAdaptiveSearchIntegration:
     def test_performance_requirements_met(self, homing_algorithm):
         """Test that adaptive pattern generation meets <100ms performance requirement."""
         current_time = time.time()
-        
+
         # Test all pattern types for performance
         pattern_types = [
-            (5.0, "spiral"),           # Very low confidence
-            (25.0, "optimized_s_turn"), # Moderate confidence  
-            (50.0, "original")         # Higher confidence
+            (5.0, "spiral"),  # Very low confidence
+            (25.0, "optimized_s_turn"),  # Moderate confidence
+            (50.0, "original"),  # Higher confidence
         ]
-        
+
         for confidence, expected_pattern in pattern_types:
             homing_algorithm.gradient_confidence = confidence
             homing_algorithm.sampling_start_time = None  # Reset
-            
+
             # Measure execution time
             start_time = time.perf_counter()
             command = homing_algorithm._generate_sampling_command(0.0, current_time)
             end_time = time.perf_counter()
-            
+
             execution_time_ms = (end_time - start_time) * 1000
-            
+
             # Assert performance requirement
-            assert execution_time_ms < 100.0, f"Pattern {expected_pattern} took {execution_time_ms:.2f}ms"
+            assert (
+                execution_time_ms < 100.0
+            ), f"Pattern {expected_pattern} took {execution_time_ms:.2f}ms"
             assert isinstance(command, VelocityCommand)
             assert homing_algorithm._pattern_type == expected_pattern
 
@@ -154,22 +158,21 @@ class TestAdaptiveSearchIntegration:
         """Test that existing functionality remains unchanged."""
         # Test that existing methods still work
         current_time = time.time()
-        
+
         # Add sample using current API
         homing_algorithm.add_rssi_sample(
-            rssi=-50.0, position_x=10.0, position_y=5.0, 
-            heading=45.0, timestamp=current_time
+            rssi=-50.0, position_x=10.0, position_y=5.0, heading=45.0, timestamp=current_time
         )
-        
+
         # Test gradient calculation still works
         gradient = homing_algorithm.calculate_gradient()
         # May be None with single sample, but method should not error
-        
+
         # Test status reporting still works
         status = homing_algorithm.get_status()
         assert "substage" in status
         assert "gradient_confidence" in status
-        
+
         # Test existing command generation patterns
         test_gradient = GradientVector(magnitude=1.0, direction=90.0, confidence=75.0)
         command = homing_algorithm.generate_velocity_command(test_gradient, 0.0, current_time)

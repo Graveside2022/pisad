@@ -146,7 +146,9 @@ class TestVectorizedSignalProcessing:
                 np.random.random(sample_length) + 1j * np.random.random(sample_length)
             )
             test_samples.append(samples)
-            expected_powers.append(amplitude**2)  # Power = amplitude^2
+            expected_powers.append(
+                amplitude**2 * 2 / 3
+            )  # Power = amplitude^2 * E[|U+jV|^2] where U,V~Uniform[0,1]
 
         test_samples = np.array(test_samples)
 

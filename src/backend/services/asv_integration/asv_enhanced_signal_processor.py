@@ -23,6 +23,7 @@ from src.backend.services.asv_integration.asv_analyzer_wrapper import (
 from src.backend.services.asv_integration.exceptions import (
     ASVSignalProcessingError,
 )
+
 # TASK-6.1.16d - Doppler compensation integration
 from src.backend.utils.doppler_compensation import DopplerCompensator, PlatformVelocity
 
@@ -47,7 +48,7 @@ class ASVBearingCalculation:
         None  # Enhanced interference analysis
     )
     raw_asv_data: dict[str, Any] | None = None  # Raw ASV analyzer data
-    
+
     # TASK-6.1.16d - Doppler compensation fields
     doppler_shift_hz: float | None = None  # Calculated Doppler shift
     compensated_frequency_hz: float | None = None  # Frequency after Doppler correction
@@ -97,20 +98,24 @@ class ASVEnhancedSignalProcessor:
         self._min_signal_strength_dbm = -120.0  # Minimum signal strength
         self._bearing_smoothing_window = 5  # Samples for bearing smoothing
         self._interference_threshold = 0.7  # Threshold for interference detection
-        
+
         # TASK-6.1.16d - Doppler compensation integration
         self._doppler_compensator = DopplerCompensator()
         self._enable_doppler_compensation = True
         self._current_platform_velocity: PlatformVelocity | None = None
-        self._signal_frequency_hz: float = 406_000_000  # Default emergency beacon frequency
+        self._signal_frequency_hz: float = (
+            406_000_000  # Default emergency beacon frequency
+        )
 
-        logger.info("ASV-Enhanced Signal Processor initialized with Doppler compensation")
+        logger.info(
+            "ASV-Enhanced Signal Processor initialized with Doppler compensation"
+        )
 
     def set_platform_velocity(self, velocity: PlatformVelocity | None) -> None:
         """Update platform velocity for Doppler compensation.
-        
+
         TASK-6.1.16d: Store current platform velocity for Doppler shift calculations.
-        
+
         Args:
             velocity: Current platform velocity components or None if unavailable
         """
@@ -118,9 +123,9 @@ class ASVEnhancedSignalProcessor:
 
     def set_signal_frequency(self, frequency_hz: float) -> None:
         """Update signal frequency for Doppler compensation.
-        
+
         TASK-6.1.16d: Set the beacon signal frequency for accurate Doppler calculations.
-        
+
         Args:
             frequency_hz: Signal frequency in Hz (e.g., 406_000_000 for emergency beacon)
         """
@@ -128,25 +133,23 @@ class ASVEnhancedSignalProcessor:
 
     def _calculate_doppler_shift(self, bearing_deg: float) -> float | None:
         """Calculate Doppler shift for given bearing.
-        
+
         TASK-6.1.16d: Calculate Doppler shift based on platform velocity and beacon bearing.
-        
+
         Args:
             bearing_deg: Bearing to beacon in degrees
-            
+
         Returns:
             Doppler shift in Hz or None if velocity unavailable
         """
         if not self._current_platform_velocity:
             return None
-            
+
         try:
             from src.backend.utils.doppler_compensation import calculate_doppler_shift
-            
+
             return calculate_doppler_shift(
-                self._current_platform_velocity,
-                self._signal_frequency_hz,
-                bearing_deg
+                self._current_platform_velocity, self._signal_frequency_hz, bearing_deg
             )
         except Exception as e:
             logger.warning(f"Doppler shift calculation failed: {e}")
@@ -154,23 +157,21 @@ class ASVEnhancedSignalProcessor:
 
     def _get_compensated_frequency(self, bearing_deg: float) -> float | None:
         """Get Doppler-compensated frequency for given bearing.
-        
+
         TASK-6.1.16d: Apply Doppler compensation to signal frequency.
-        
+
         Args:
             bearing_deg: Bearing to beacon in degrees
-            
+
         Returns:
             Compensated frequency in Hz or None if velocity unavailable
         """
         if not self._current_platform_velocity:
             return None
-            
+
         try:
             return self._doppler_compensator.apply_compensation(
-                self._signal_frequency_hz,
-                self._current_platform_velocity,
-                bearing_deg
+                self._signal_frequency_hz, self._current_platform_velocity, bearing_deg
             )
         except Exception as e:
             logger.warning(f"Doppler compensation calculation failed: {e}")
@@ -358,9 +359,21 @@ class ASVEnhancedSignalProcessor:
                     ),
                 },
                 # TASK-6.1.16d - Add Doppler compensation data
-                doppler_shift_hz=self._calculate_doppler_shift(bearing_deg) if self._enable_doppler_compensation else None,
-                compensated_frequency_hz=self._get_compensated_frequency(bearing_deg) if self._enable_doppler_compensation else None,
-                platform_velocity_ms=self._current_platform_velocity.ground_speed_ms if self._current_platform_velocity else None,
+                doppler_shift_hz=(
+                    self._calculate_doppler_shift(bearing_deg)
+                    if self._enable_doppler_compensation
+                    else None
+                ),
+                compensated_frequency_hz=(
+                    self._get_compensated_frequency(bearing_deg)
+                    if self._enable_doppler_compensation
+                    else None
+                ),
+                platform_velocity_ms=(
+                    self._current_platform_velocity.ground_speed_ms
+                    if self._current_platform_velocity
+                    else None
+                ),
             )
 
             return bearing_calculation
@@ -641,9 +654,21 @@ class ASVEnhancedSignalProcessor:
             interference_detected=bearing_result.interference_detected,
             raw_asv_data=bearing_result.raw_asv_data,
             # TASK-6.1.16d - Add Doppler compensation data for smoothed result
-            doppler_shift_hz=self._calculate_doppler_shift(smoothed_bearing_deg) if self._enable_doppler_compensation else bearing_result.doppler_shift_hz,
-            compensated_frequency_hz=self._get_compensated_frequency(smoothed_bearing_deg) if self._enable_doppler_compensation else bearing_result.compensated_frequency_hz,
-            platform_velocity_ms=self._current_platform_velocity.ground_speed_ms if self._current_platform_velocity else bearing_result.platform_velocity_ms,
+            doppler_shift_hz=(
+                self._calculate_doppler_shift(smoothed_bearing_deg)
+                if self._enable_doppler_compensation
+                else bearing_result.doppler_shift_hz
+            ),
+            compensated_frequency_hz=(
+                self._get_compensated_frequency(smoothed_bearing_deg)
+                if self._enable_doppler_compensation
+                else bearing_result.compensated_frequency_hz
+            ),
+            platform_velocity_ms=(
+                self._current_platform_velocity.ground_speed_ms
+                if self._current_platform_velocity
+                else bearing_result.platform_velocity_ms
+            ),
         )
 
         return smoothed_result

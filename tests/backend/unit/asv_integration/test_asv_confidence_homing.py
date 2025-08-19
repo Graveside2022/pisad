@@ -9,41 +9,34 @@ This test suite validates the ASV confidence-based decision making integration i
 - Preservation of all safety authority mechanisms
 """
 
-import asyncio
-import math
-import pytest
 import time
-from unittest.mock import Mock, patch, AsyncMock
 from dataclasses import dataclass
-from typing import Optional
+from unittest.mock import Mock
 
-from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
-    ASVEnhancedSignalProcessor,
-    ASVBearingCalculation,
-    ASVSignalProcessingMetrics,
-)
-from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
-    ASVEnhancedHomingIntegration,
-    ASVEnhancedGradient,
-)
+import pytest
+
 from src.backend.services.asv_integration.asv_confidence_based_homing import (
     ASVConfidenceBasedHoming,
     ConfidenceBasedDecision,
     DynamicThresholdConfig,
-    ConfidenceAssessment,
+)
+from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
+    ASVEnhancedGradient,
+)
+from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
+    ASVBearingCalculation,
+    ASVEnhancedSignalProcessor,
 )
 from src.backend.services.homing_algorithm import (
-    HomingAlgorithm,
     GradientVector,
-    VelocityCommand,
-    HomingSubstage,
+    HomingAlgorithm,
 )
-from src.backend.services.asv_integration.exceptions import ASVSignalProcessingError
 
 
-@dataclass 
+@dataclass
 class MockASVSignalQuality:
     """Mock ASV signal quality data for testing."""
+
     confidence: float
     signal_strength_dbm: float
     interference_detected: bool
@@ -116,13 +109,12 @@ class TestASVConfidenceBasedHomingIntegration:
         """Test dynamic threshold adjustment for high quality signals."""
         # Arrange
         confidence_homing = ASVConfidenceBasedHoming(
-            asv_processor=mock_asv_processor,
-            homing_algorithm=mock_homing_algorithm
+            asv_processor=mock_asv_processor, homing_algorithm=mock_homing_algorithm
         )
-        
+
         # Act
         decision = confidence_homing.evaluate_confidence_based_decision(high_confidence_bearing)
-        
+
         # Assert - High quality signals should lower threshold requirements
         assert decision.proceed_with_homing is True
         assert decision.dynamic_threshold < 0.5  # Lowered from default
@@ -135,13 +127,12 @@ class TestASVConfidenceBasedHomingIntegration:
         """Test dynamic threshold adjustment for moderate quality signals."""
         # Arrange
         confidence_homing = ASVConfidenceBasedHoming(
-            asv_processor=mock_asv_processor,
-            homing_algorithm=mock_homing_algorithm
+            asv_processor=mock_asv_processor, homing_algorithm=mock_homing_algorithm
         )
-        
-        # Act 
+
+        # Act
         decision = confidence_homing.evaluate_confidence_based_decision(moderate_confidence_bearing)
-        
+
         # Assert - Moderate quality should use standard or slightly elevated thresholds
         assert decision.proceed_with_homing is False  # Below adjusted threshold
         assert decision.dynamic_threshold >= 0.5  # Standard or elevated
@@ -154,13 +145,12 @@ class TestASVConfidenceBasedHomingIntegration:
         """Test confidence-based fallback strategies for weak signals."""
         # Arrange
         confidence_homing = ASVConfidenceBasedHoming(
-            asv_processor=mock_asv_processor,
-            homing_algorithm=mock_homing_algorithm
+            asv_processor=mock_asv_processor, homing_algorithm=mock_homing_algorithm
         )
-        
+
         # Act
         decision = confidence_homing.evaluate_confidence_based_decision(low_confidence_bearing)
-        
+
         # Assert - Low confidence should trigger fallback strategies
         assert decision.proceed_with_homing is False
         assert decision.fallback_strategy in ["RETURN_TO_LAST_KNOWN", "SPIRAL_SEARCH", "SAMPLING"]
@@ -173,19 +163,17 @@ class TestASVConfidenceBasedHomingIntegration:
         """Test integration with existing homing algorithm decision tree."""
         # Arrange
         confidence_homing = ASVConfidenceBasedHoming(
-            asv_processor=mock_asv_processor,
-            homing_algorithm=mock_homing_algorithm
+            asv_processor=mock_asv_processor, homing_algorithm=mock_homing_algorithm
         )
-        
+
         # Mock existing homing algorithm gradient
         mock_gradient = GradientVector(magnitude=0.8, direction=90.0, confidence=85.0)
-        
+
         # Act
         enhanced_gradient = confidence_homing.enhance_gradient_with_asv_confidence(
-            original_gradient=mock_gradient,
-            asv_bearing=high_confidence_bearing
+            original_gradient=mock_gradient, asv_bearing=high_confidence_bearing
         )
-        
+
         # Assert - Should enhance but preserve original gradient interface
         assert isinstance(enhanced_gradient, ASVEnhancedGradient)
         assert enhanced_gradient.magnitude > 0
@@ -198,17 +186,16 @@ class TestASVConfidenceBasedHomingIntegration:
         """Test that confidence-based decisions meet <100ms latency requirement."""
         # Arrange
         confidence_homing = ASVConfidenceBasedHoming(
-            asv_processor=mock_asv_processor,
-            homing_algorithm=mock_homing_algorithm
+            asv_processor=mock_asv_processor, homing_algorithm=mock_homing_algorithm
         )
-        
+
         # Act - Measure decision time
         start_time = time.perf_counter()
         decision = confidence_homing.evaluate_confidence_based_decision(moderate_confidence_bearing)
         end_time = time.perf_counter()
-        
+
         decision_latency_ms = (end_time - start_time) * 1000
-        
+
         # Assert - Must meet performance requirement
         assert decision_latency_ms < 100.0  # <100ms requirement
         assert isinstance(decision, ConfidenceBasedDecision)
@@ -219,16 +206,15 @@ class TestASVConfidenceBasedHomingIntegration:
         """Test that all safety authority mechanisms are preserved."""
         # Arrange
         confidence_homing = ASVConfidenceBasedHoming(
-            asv_processor=mock_asv_processor,
-            homing_algorithm=mock_homing_algorithm
+            asv_processor=mock_asv_processor, homing_algorithm=mock_homing_algorithm
         )
-        
+
         # Mock safety override scenario
         confidence_homing.set_safety_override(True, "Test safety override")
-        
+
         # Act
         decision = confidence_homing.evaluate_confidence_based_decision(high_confidence_bearing)
-        
+
         # Assert - Safety override should prevent homing regardless of confidence
         assert decision.proceed_with_homing is False
         assert decision.fallback_strategy == "SAFETY_OVERRIDE"
@@ -241,7 +227,7 @@ class TestASVConfidenceBasedHomingIntegration:
         """Test real-time confidence assessment integration with signal processing."""
         # This test will use actual ASV signal processing integration
         # to verify authentic behavior - no mocking of ASV components
-        
+
         # Arrange - This will be implemented after basic integration is working
         # For now, this is a placeholder for the authentic test requirement
         pass
@@ -256,7 +242,7 @@ class TestASVConfidenceBasedHomingIntegration:
             signal_quality_boundaries=[0.7, 0.4],  # High/Moderate/Low boundaries
             interference_penalty_factor=0.2,
         )
-        
+
         # Act & Assert - Configuration should be applied correctly
         assert config.high_quality_threshold < config.moderate_quality_threshold
         assert config.moderate_quality_threshold < config.low_quality_threshold

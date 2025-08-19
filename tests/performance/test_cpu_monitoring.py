@@ -46,7 +46,6 @@ class TestCPUMonitoring:
         """
         resource_optimizer = ResourceOptimizer()
 
-        # FAIL EXPECTED: CPUUsageMonitor class not yet implemented
         cpu_monitor = resource_optimizer.get_cpu_monitor()
 
         # Test real CPU usage measurement
@@ -78,7 +77,6 @@ class TestCPUMonitoring:
         resource_optimizer = ResourceOptimizer()
         cpu_monitor = resource_optimizer.get_cpu_monitor()
 
-        # FAIL EXPECTED: dynamic_resource_allocator not yet implemented
         allocator = resource_optimizer.get_dynamic_resource_allocator()
 
         # Configure CPU thresholds for different actions
@@ -112,8 +110,6 @@ class TestCPUMonitoring:
         """
         resource_optimizer = ResourceOptimizer()
         priority_adjuster = resource_optimizer.get_priority_adjuster()
-
-        # FAIL EXPECTED: PriorityAdjuster not yet implemented
 
         # Test priority adjustment under different CPU load scenarios
         test_scenarios = [

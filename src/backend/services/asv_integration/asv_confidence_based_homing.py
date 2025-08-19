@@ -10,20 +10,19 @@ dynamic threshold adjustment and fallback strategies.
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
 from enum import Enum
+from typing import Any
 
+from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
+    ASVEnhancedGradient,
+)
 from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
     ASVBearingCalculation,
     ASVEnhancedSignalProcessor,
 )
-from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
-    ASVEnhancedGradient,
-    ASVEnhancedHomingIntegration,
-)
 from src.backend.services.homing_algorithm import (
-    HomingAlgorithm,
     GradientVector,
+    HomingAlgorithm,
     VelocityCommand,
 )
 
@@ -46,7 +45,9 @@ class DynamicThresholdConfig:
     high_quality_threshold: float = 0.3  # Lower threshold for high quality signals
     moderate_quality_threshold: float = 0.6  # Standard threshold
     low_quality_threshold: float = 0.8  # Higher threshold for low quality signals
-    signal_quality_boundaries: Optional[list[float]] = None  # [high/moderate, moderate/low] boundaries
+    signal_quality_boundaries: list[float] | None = (
+        None  # [high/moderate, moderate/low] boundaries
+    )
     interference_penalty_factor: float = 0.2  # Penalty for interference detection
 
     def __post_init__(self) -> None:
@@ -63,7 +64,7 @@ class ConfidenceBasedDecision:
     confidence_assessment: str
     fallback_strategy: str
     signal_degradation_detected: bool = False
-    safety_override_reason: Optional[str] = None
+    safety_override_reason: str | None = None
     decision_time_ms: float = 0.0
     asv_confidence: float = 0.0
     signal_quality: float = 0.0
@@ -85,9 +86,9 @@ class ASVConfidenceBasedHoming:
 
     def __init__(
         self,
-        asv_processor: Optional[ASVEnhancedSignalProcessor] = None,
-        homing_algorithm: Optional[HomingAlgorithm] = None,
-        threshold_config: Optional[DynamicThresholdConfig] = None,
+        asv_processor: ASVEnhancedSignalProcessor | None = None,
+        homing_algorithm: HomingAlgorithm | None = None,
+        threshold_config: DynamicThresholdConfig | None = None,
     ):
         """Initialize confidence-based homing system.
 
@@ -102,7 +103,7 @@ class ASVConfidenceBasedHoming:
 
         # Safety override mechanism
         self._safety_override_active = False
-        self._safety_override_reason: Optional[str] = None
+        self._safety_override_reason: str | None = None
 
         # Performance tracking
         self._decisions_made = 0
@@ -115,7 +116,7 @@ class ASVConfidenceBasedHoming:
     def evaluate_confidence_based_decision(
         self,
         asv_bearing: ASVBearingCalculation,
-        current_position: Optional[tuple[float, float]] = None,
+        current_position: tuple[float, float] | None = None,
     ) -> ConfidenceBasedDecision:
         """Evaluate confidence-based decision for homing course correction.
 
@@ -152,7 +153,9 @@ class ASVConfidenceBasedHoming:
 
         # [15c-4] Select fallback strategy if needed
         fallback_strategy = (
-            self._select_fallback_strategy(asv_bearing, confidence_assessment, signal_degradation)
+            self._select_fallback_strategy(
+                asv_bearing, confidence_assessment, signal_degradation
+            )
             if not proceed_with_homing
             else "NONE"
         )
@@ -183,7 +186,7 @@ class ASVConfidenceBasedHoming:
         [15c-1] Implementation of dynamic threshold adjustment
         """
         signal_quality = asv_bearing.signal_quality
-        
+
         # Ensure boundaries are available
         boundaries = self._threshold_config.signal_quality_boundaries
         if boundaries is None:
@@ -206,9 +209,13 @@ class ASVConfidenceBasedHoming:
             interference_adjustment = self._threshold_config.interference_penalty_factor
 
         # Apply signal strength adjustment
-        strength_adjustment = self._calculate_strength_adjustment(asv_bearing.signal_strength_dbm)
+        strength_adjustment = self._calculate_strength_adjustment(
+            asv_bearing.signal_strength_dbm
+        )
 
-        dynamic_threshold = base_threshold + interference_adjustment + strength_adjustment
+        dynamic_threshold = (
+            base_threshold + interference_adjustment + strength_adjustment
+        )
 
         # Clamp to reasonable range
         return max(0.1, min(0.95, dynamic_threshold))
@@ -323,8 +330,11 @@ class ASVConfidenceBasedHoming:
         )
 
     def integrate_with_homing_algorithm(
-        self, asv_bearing: ASVBearingCalculation, current_heading: float, current_time: float
-    ) -> Optional[VelocityCommand]:
+        self,
+        asv_bearing: ASVBearingCalculation,
+        current_heading: float,
+        current_time: float,
+    ) -> VelocityCommand | None:
         """Integrate confidence-based decisions with existing homing algorithm.
 
         This method bridges ASV confidence assessment with the existing homing
@@ -339,7 +349,9 @@ class ASVConfidenceBasedHoming:
 
         if not decision.proceed_with_homing:
             logger.info(f"Homing not recommended: {decision.fallback_strategy}")
-            return self._generate_fallback_command(decision, current_heading, current_time)
+            return self._generate_fallback_command(
+                decision, current_heading, current_time
+            )
 
         # Enhance gradient with ASV confidence
         # Create base gradient from ASV bearing for integration
@@ -349,7 +361,9 @@ class ASVConfidenceBasedHoming:
             confidence=asv_bearing.confidence * 100.0,
         )
 
-        enhanced_gradient = self.enhance_gradient_with_asv_confidence(base_gradient, asv_bearing)
+        enhanced_gradient = self.enhance_gradient_with_asv_confidence(
+            base_gradient, asv_bearing
+        )
 
         # Convert back to standard gradient for homing algorithm
         standard_gradient = enhanced_gradient.to_gradient_vector()
@@ -360,7 +374,10 @@ class ASVConfidenceBasedHoming:
         )
 
     def _generate_fallback_command(
-        self, decision: ConfidenceBasedDecision, current_heading: float, current_time: float
+        self,
+        decision: ConfidenceBasedDecision,
+        current_heading: float,
+        current_time: float,
     ) -> VelocityCommand:
         """Generate fallback velocity command based on confidence decision."""
         if decision.fallback_strategy == "RETURN_TO_LAST_KNOWN":
@@ -385,7 +402,9 @@ class ASVConfidenceBasedHoming:
             # Default fallback
             return VelocityCommand(forward_velocity=1.0, yaw_rate=0.0)
 
-    def _update_decision_metrics(self, decision: ConfidenceBasedDecision, start_time: float) -> None:
+    def _update_decision_metrics(
+        self, decision: ConfidenceBasedDecision, start_time: float
+    ) -> None:
         """Update decision performance metrics."""
         decision_time_ms = (time.perf_counter() - start_time) * 1000
         decision.decision_time_ms = decision_time_ms
@@ -407,7 +426,7 @@ class ASVConfidenceBasedHoming:
                 alpha * decision_time_ms + (1 - alpha) * self._average_decision_time_ms
             )
 
-    def set_safety_override(self, active: bool, reason: Optional[str] = None) -> None:
+    def set_safety_override(self, active: bool, reason: str | None = None) -> None:
         """Set safety override to prevent homing regardless of confidence."""
         self._safety_override_active = active
         self._safety_override_reason = reason
@@ -422,14 +441,16 @@ class ASVConfidenceBasedHoming:
         self._threshold_config = config
         logger.info("Dynamic threshold configuration updated")
 
-    def get_confidence_metrics(self) -> Dict[str, Any]:
+    def get_confidence_metrics(self) -> dict[str, Any]:
         """Get confidence-based decision metrics."""
         return {
             "decisions_made": self._decisions_made,
             "high_confidence_rate": (
                 self._high_confidence_decisions / max(1, self._decisions_made)
             ),
-            "fallback_activation_rate": (self._fallback_activations / max(1, self._decisions_made)),
+            "fallback_activation_rate": (
+                self._fallback_activations / max(1, self._decisions_made)
+            ),
             "average_decision_time_ms": self._average_decision_time_ms,
             "safety_override_active": self._safety_override_active,
             "current_threshold_config": {

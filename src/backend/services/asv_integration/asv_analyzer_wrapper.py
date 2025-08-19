@@ -95,7 +95,9 @@ class ASVAnalyzerBase(ABC):
 
         except Exception as e:
             logger.error(f"Failed to initialize {self.analyzer_type} analyzer: {e}")
-            raise ASVAnalyzerError(f"Initialization failed for {self.analyzer_type}: {e}", e)
+            raise ASVAnalyzerError(
+                f"Initialization failed for {self.analyzer_type}: {e}", e
+            )
 
     async def shutdown(self) -> None:
         """Shutdown the analyzer and clean up resources."""
@@ -130,7 +132,9 @@ class ASVAnalyzerBase(ABC):
             # Immediately mark as uninitialized
             self._is_initialized = False
 
-            logger.warning(f"Emergency shutdown completed for {self.analyzer_type} analyzer")
+            logger.warning(
+                f"Emergency shutdown completed for {self.analyzer_type} analyzer"
+            )
 
         except Exception as e:
             # Log error but don't raise - emergency shutdown must always succeed
@@ -286,7 +290,9 @@ class ASVLlzAnalyzer(ASVAnalyzerBase):
             )  # Quality based on strength
 
             # Calculate course deviation indicator (LLZ-specific)
-            course_deviation = ((time.time_ns() // 1000000) % 200 - 100) / 100.0  # -1.0 to 1.0
+            course_deviation = (
+                (time.time_ns() // 1000000) % 200 - 100
+            ) / 100.0  # -1.0 to 1.0
 
             signal_data = ASVSignalData(
                 timestamp_ns=start_time,

@@ -34,12 +34,12 @@ except ImportError:
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
 from src.backend.utils.resource_optimizer import (
-    CPUAnalysis,
-    MemoryPool,
-    ResourceOptimizer,
-    NetworkBandwidthMonitor,  # Will fail initially - TDD RED phase
-    IntelligentMessageQueue,  # TASK-5.6.8c - Will fail initially - TDD RED phase
     BandwidthThrottle,  # TASK-5.6.8d - Will fail initially - TDD RED phase
+    CPUAnalysis,
+    IntelligentMessageQueue,  # TASK-5.6.8c - Will fail initially - TDD RED phase
+    MemoryPool,
+    NetworkBandwidthMonitor,  # Will fail initially - TDD RED phase
+    ResourceOptimizer,
 )
 
 
@@ -2841,7 +2841,7 @@ class TestAsyncTaskScheduler:
 class TestNetworkBandwidthAnalysis:
     """
     SUBTASK-5.6.2.3 [8a1] - Test network bandwidth monitoring infrastructure.
-    
+
     Tests verify real network I/O measurement using psutil with authentic system data.
     NO MOCK/FAKE/PLACEHOLDER TESTS - All tests use actual network interfaces.
     """
@@ -2850,121 +2850,141 @@ class TestNetworkBandwidthAnalysis:
     def test_network_bandwidth_monitor_captures_baseline_statistics(self):
         """
         SUBTASK-5.6.2.3 [8a1] - Verify network monitoring captures baseline I/O stats.
-        
+
         RED PHASE: This test should FAIL initially because NetworkBandwidthMonitor doesn't exist.
         Tests real network interface statistics using actual psutil.net_io_counters().
         """
         # Create NetworkBandwidthMonitor instance (will fail initially)
         monitor = NetworkBandwidthMonitor()
-        
+
         # Capture baseline network statistics for real interfaces
         baseline_stats = monitor.get_baseline_network_stats()
-        
+
         # Verify baseline contains real interface data
         assert baseline_stats is not None, "Should capture baseline network statistics"
         assert isinstance(baseline_stats, dict), "Baseline should be dictionary of interface stats"
-        
+
         # Verify real interfaces are monitored (eth0, wlan0 expected on Pi 5)
         expected_interfaces = {"eth0", "wlan0"}
         actual_interfaces = set(baseline_stats.keys())
-        
+
         # At least one real interface should be present
-        assert len(actual_interfaces & expected_interfaces) > 0, f"Should monitor real interfaces. Got: {actual_interfaces}"
-        
+        assert (
+            len(actual_interfaces & expected_interfaces) > 0
+        ), f"Should monitor real interfaces. Got: {actual_interfaces}"
+
         # Verify statistics contain required network I/O metrics
         for interface, stats in baseline_stats.items():
             if interface != "lo":  # Skip loopback per [8a4] requirement
                 assert "bytes_sent" in stats, f"Interface {interface} should have bytes_sent metric"
                 assert "bytes_recv" in stats, f"Interface {interface} should have bytes_recv metric"
-                assert "packets_sent" in stats, f"Interface {interface} should have packets_sent metric"
-                assert "packets_recv" in stats, f"Interface {interface} should have packets_recv metric"
-                
+                assert (
+                    "packets_sent" in stats
+                ), f"Interface {interface} should have packets_sent metric"
+                assert (
+                    "packets_recv" in stats
+                ), f"Interface {interface} should have packets_recv metric"
+
                 # Verify metrics are numeric and non-negative
                 assert isinstance(stats["bytes_sent"], int), "bytes_sent should be integer"
                 assert isinstance(stats["bytes_recv"], int), "bytes_recv should be integer"
                 assert stats["bytes_sent"] >= 0, "bytes_sent should be non-negative"
                 assert stats["bytes_recv"] >= 0, "bytes_recv should be non-negative"
-    
-    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")  
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_network_bandwidth_monitor_tracks_rssi_streaming_patterns(self):
         """
         SUBTASK-5.6.2.3 [8a2] - Verify monitoring tracks RSSI streaming bandwidth patterns.
-        
+
         RED PHASE: This test should FAIL because RSSI streaming monitoring doesn't exist.
         Tests actual TCP traffic monitoring for SDR++ bridge service on port 8081.
         """
         monitor = NetworkBandwidthMonitor()
-        
+
         # Start monitoring RSSI streaming patterns
         monitor.start_rssi_streaming_analysis()
-        
+
         # Simulate some network activity (this would be real in actual system)
         initial_stats = monitor.get_current_bandwidth_usage()
-        
+
         # Wait briefly to capture any real network activity
         time.sleep(1.0)
-        
+
         # Get updated statistics
         updated_stats = monitor.get_current_bandwidth_usage()
-        
+
         # Verify monitoring is operational and can detect changes
         assert initial_stats is not None, "Should capture initial bandwidth usage"
         assert updated_stats is not None, "Should capture updated bandwidth usage"
-        
+
         # Verify bandwidth usage tracking includes RSSI-specific metrics
         assert "rssi_streaming_bps" in updated_stats, "Should track RSSI streaming bandwidth"
         assert "control_messages_bps" in updated_stats, "Should track control message bandwidth"
         assert "total_bandwidth_bps" in updated_stats, "Should track total bandwidth usage"
-        
+
         # Verify metrics are realistic (non-negative, within reasonable bounds)
-        assert updated_stats["rssi_streaming_bps"] >= 0, "RSSI streaming bandwidth should be non-negative"
-        assert updated_stats["control_messages_bps"] >= 0, "Control message bandwidth should be non-negative"
+        assert (
+            updated_stats["rssi_streaming_bps"] >= 0
+        ), "RSSI streaming bandwidth should be non-negative"
+        assert (
+            updated_stats["control_messages_bps"] >= 0
+        ), "Control message bandwidth should be non-negative"
         assert updated_stats["total_bandwidth_bps"] >= 0, "Total bandwidth should be non-negative"
 
-    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")  
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_control_message_traffic_identification_on_port_8081(self):
         """
         SUBTASK-5.6.2.3 [8a3a] - Verify control message traffic identification on port 8081.
-        
+
         RED PHASE: This test should FAIL because control message traffic identification doesn't exist.
         Tests actual TCP connection monitoring for SDR++ bridge service control messages.
         """
         monitor = NetworkBandwidthMonitor()
-        
+
         # Start control message traffic analysis (will fail initially - TDD RED)
         control_traffic = monitor.identify_control_message_traffic()
-        
+
         # Verify control message traffic identification
         assert control_traffic is not None, "Should identify control message traffic"
         assert isinstance(control_traffic, dict), "Control traffic should be dictionary of metrics"
-        
+
         # Verify SDR++ bridge service port 8081 monitoring
         assert "port_8081_connections" in control_traffic, "Should monitor port 8081 connections"
         assert "control_message_count" in control_traffic, "Should count control messages"
-        assert "frequency_control_traffic" in control_traffic, "Should track frequency control traffic"
-        assert "coordination_message_traffic" in control_traffic, "Should track coordination messages"
-        
+        assert (
+            "frequency_control_traffic" in control_traffic
+        ), "Should track frequency control traffic"
+        assert (
+            "coordination_message_traffic" in control_traffic
+        ), "Should track coordination messages"
+
         # Verify connection filtering for SDR++ bridge service
         port_8081_data = control_traffic["port_8081_connections"]
         assert isinstance(port_8081_data, dict), "Port 8081 data should be dictionary"
         assert "active_connections" in port_8081_data, "Should track active connections"
         assert "total_bytes_exchanged" in port_8081_data, "Should track bytes exchanged"
-        
-        # Verify metrics are realistic
-        assert control_traffic["control_message_count"] >= 0, "Control message count should be non-negative"
-        assert port_8081_data["active_connections"] >= 0, "Active connections should be non-negative"
-        assert port_8081_data["total_bytes_exchanged"] >= 0, "Bytes exchanged should be non-negative"
 
-    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")  
+        # Verify metrics are realistic
+        assert (
+            control_traffic["control_message_count"] >= 0
+        ), "Control message count should be non-negative"
+        assert (
+            port_8081_data["active_connections"] >= 0
+        ), "Active connections should be non-negative"
+        assert (
+            port_8081_data["total_bytes_exchanged"] >= 0
+        ), "Bytes exchanged should be non-negative"
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_control_message_type_classification(self):
         """
         SUBTASK-5.6.2.3 [8a3b] - Verify control message type classification.
-        
+
         RED PHASE: This test should FAIL because message type classification doesn't exist.
         Tests authentic message pattern recognition for SET_FREQUENCY, freq_control, and coordination messages.
         """
         monitor = NetworkBandwidthMonitor()
-        
+
         # Simulate message samples (these would be real in actual system)
         sample_messages = [
             '{"type": "freq_control", "command": "SET_FREQUENCY", "frequency": 2400000000}',
@@ -2972,34 +2992,42 @@ class TestNetworkBandwidthAnalysis:
             '{"type": "coordination", "source_priority": "ground", "fallback_active": false}',
             '{"type": "freq_control", "command": "GET_RSSI", "sequence": 123}',
         ]
-        
+
         # Classify message types (will fail initially - TDD RED)
         classification_results = monitor.classify_control_message_types(sample_messages)
-        
+
         # Verify message type classification structure
         assert classification_results is not None, "Should classify control message types"
         assert isinstance(classification_results, dict), "Classification should be dictionary"
-        
+
         # Verify classification categories
-        assert "frequency_control_messages" in classification_results, "Should identify frequency control messages"
-        assert "coordination_messages" in classification_results, "Should identify coordination messages"
-        assert "rssi_streaming_messages" in classification_results, "Should identify RSSI streaming messages"
-        assert "message_type_summary" in classification_results, "Should provide message type summary"
-        
+        assert (
+            "frequency_control_messages" in classification_results
+        ), "Should identify frequency control messages"
+        assert (
+            "coordination_messages" in classification_results
+        ), "Should identify coordination messages"
+        assert (
+            "rssi_streaming_messages" in classification_results
+        ), "Should identify RSSI streaming messages"
+        assert (
+            "message_type_summary" in classification_results
+        ), "Should provide message type summary"
+
         # Verify frequency control message detection
         freq_control = classification_results["frequency_control_messages"]
         assert isinstance(freq_control, list), "Frequency control messages should be list"
         assert len(freq_control) >= 2, "Should detect SET_FREQUENCY and GET_RSSI messages"
-        
+
         # Verify SET_FREQUENCY command detection
         set_freq_found = any("SET_FREQUENCY" in msg for msg in freq_control)
         assert set_freq_found, "Should detect SET_FREQUENCY commands"
-        
+
         # Verify coordination message detection
         coordination = classification_results["coordination_messages"]
         assert isinstance(coordination, list), "Coordination messages should be list"
         assert len(coordination) >= 1, "Should detect coordination messages"
-        
+
         # Verify message type summary statistics
         summary = classification_results["message_type_summary"]
         assert "total_messages" in summary, "Should count total messages"
@@ -3010,168 +3038,254 @@ class TestNetworkBandwidthAnalysis:
     def test_interface_utilization_tracking_per_interface_monitoring(self):
         """
         SUBTASK-5.6.2.3 [8a4] - Verify network interface utilization tracking.
-        
+
         RED PHASE: This test should FAIL because get_interface_utilization_tracking() doesn't exist.
         Tests per-interface monitoring for primary interfaces (eth0, wlan0) excluding loopback (lo).
         """
         monitor = NetworkBandwidthMonitor()
-        
+
         # Capture baseline to enable utilization calculation
         baseline_stats = monitor.get_baseline_network_stats()
         assert baseline_stats is not None, "Should capture baseline for utilization calculation"
-        
+
         # Wait briefly to allow for potential network activity
         time.sleep(1.0)
-        
+
         # Get interface utilization tracking (will fail initially - TDD RED)
         utilization_data = monitor.get_interface_utilization_tracking()
-        
+
         # Verify utilization tracking structure
         assert utilization_data is not None, "Should return interface utilization data"
         assert isinstance(utilization_data, dict), "Utilization data should be dictionary"
-        
+
         # Verify per-interface monitoring for primary interfaces
-        assert "interface_utilization" in utilization_data, "Should include interface utilization metrics"
+        assert (
+            "interface_utilization" in utilization_data
+        ), "Should include interface utilization metrics"
         interface_metrics = utilization_data["interface_utilization"]
-        
+
         # Verify monitoring focuses on primary interfaces (eth0, wlan0)
         monitored_interfaces = set(interface_metrics.keys())
         expected_interfaces = {"eth0", "wlan0"}
-        
+
         # At least one primary interface should be monitored
-        assert len(monitored_interfaces & expected_interfaces) > 0, f"Should monitor primary interfaces. Got: {monitored_interfaces}"
-        
+        assert (
+            len(monitored_interfaces & expected_interfaces) > 0
+        ), f"Should monitor primary interfaces. Got: {monitored_interfaces}"
+
         # Verify loopback (lo) exclusion per [8a4] requirement
-        assert "lo" not in monitored_interfaces, "Should exclude loopback interface (lo) from analysis"
-        
+        assert (
+            "lo" not in monitored_interfaces
+        ), "Should exclude loopback interface (lo) from analysis"
+
         # Verify utilization metrics for each monitored interface
         for interface_name, metrics in interface_metrics.items():
             if interface_name in expected_interfaces:  # Focus on primary interfaces
-                assert "bytes_sent_per_sec" in metrics, f"Interface {interface_name} should have bytes_sent_per_sec"
-                assert "bytes_recv_per_sec" in metrics, f"Interface {interface_name} should have bytes_recv_per_sec"
-                assert "utilization_level" in metrics, f"Interface {interface_name} should have utilization_level"
-                assert "total_throughput_bps" in metrics, f"Interface {interface_name} should have total_throughput_bps"
-                
+                assert (
+                    "bytes_sent_per_sec" in metrics
+                ), f"Interface {interface_name} should have bytes_sent_per_sec"
+                assert (
+                    "bytes_recv_per_sec" in metrics
+                ), f"Interface {interface_name} should have bytes_recv_per_sec"
+                assert (
+                    "utilization_level" in metrics
+                ), f"Interface {interface_name} should have utilization_level"
+                assert (
+                    "total_throughput_bps" in metrics
+                ), f"Interface {interface_name} should have total_throughput_bps"
+
                 # Verify utilization metrics are realistic
-                assert metrics["bytes_sent_per_sec"] >= 0.0, f"bytes_sent_per_sec should be non-negative"
-                assert metrics["bytes_recv_per_sec"] >= 0.0, f"bytes_recv_per_sec should be non-negative"
-                assert metrics["total_throughput_bps"] >= 0.0, f"total_throughput_bps should be non-negative"
-                
+                assert (
+                    metrics["bytes_sent_per_sec"] >= 0.0
+                ), "bytes_sent_per_sec should be non-negative"
+                assert (
+                    metrics["bytes_recv_per_sec"] >= 0.0
+                ), "bytes_recv_per_sec should be non-negative"
+                assert (
+                    metrics["total_throughput_bps"] >= 0.0
+                ), "total_throughput_bps should be non-negative"
+
                 # Verify activity level classification
                 expected_levels = {"idle", "light", "moderate", "heavy"}
-                assert metrics["utilization_level"] in expected_levels, f"utilization_level should be valid classification"
-        
+                assert (
+                    metrics["utilization_level"] in expected_levels
+                ), "utilization_level should be valid classification"
+
         # Verify overall utilization summary
-        assert "total_network_utilization" in utilization_data, "Should include total network utilization"
+        assert (
+            "total_network_utilization" in utilization_data
+        ), "Should include total network utilization"
         total_util = utilization_data["total_network_utilization"]
         assert "combined_throughput_bps" in total_util, "Should include combined throughput"
         assert "active_interface_count" in total_util, "Should count active interfaces"
-        assert total_util["active_interface_count"] >= 0, "Active interface count should be non-negative"
+        assert (
+            total_util["active_interface_count"] >= 0
+        ), "Active interface count should be non-negative"
 
     def test_control_message_bandwidth_analysis_comprehensive(self):
         """
         SUBTASK-5.6.2.3 [8a3c,8a3d,8a3e,8a3f] - Verify control message bandwidth analysis.
-        
+
         RED PHASE: This test should FAIL because bandwidth analysis methods don't exist.
         Tests bandwidth measurement, coordination analysis, metrics collection, and pattern analysis.
         """
         monitor = NetworkBandwidthMonitor()
-        
+
         # Capture baseline for bandwidth calculation
         baseline_stats = monitor.get_baseline_network_stats()
         assert baseline_stats is not None, "Should capture baseline for bandwidth calculation"
-        
+
         # Test [8a3c] - Frequency control bandwidth measurement
         frequency_bandwidth = monitor.measure_frequency_control_bandwidth()
         assert frequency_bandwidth is not None, "Should return frequency control bandwidth data"
         assert isinstance(frequency_bandwidth, dict), "Frequency bandwidth should be dictionary"
-        
+
         # Verify frequency control bandwidth structure
         assert "command_bandwidth_bps" in frequency_bandwidth, "Should include command bandwidth"
         assert "command_frequency_hz" in frequency_bandwidth, "Should include command frequency"
-        assert "average_command_size_bytes" in frequency_bandwidth, "Should include average command size"
+        assert (
+            "average_command_size_bytes" in frequency_bandwidth
+        ), "Should include average command size"
         assert "peak_command_bandwidth_bps" in frequency_bandwidth, "Should include peak bandwidth"
-        
+
         # Verify frequency control metrics are realistic
-        assert frequency_bandwidth["command_bandwidth_bps"] >= 0.0, "Command bandwidth should be non-negative"
-        assert frequency_bandwidth["command_frequency_hz"] >= 0.0, "Command frequency should be non-negative"
-        assert frequency_bandwidth["average_command_size_bytes"] >= 0, "Average command size should be non-negative"
-        
+        assert (
+            frequency_bandwidth["command_bandwidth_bps"] >= 0.0
+        ), "Command bandwidth should be non-negative"
+        assert (
+            frequency_bandwidth["command_frequency_hz"] >= 0.0
+        ), "Command frequency should be non-negative"
+        assert (
+            frequency_bandwidth["average_command_size_bytes"] >= 0
+        ), "Average command size should be non-negative"
+
         # Test [8a3d] - Coordination message bandwidth analysis
         coordination_bandwidth = monitor.analyze_coordination_message_bandwidth()
         assert coordination_bandwidth is not None, "Should return coordination bandwidth data"
-        assert isinstance(coordination_bandwidth, dict), "Coordination bandwidth should be dictionary"
-        
+        assert isinstance(
+            coordination_bandwidth, dict
+        ), "Coordination bandwidth should be dictionary"
+
         # Verify coordination bandwidth structure
-        assert "bidirectional_bandwidth_bps" in coordination_bandwidth, "Should include bidirectional bandwidth"
-        assert "priority_decision_bandwidth" in coordination_bandwidth, "Should include priority decision bandwidth"
-        assert "source_switching_bandwidth" in coordination_bandwidth, "Should include source switching bandwidth"
-        assert "fallback_trigger_bandwidth" in coordination_bandwidth, "Should include fallback trigger bandwidth"
-        assert "coordination_overhead_ratio" in coordination_bandwidth, "Should include coordination overhead ratio"
-        
+        assert (
+            "bidirectional_bandwidth_bps" in coordination_bandwidth
+        ), "Should include bidirectional bandwidth"
+        assert (
+            "priority_decision_bandwidth" in coordination_bandwidth
+        ), "Should include priority decision bandwidth"
+        assert (
+            "source_switching_bandwidth" in coordination_bandwidth
+        ), "Should include source switching bandwidth"
+        assert (
+            "fallback_trigger_bandwidth" in coordination_bandwidth
+        ), "Should include fallback trigger bandwidth"
+        assert (
+            "coordination_overhead_ratio" in coordination_bandwidth
+        ), "Should include coordination overhead ratio"
+
         # Verify coordination metrics are realistic
-        assert coordination_bandwidth["bidirectional_bandwidth_bps"] >= 0.0, "Bidirectional bandwidth should be non-negative"
-        assert coordination_bandwidth["coordination_overhead_ratio"] >= 0.0, "Coordination overhead should be non-negative"
-        assert coordination_bandwidth["coordination_overhead_ratio"] <= 1.0, "Coordination overhead should be <= 1.0"
-        
+        assert (
+            coordination_bandwidth["bidirectional_bandwidth_bps"] >= 0.0
+        ), "Bidirectional bandwidth should be non-negative"
+        assert (
+            coordination_bandwidth["coordination_overhead_ratio"] >= 0.0
+        ), "Coordination overhead should be non-negative"
+        assert (
+            coordination_bandwidth["coordination_overhead_ratio"] <= 1.0
+        ), "Coordination overhead should be <= 1.0"
+
         # Test [8a3e] - Control message metrics collection
         control_metrics = monitor.collect_control_message_metrics()
         assert control_metrics is not None, "Should return control message metrics"
         assert isinstance(control_metrics, dict), "Control metrics should be dictionary"
-        
+
         # Verify control metrics structure
-        assert "real_time_command_frequency" in control_metrics, "Should include real-time command frequency"
-        assert "rolling_average_message_size" in control_metrics, "Should include rolling average message size"
+        assert (
+            "real_time_command_frequency" in control_metrics
+        ), "Should include real-time command frequency"
+        assert (
+            "rolling_average_message_size" in control_metrics
+        ), "Should include rolling average message size"
         assert "peak_bandwidth_usage_bps" in control_metrics, "Should include peak bandwidth usage"
         assert "min_message_size_bytes" in control_metrics, "Should include min message size"
         assert "max_message_size_bytes" in control_metrics, "Should include max message size"
-        assert "bandwidth_threshold_exceeded" in control_metrics, "Should include threshold exceeded flag"
-        
+        assert (
+            "bandwidth_threshold_exceeded" in control_metrics
+        ), "Should include threshold exceeded flag"
+
         # Verify metrics are realistic
-        assert control_metrics["real_time_command_frequency"] >= 0.0, "Command frequency should be non-negative"
-        assert control_metrics["rolling_average_message_size"] >= 0.0, "Average message size should be non-negative"
-        assert control_metrics["peak_bandwidth_usage_bps"] >= 0.0, "Peak bandwidth should be non-negative"
-        assert isinstance(control_metrics["bandwidth_threshold_exceeded"], bool), "Threshold exceeded should be boolean"
-        
+        assert (
+            control_metrics["real_time_command_frequency"] >= 0.0
+        ), "Command frequency should be non-negative"
+        assert (
+            control_metrics["rolling_average_message_size"] >= 0.0
+        ), "Average message size should be non-negative"
+        assert (
+            control_metrics["peak_bandwidth_usage_bps"] >= 0.0
+        ), "Peak bandwidth should be non-negative"
+        assert isinstance(
+            control_metrics["bandwidth_threshold_exceeded"], bool
+        ), "Threshold exceeded should be boolean"
+
         # Test [8a3f] - Control message pattern analysis
         pattern_analysis = monitor.analyze_bandwidth_patterns()
         assert pattern_analysis is not None, "Should return bandwidth pattern analysis"
         assert isinstance(pattern_analysis, dict), "Pattern analysis should be dictionary"
-        
+
         # Verify pattern analysis structure
-        assert "routine_frequency_updates" in pattern_analysis, "Should include routine frequency updates"
+        assert (
+            "routine_frequency_updates" in pattern_analysis
+        ), "Should include routine frequency updates"
         assert "emergency_commands" in pattern_analysis, "Should include emergency commands"
-        assert "coordination_state_changes" in pattern_analysis, "Should include coordination state changes"
-        assert "pattern_classification_summary" in pattern_analysis, "Should include pattern summary"
-        
+        assert (
+            "coordination_state_changes" in pattern_analysis
+        ), "Should include coordination state changes"
+        assert (
+            "pattern_classification_summary" in pattern_analysis
+        ), "Should include pattern summary"
+
         # Verify routine frequency updates pattern
         routine_pattern = pattern_analysis["routine_frequency_updates"]
         assert "baseline_frequency_hz" in routine_pattern, "Should include baseline frequency"
         assert "pattern_detected" in routine_pattern, "Should include pattern detection flag"
         assert "average_interval_ms" in routine_pattern, "Should include average interval"
-        
+
         # Verify emergency commands pattern
         emergency_pattern = pattern_analysis["emergency_commands"]
-        assert "high_priority_detected" in emergency_pattern, "Should include high priority detection"
-        assert "emergency_bandwidth_spike" in emergency_pattern, "Should include bandwidth spike detection"
-        assert "emergency_frequency_deviation" in emergency_pattern, "Should include frequency deviation"
-        
+        assert (
+            "high_priority_detected" in emergency_pattern
+        ), "Should include high priority detection"
+        assert (
+            "emergency_bandwidth_spike" in emergency_pattern
+        ), "Should include bandwidth spike detection"
+        assert (
+            "emergency_frequency_deviation" in emergency_pattern
+        ), "Should include frequency deviation"
+
         # Verify coordination state changes pattern
         state_change_pattern = pattern_analysis["coordination_state_changes"]
-        assert "state_transition_detected" in state_change_pattern, "Should include state transition detection"
-        assert "transition_bandwidth_impact" in state_change_pattern, "Should include bandwidth impact"
-        assert "transition_frequency_change" in state_change_pattern, "Should include frequency change"
-        
+        assert (
+            "state_transition_detected" in state_change_pattern
+        ), "Should include state transition detection"
+        assert (
+            "transition_bandwidth_impact" in state_change_pattern
+        ), "Should include bandwidth impact"
+        assert (
+            "transition_frequency_change" in state_change_pattern
+        ), "Should include frequency change"
+
         # Verify pattern classification summary
         summary = pattern_analysis["pattern_classification_summary"]
         assert "total_patterns_detected" in summary, "Should count total patterns"
         assert "routine_pattern_percentage" in summary, "Should include routine percentage"
         assert "emergency_pattern_percentage" in summary, "Should include emergency percentage"
-        assert "coordination_pattern_percentage" in summary, "Should include coordination percentage"
-        
+        assert (
+            "coordination_pattern_percentage" in summary
+        ), "Should include coordination percentage"
+
         # Verify pattern percentages sum appropriately
         routine_pct = summary["routine_pattern_percentage"]
-        emergency_pct = summary["emergency_pattern_percentage"]  
+        emergency_pct = summary["emergency_pattern_percentage"]
         coordination_pct = summary["coordination_pattern_percentage"]
         assert 0.0 <= routine_pct <= 100.0, "Routine percentage should be 0-100"
         assert 0.0 <= emergency_pct <= 100.0, "Emergency percentage should be 0-100"
@@ -3181,134 +3295,184 @@ class TestNetworkBandwidthAnalysis:
     def test_bandwidth_usage_pattern_classification_distinguishes_traffic_types(self):
         """
         SUBTASK-5.6.2.3 [8a5] - Verify bandwidth usage pattern classification.
-        
+
         RED PHASE: This test should FAIL because pattern classification method doesn't exist.
-        Tests classification of RSSI streaming (high-frequency, predictable), 
+        Tests classification of RSSI streaming (high-frequency, predictable),
         control messages (low-frequency, sporadic), and coordination overhead (medium-frequency, adaptive).
         """
         monitor = NetworkBandwidthMonitor()
-        
+
         # Start RSSI streaming analysis to enable pattern classification
         monitor.start_rssi_streaming_analysis()
-        
+
         # Test [8a5] - Bandwidth usage pattern classification
         pattern_classification = monitor.classify_bandwidth_usage_patterns()
-        assert pattern_classification is not None, "Should return bandwidth usage pattern classification"
-        assert isinstance(pattern_classification, dict), "Pattern classification should be dictionary"
-        
+        assert (
+            pattern_classification is not None
+        ), "Should return bandwidth usage pattern classification"
+        assert isinstance(
+            pattern_classification, dict
+        ), "Pattern classification should be dictionary"
+
         # Verify three distinct traffic pattern classifications
-        assert "rssi_streaming_pattern" in pattern_classification, "Should classify RSSI streaming patterns"
-        assert "control_message_pattern" in pattern_classification, "Should classify control message patterns"
-        assert "coordination_overhead_pattern" in pattern_classification, "Should classify coordination overhead patterns"
-        
+        assert (
+            "rssi_streaming_pattern" in pattern_classification
+        ), "Should classify RSSI streaming patterns"
+        assert (
+            "control_message_pattern" in pattern_classification
+        ), "Should classify control message patterns"
+        assert (
+            "coordination_overhead_pattern" in pattern_classification
+        ), "Should classify coordination overhead patterns"
+
         # Verify RSSI streaming pattern characteristics (high-frequency, predictable)
         rssi_pattern = pattern_classification["rssi_streaming_pattern"]
         assert "frequency_classification" in rssi_pattern, "Should classify RSSI frequency"
         assert "predictability_score" in rssi_pattern, "Should score RSSI predictability"
         assert "bandwidth_percentage" in rssi_pattern, "Should calculate RSSI bandwidth percentage"
         assert rssi_pattern["frequency_classification"] == "high", "RSSI should be high-frequency"
-        assert rssi_pattern["predictability_score"] >= 0.7, "RSSI should be highly predictable (>70%)"
-        
+        assert (
+            rssi_pattern["predictability_score"] >= 0.7
+        ), "RSSI should be highly predictable (>70%)"
+
         # Verify control message pattern characteristics (low-frequency, sporadic)
         control_pattern = pattern_classification["control_message_pattern"]
         assert "frequency_classification" in control_pattern, "Should classify control frequency"
         assert "predictability_score" in control_pattern, "Should score control predictability"
-        assert "bandwidth_percentage" in control_pattern, "Should calculate control bandwidth percentage"
-        assert control_pattern["frequency_classification"] == "low", "Control should be low-frequency"
-        assert control_pattern["predictability_score"] <= 0.4, "Control should be sporadic (<40% predictable)"
-        
+        assert (
+            "bandwidth_percentage" in control_pattern
+        ), "Should calculate control bandwidth percentage"
+        assert (
+            control_pattern["frequency_classification"] == "low"
+        ), "Control should be low-frequency"
+        assert (
+            control_pattern["predictability_score"] <= 0.4
+        ), "Control should be sporadic (<40% predictable)"
+
         # Verify coordination overhead pattern characteristics (medium-frequency, adaptive)
         coordination_pattern = pattern_classification["coordination_overhead_pattern"]
-        assert "frequency_classification" in coordination_pattern, "Should classify coordination frequency"
-        assert "predictability_score" in coordination_pattern, "Should score coordination predictability"
-        assert "bandwidth_percentage" in coordination_pattern, "Should calculate coordination bandwidth percentage"
-        assert coordination_pattern["frequency_classification"] == "medium", "Coordination should be medium-frequency"
-        assert 0.4 <= coordination_pattern["predictability_score"] <= 0.7, "Coordination should be adaptive (40-70% predictable)"
-        
+        assert (
+            "frequency_classification" in coordination_pattern
+        ), "Should classify coordination frequency"
+        assert (
+            "predictability_score" in coordination_pattern
+        ), "Should score coordination predictability"
+        assert (
+            "bandwidth_percentage" in coordination_pattern
+        ), "Should calculate coordination bandwidth percentage"
+        assert (
+            coordination_pattern["frequency_classification"] == "medium"
+        ), "Coordination should be medium-frequency"
+        assert (
+            0.4 <= coordination_pattern["predictability_score"] <= 0.7
+        ), "Coordination should be adaptive (40-70% predictable)"
+
         # Verify bandwidth percentages sum to approximately 100%
         total_bandwidth_percentage = (
-            rssi_pattern["bandwidth_percentage"] +
-            control_pattern["bandwidth_percentage"] +
-            coordination_pattern["bandwidth_percentage"]
+            rssi_pattern["bandwidth_percentage"]
+            + control_pattern["bandwidth_percentage"]
+            + coordination_pattern["bandwidth_percentage"]
         )
-        assert 95.0 <= total_bandwidth_percentage <= 105.0, "Total bandwidth should approximately sum to 100%"
-        
+        assert (
+            95.0 <= total_bandwidth_percentage <= 105.0
+        ), "Total bandwidth should approximately sum to 100%"
+
         # Verify pattern classification includes metrics summary
-        assert "classification_summary" in pattern_classification, "Should include classification summary"
+        assert (
+            "classification_summary" in pattern_classification
+        ), "Should include classification summary"
         summary = pattern_classification["classification_summary"]
         assert "total_patterns_classified" in summary, "Should count classified patterns"
         assert "classification_confidence" in summary, "Should provide classification confidence"
         assert "dominant_pattern_type" in summary, "Should identify dominant pattern"
         assert summary["total_patterns_classified"] >= 3, "Should classify at least 3 pattern types"
         assert 0.0 <= summary["classification_confidence"] <= 1.0, "Confidence should be 0-1"
-        assert summary["dominant_pattern_type"] in ["rssi_streaming", "control_message", "coordination_overhead"], "Dominant pattern should be valid type"
+        assert summary["dominant_pattern_type"] in [
+            "rssi_streaming",
+            "control_message",
+            "coordination_overhead",
+        ], "Dominant pattern should be valid type"
 
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     async def test_real_time_bandwidth_metrics_collection_with_historical_storage(self):
         """
         SUBTASK-5.6.2.3 [8a6] - Verify real-time bandwidth metrics collection with 1-second sampling.
-        
+
         RED PHASE: This test should FAIL because real-time metrics collection doesn't exist.
-        Tests 1-second sampling intervals matching telemetry monitoring patterns and 
+        Tests 1-second sampling intervals matching telemetry monitoring patterns and
         historical data storage for pattern analysis.
         """
         monitor = NetworkBandwidthMonitor()
-        
+
         # Start RSSI streaming analysis for metrics collection
         monitor.start_rssi_streaming_analysis()
-        
+
         # Test [8a6] - Start real-time metrics collection
         await monitor.start_real_time_metrics_collection()
         assert monitor.is_real_time_monitoring_active(), "Real-time monitoring should be active"
-        
+
         # Verify 1-second sampling interval configuration
         metrics_config = monitor.get_metrics_collection_config()
         assert metrics_config is not None, "Should return metrics collection configuration"
         assert isinstance(metrics_config, dict), "Metrics config should be dictionary"
         assert "sampling_interval_seconds" in metrics_config, "Should include sampling interval"
-        assert metrics_config["sampling_interval_seconds"] == 1.0, "Should use 1-second sampling interval to match telemetry patterns"
+        assert (
+            metrics_config["sampling_interval_seconds"] == 1.0
+        ), "Should use 1-second sampling interval to match telemetry patterns"
         assert "historical_data_retention" in metrics_config, "Should include data retention config"
         assert "storage_format" in metrics_config, "Should specify storage format"
-        
+
         # Allow time for metrics collection (simulate real-time collection)
         await asyncio.sleep(2.5)  # Allow 2+ samples to be collected
-        
+
         # Test historical data storage and retrieval
         historical_metrics = monitor.get_historical_bandwidth_metrics()
         assert historical_metrics is not None, "Should return historical bandwidth metrics"
         assert isinstance(historical_metrics, dict), "Historical metrics should be dictionary"
-        
+
         # Verify time-series data structure
         assert "time_series_data" in historical_metrics, "Should include time-series data"
         assert "collection_metadata" in historical_metrics, "Should include collection metadata"
-        
+
         time_series = historical_metrics["time_series_data"]
         assert isinstance(time_series, list), "Time-series data should be list"
         assert len(time_series) >= 2, "Should have collected at least 2 samples in 2.5 seconds"
-        
+
         # Verify each time-series sample structure
         for sample in time_series:
             assert isinstance(sample, dict), "Each sample should be dictionary"
             assert "timestamp" in sample, "Each sample should have timestamp"
             assert "bandwidth_metrics" in sample, "Each sample should have bandwidth metrics"
-            assert "pattern_classification" in sample, "Each sample should include pattern classification from [8a5]"
-            
+            assert (
+                "pattern_classification" in sample
+            ), "Each sample should include pattern classification from [8a5]"
+
             # Verify timestamp is valid (unix timestamp)
             assert isinstance(sample["timestamp"], float), "Timestamp should be float (unix time)"
             assert sample["timestamp"] > 0, "Timestamp should be positive"
-            
+
             # Verify bandwidth metrics structure (from [8a2] integration)
             bandwidth_metrics = sample["bandwidth_metrics"]
-            assert "rssi_streaming_bps" in bandwidth_metrics, "Should include RSSI streaming bandwidth"
-            assert "control_messages_bps" in bandwidth_metrics, "Should include control message bandwidth"
+            assert (
+                "rssi_streaming_bps" in bandwidth_metrics
+            ), "Should include RSSI streaming bandwidth"
+            assert (
+                "control_messages_bps" in bandwidth_metrics
+            ), "Should include control message bandwidth"
             assert "total_bandwidth_bps" in bandwidth_metrics, "Should include total bandwidth"
-            
+
             # Verify pattern classification integration (from [8a5])
             pattern_data = sample["pattern_classification"]
-            assert "rssi_streaming_pattern" in pattern_data, "Should include RSSI pattern from [8a5]"
-            assert "control_message_pattern" in pattern_data, "Should include control pattern from [8a5]"
-            assert "coordination_overhead_pattern" in pattern_data, "Should include coordination pattern from [8a5]"
-        
+            assert (
+                "rssi_streaming_pattern" in pattern_data
+            ), "Should include RSSI pattern from [8a5]"
+            assert (
+                "control_message_pattern" in pattern_data
+            ), "Should include control pattern from [8a5]"
+            assert (
+                "coordination_overhead_pattern" in pattern_data
+            ), "Should include coordination pattern from [8a5]"
+
         # Verify collection metadata
         metadata = historical_metrics["collection_metadata"]
         assert "total_samples_collected" in metadata, "Should track total samples"
@@ -3316,43 +3480,49 @@ class TestNetworkBandwidthAnalysis:
         assert "sampling_interval_seconds" in metadata, "Should document sampling interval"
         assert metadata["sampling_interval_seconds"] == 1.0, "Should confirm 1-second sampling"
         assert metadata["total_samples_collected"] >= 2, "Should have collected multiple samples"
-        
+
         # Test real-time metrics retrieval (current state)
         current_metrics = monitor.get_current_real_time_metrics()
         assert current_metrics is not None, "Should return current real-time metrics"
         assert isinstance(current_metrics, dict), "Current metrics should be dictionary"
         assert "latest_sample" in current_metrics, "Should include latest sample"
         assert "metrics_summary" in current_metrics, "Should include metrics summary"
-        
+
         # Verify latest sample structure
         latest_sample = current_metrics["latest_sample"]
         assert "timestamp" in latest_sample, "Latest sample should have timestamp"
         assert "bandwidth_metrics" in latest_sample, "Latest sample should have bandwidth metrics"
-        assert "pattern_classification" in latest_sample, "Latest sample should have pattern classification"
-        
+        assert (
+            "pattern_classification" in latest_sample
+        ), "Latest sample should have pattern classification"
+
         # Verify metrics summary (aggregated data)
         metrics_summary = current_metrics["metrics_summary"]
         assert "average_bandwidth_bps" in metrics_summary, "Should include average bandwidth"
         assert "peak_bandwidth_bps" in metrics_summary, "Should include peak bandwidth"
         assert "samples_count" in metrics_summary, "Should include sample count"
-        assert "collection_duration_seconds" in metrics_summary, "Should include collection duration"
-        
+        assert (
+            "collection_duration_seconds" in metrics_summary
+        ), "Should include collection duration"
+
         # Test pattern analysis integration with historical data
         pattern_analysis = monitor.analyze_historical_bandwidth_patterns()
         assert pattern_analysis is not None, "Should analyze historical patterns"
         assert isinstance(pattern_analysis, dict), "Pattern analysis should be dictionary"
         assert "trend_analysis" in pattern_analysis, "Should include trend analysis"
         assert "pattern_stability" in pattern_analysis, "Should analyze pattern stability over time"
-        
+
         # Clean up - stop real-time monitoring
         await monitor.stop_real_time_metrics_collection()
-        assert not monitor.is_real_time_monitoring_active(), "Real-time monitoring should be stopped"
+        assert (
+            not monitor.is_real_time_monitoring_active()
+        ), "Real-time monitoring should be stopped"
 
 
 class TestIntelligentMessageQueue:
     """
     TASK-5.6.8c - Test intelligent message queuing with batch transmission optimization.
-    
+
     Tests verify authentic system behavior using real message processing patterns.
     NO MOCK/FAKE/PLACEHOLDER tests - all tests verify real queue behavior.
     """
@@ -3361,74 +3531,80 @@ class TestIntelligentMessageQueue:
     async def test_priority_based_message_scheduling_red_phase(self):
         """
         TASK-5.6.8c [8c3] - TDD RED PHASE: Priority-based message scheduling.
-        
+
         This test MUST FAIL initially because IntelligentMessageQueue doesn't exist yet.
         Tests authentic priority ordering with real message data.
         """
         # TDD RED: This will fail because IntelligentMessageQueue doesn't exist
         queue = IntelligentMessageQueue(max_queue_size=1000)
-        
+
         # Create realistic messages with different priorities (like actual SDR++ bridge messages)
         high_priority_message = {
             "type": "emergency_stop",
             "data": {"reason": "safety_violation", "timestamp": time.time()},
             "priority": "high",
-            "message_id": "emergency_001"
+            "message_id": "emergency_001",
         }
-        
+
         normal_priority_message = {
-            "type": "rssi_stream", 
+            "type": "rssi_stream",
             "data": {
                 "timestamp_ns": time.time_ns(),
                 "rssi_dbm": -65.5,
                 "frequency_hz": 406025000,
                 "source_id": 1,
-                "quality_score": 85
+                "quality_score": 85,
             },
             "priority": "normal",
-            "message_id": "rssi_001"
+            "message_id": "rssi_001",
         }
-        
+
         low_priority_message = {
             "type": "status_update",
             "data": {"cpu_usage": 45.2, "memory_usage": 512.3},
-            "priority": "low", 
-            "message_id": "status_001"
+            "priority": "low",
+            "message_id": "status_001",
         }
-        
+
         # Queue messages in non-priority order to test sorting
         await queue.enqueue_message(normal_priority_message)
         await queue.enqueue_message(low_priority_message)
         await queue.enqueue_message(high_priority_message)
-        
+
         # Verify priority-based dequeue order
         first_message = await queue.dequeue_next_message()
-        assert first_message["priority"] == "high", "High priority messages should be processed first"
-        assert first_message["message_id"] == "emergency_001", "Should dequeue the high priority message"
-        
+        assert (
+            first_message["priority"] == "high"
+        ), "High priority messages should be processed first"
+        assert (
+            first_message["message_id"] == "emergency_001"
+        ), "Should dequeue the high priority message"
+
         second_message = await queue.dequeue_next_message()
         assert second_message["priority"] == "normal", "Normal priority should be second"
-        assert second_message["message_id"] == "rssi_001", "Should dequeue the normal priority message"
-        
+        assert (
+            second_message["message_id"] == "rssi_001"
+        ), "Should dequeue the normal priority message"
+
         third_message = await queue.dequeue_next_message()
         assert third_message["priority"] == "low", "Low priority should be last"
-        assert third_message["message_id"] == "status_001", "Should dequeue the low priority message"
+        assert (
+            third_message["message_id"] == "status_001"
+        ), "Should dequeue the low priority message"
 
     @pytest.mark.asyncio
     async def test_batch_transmission_optimization_red_phase(self):
         """
         TASK-5.6.8c [8c2] - TDD RED PHASE: Batch transmission optimization.
-        
+
         This test MUST FAIL initially because batch functionality doesn't exist.
         Tests authentic batching with real message volume patterns.
         """
         # TDD RED: This will fail because batch functionality doesn't exist
         queue = IntelligentMessageQueue(
-            max_queue_size=1000,
-            batch_size_threshold=5,
-            batch_timeout_ms=100
+            max_queue_size=1000, batch_size_threshold=5, batch_timeout_ms=100
         )
-        
+
         # Add multiple RSSI messages that should be batched
         rssi_messages = []
         for i in range(10):
@@ -3439,47 +3615,49 @@ class TestIntelligentMessageQueue:
                     "rssi_dbm": -70.0 + i * 0.5,
                     "frequency_hz": 406025000,
                     "source_id": 0,
-                    "quality_score": 80 + i
+                    "quality_score": 80 + i,
                 },
                 "priority": "normal",
-                "message_id": f"rssi_{i:03d}"
+                "message_id": f"rssi_{i:03d}",
             }
             rssi_messages.append(message)
             await queue.enqueue_message(message)
-        
+
         # Test batch processing
         batch_start_time = time.perf_counter()
         message_batch = await queue.get_next_transmission_batch()
         batch_process_time_ms = (time.perf_counter() - batch_start_time) * 1000
-        
+
         # Verify batch characteristics
         assert isinstance(message_batch, list), "Should return list of batched messages"
         assert len(message_batch) >= 5, "Should batch multiple messages when threshold reached"
         assert len(message_batch) <= 10, "Should not exceed queued message count"
-        
+
         # Verify batch processing latency meets requirements
-        assert batch_process_time_ms < 100, f"Batch processing took {batch_process_time_ms:.1f}ms, must be <100ms per PRD NFR2"
-        
+        assert (
+            batch_process_time_ms < 100
+        ), f"Batch processing took {batch_process_time_ms:.1f}ms, must be <100ms per PRD NFR2"
+
         # Verify all messages in batch have consistent priority
         batch_priorities = {msg["priority"] for msg in message_batch}
         assert len(batch_priorities) <= 2, "Batch should group messages by similar priority"
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_queue_latency_performance_requirements_red_phase(self):
         """
         TASK-5.6.8c [8c10] - TDD RED PHASE: Validate queue maintains <100ms latency per PRD NFR2.
-        
+
         This test MUST FAIL initially because performance monitoring doesn't exist.
         Tests authentic latency requirements with real timing measurements.
         """
         # TDD RED: This will fail because performance monitoring doesn't exist
         queue = IntelligentMessageQueue(max_queue_size=1000)
-        
+
         # Create high-frequency message stream like real RSSI data
         message_count = 100
         enqueue_latencies = []
         dequeue_latencies = []
-        
+
         # Test enqueue performance
         for i in range(message_count):
             message = {
@@ -3489,40 +3667,48 @@ class TestIntelligentMessageQueue:
                     "rssi_dbm": -70.0 + (i % 20),
                     "frequency_hz": 406025000 + (i % 10) * 1000,
                     "source_id": i % 2,
-                    "quality_score": 70 + (i % 30)
+                    "quality_score": 70 + (i % 30),
                 },
                 "priority": "normal",
-                "message_id": f"perf_test_{i:03d}"
+                "message_id": f"perf_test_{i:03d}",
             }
-            
+
             # Measure enqueue latency
             enqueue_start = time.perf_counter()
             await queue.enqueue_message(message)
             enqueue_latency_ms = (time.perf_counter() - enqueue_start) * 1000
             enqueue_latencies.append(enqueue_latency_ms)
-        
-        # Test dequeue performance  
+
+        # Test dequeue performance
         for i in range(message_count):
             dequeue_start = time.perf_counter()
             message = await queue.dequeue_next_message()
             dequeue_latency_ms = (time.perf_counter() - dequeue_start) * 1000
             dequeue_latencies.append(dequeue_latency_ms)
-            
+
             assert message is not None, f"Should dequeue message {i}"
             assert "message_id" in message, "Dequeued message should have ID"
-        
+
         # Verify latency requirements per PRD NFR2
         max_enqueue_latency = max(enqueue_latencies)
-        max_dequeue_latency = max(dequeue_latencies) 
+        max_dequeue_latency = max(dequeue_latencies)
         avg_enqueue_latency = sum(enqueue_latencies) / len(enqueue_latencies)
         avg_dequeue_latency = sum(dequeue_latencies) / len(dequeue_latencies)
-        
+
         # Performance assertions per PRD requirements
-        assert max_enqueue_latency < 100, f"Max enqueue latency {max_enqueue_latency:.1f}ms exceeds 100ms requirement"
-        assert max_dequeue_latency < 100, f"Max dequeue latency {max_dequeue_latency:.1f}ms exceeds 100ms requirement"
-        assert avg_enqueue_latency < 10, f"Average enqueue latency {avg_enqueue_latency:.1f}ms should be <10ms for efficiency"
-        assert avg_dequeue_latency < 10, f"Average dequeue latency {avg_dequeue_latency:.1f}ms should be <10ms for efficiency"
-        
+        assert (
+            max_enqueue_latency < 100
+        ), f"Max enqueue latency {max_enqueue_latency:.1f}ms exceeds 100ms requirement"
+        assert (
+            max_dequeue_latency < 100
+        ), f"Max dequeue latency {max_dequeue_latency:.1f}ms exceeds 100ms requirement"
+        assert (
+            avg_enqueue_latency < 10
+        ), f"Average enqueue latency {avg_enqueue_latency:.1f}ms should be <10ms for efficiency"
+        assert (
+            avg_dequeue_latency < 10
+        ), f"Average dequeue latency {avg_dequeue_latency:.1f}ms should be <10ms for efficiency"
+
         # Verify queue statistics and monitoring
         queue_stats = queue.get_queue_statistics()
         assert "total_enqueued" in queue_stats, "Should track total enqueued messages"
@@ -3536,18 +3722,18 @@ class TestIntelligentMessageQueue:
 class TestBandwidthThrottling:
     """
     SUBTASK-5.6.2.3 [8d] - Test bandwidth throttling with rate limiting and congestion detection.
-    
+
     Tests verify sliding window algorithms, adaptive rate adjustment, and congestion detection
     using authentic network monitoring and real system behavior.
-    
+
     CRITICAL: NO MOCK/FAKE tests - Uses real psutil network monitoring and actual bandwidth control.
     """
-    
+
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_sliding_window_rate_limiting_algorithm(self):
         """
         SUBTASK-5.6.2.3 [8d1] - Test sliding window rate limiting algorithm implementation.
-        
+
         Verifies time-based sliding window using collections.deque tracks bandwidth usage
         over configurable time windows and applies rate limiting when thresholds exceeded.
         """
@@ -3557,44 +3743,45 @@ class TestBandwidthThrottling:
             max_bandwidth_bps=1_000_000,  # 1 Mbps limit
             update_interval_ms=100,  # 100ms update frequency
         )
-        
+
         # Test window initialization
         assert throttle.window_size_seconds == 5.0, "Should store configured window size"
         assert throttle.max_bandwidth_bps == 1_000_000, "Should store bandwidth limit"
-        
+
         # Test sliding window data structure
         window_stats = throttle.get_sliding_window_stats()
         assert "current_window_usage_bps" in window_stats, "Should track current window usage"
         assert "window_data_points" in window_stats, "Should track data points in window"
         assert "oldest_timestamp" in window_stats, "Should track oldest data point"
         assert "newest_timestamp" in window_stats, "Should track newest data point"
-        
+
         # Test bandwidth tracking over time
         import time
+
         start_time = time.time()
-        
+
         # Simulate bandwidth usage over sliding window
         for i in range(10):
             bandwidth_usage = 500_000 + (i * 50_000)  # Gradually increasing usage
             throttle.track_bandwidth_usage(bandwidth_usage, timestamp=start_time + (i * 0.5))
-            
+
         # Verify sliding window correctly tracks recent usage
         current_stats = throttle.get_sliding_window_stats()
         assert current_stats["window_data_points"] > 0, "Should contain data points"
         assert current_stats["current_window_usage_bps"] > 0, "Should calculate current usage"
-        
+
         # Test window expiration - old data should be removed
         future_time = start_time + 10.0  # Beyond window size
         throttle.track_bandwidth_usage(100_000, timestamp=future_time)
-        
+
         expired_stats = throttle.get_sliding_window_stats()
         assert expired_stats["window_data_points"] <= 5, "Old data should be expired from window"
-        
+
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_adaptive_rate_adjustment_and_throttling(self):
         """
         SUBTASK-5.6.2.3 [8d2] - Test adaptive rate adjustment based on current usage.
-        
+
         Verifies BandwidthThrottle class adjusts rates dynamically and applies throttling
         when configured limits are exceeded.
         """
@@ -3603,36 +3790,44 @@ class TestBandwidthThrottling:
             max_bandwidth_bps=2_000_000,  # 2 Mbps limit
             congestion_threshold_ratio=0.8,  # Throttle at 80% of limit
         )
-        
+
         # Test normal operation - below threshold
         normal_usage = 1_000_000  # 1 Mbps - 50% of limit
         throttle_decision = throttle.should_throttle_bandwidth(normal_usage)
-        
+
         assert not throttle_decision["throttle_required"], "Should not throttle below threshold"
-        assert throttle_decision["current_usage_ratio"] == 0.5, "Should calculate correct usage ratio"
+        assert (
+            throttle_decision["current_usage_ratio"] == 0.5
+        ), "Should calculate correct usage ratio"
         assert "recommended_rate_bps" in throttle_decision, "Should recommend transmission rate"
-        
+
         # Test approaching congestion - at threshold
         high_usage = 1_600_000  # 1.6 Mbps - 80% of limit (at threshold)
         throttle_at_threshold = throttle.should_throttle_bandwidth(high_usage)
-        
+
         assert throttle_at_threshold["throttle_required"], "Should throttle at congestion threshold"
         assert throttle_at_threshold["throttle_severity"] == "mild", "Should apply mild throttling"
-        assert throttle_at_threshold["recommended_rate_bps"] < high_usage, "Should reduce recommended rate"
-        
+        assert (
+            throttle_at_threshold["recommended_rate_bps"] < high_usage
+        ), "Should reduce recommended rate"
+
         # Test severe congestion - above limit
         excessive_usage = 2_500_000  # 2.5 Mbps - 125% of limit
         severe_throttle = throttle.should_throttle_bandwidth(excessive_usage)
-        
+
         assert severe_throttle["throttle_required"], "Should throttle above bandwidth limit"
-        assert severe_throttle["throttle_severity"] == "aggressive", "Should apply aggressive throttling"
-        assert severe_throttle["recommended_rate_bps"] <= throttle.max_bandwidth_bps, "Should cap at limit"
-        
-    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")  
+        assert (
+            severe_throttle["throttle_severity"] == "aggressive"
+        ), "Should apply aggressive throttling"
+        assert (
+            severe_throttle["recommended_rate_bps"] <= throttle.max_bandwidth_bps
+        ), "Should cap at limit"
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_congestion_detection_with_network_monitoring(self):
         """
         SUBTASK-5.6.2.3 [8d3] - Test congestion detection using packet loss and latency.
-        
+
         Verifies integration with psutil.net_connections() for error tracking and
         latency-based congestion detection using authentic network metrics.
         """
@@ -3641,34 +3836,36 @@ class TestBandwidthThrottling:
             max_bandwidth_bps=1_500_000,
             enable_congestion_detection=True,
         )
-        
+
         # Test congestion detection initialization
         congestion_monitor = throttle.get_congestion_detector()
         assert congestion_monitor is not None, "Should create congestion detector"
-        
-        # Test baseline congestion metrics collection  
+
+        # Test baseline congestion metrics collection
         baseline_metrics = throttle.collect_congestion_metrics()
         assert "packet_loss_rate" in baseline_metrics, "Should track packet loss rate"
         assert "connection_errors" in baseline_metrics, "Should track connection errors"
         assert "average_latency_ms" in baseline_metrics, "Should track latency"
         assert "error_rate_ratio" in baseline_metrics, "Should calculate error rate"
-        
+
         # Test congestion detection algorithm
         congestion_status = throttle.detect_network_congestion(
             current_bandwidth=1_200_000,
             packet_loss_rate=0.02,  # 2% packet loss
             average_latency_ms=75.0,  # 75ms latency
         )
-        
+
         assert "congestion_detected" in congestion_status, "Should detect congestion"
         assert "congestion_severity" in congestion_status, "Should classify severity"
         assert "contributing_factors" in congestion_status, "Should identify factors"
-        
+
         # Test congestion response recommendations
         if congestion_status["congestion_detected"]:
             assert "throttle_recommendation" in congestion_status, "Should recommend throttling"
             assert congestion_status["throttle_recommendation"]["action"] in [
-                "reduce_rate", "pause_transmission", "maintain_rate"
+                "reduce_rate",
+                "pause_transmission",
+                "maintain_rate",
             ], "Should provide valid throttling action"
 
 
@@ -3676,22 +3873,22 @@ class TestNetworkCongestionDetection:
     """
     SUBTASK-5.6.2.3 [8e] - Test network congestion detection with packet loss monitoring
     and adaptive transmission rates.
-    
+
     Tests verify real network behavior using authentic system monitoring - no mocks.
     """
-    
+
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_real_time_packet_loss_monitoring(self):
         """
         SUBTASK-5.6.2.3 [8e1] - Test real-time packet loss monitoring using psutil.
-        
+
         RED PHASE: This test should FAIL initially because packet loss monitoring
         methods don't exist yet in NetworkBandwidthMonitor.
         Tests authentic network interface monitoring for dropped packets and errors.
         """
         # Create NetworkBandwidthMonitor instance
         network_monitor = NetworkBandwidthMonitor()
-        
+
         # Test baseline packet loss metrics collection (will fail initially)
         baseline_stats = network_monitor.get_packet_loss_baseline()
         assert baseline_stats is not None, "Should establish packet loss baseline"
@@ -3699,56 +3896,61 @@ class TestNetworkCongestionDetection:
         assert "total_dropped_packets" in baseline_stats, "Should track dropped packets"
         assert "total_errors" in baseline_stats, "Should track network errors"
         assert "baseline_timestamp" in baseline_stats, "Should timestamp baseline"
-        
+
         # Test real-time packet loss monitoring (will fail initially)
         import time
+
         time.sleep(1.0)  # Allow some network activity
-        
+
         current_stats = network_monitor.monitor_packet_loss()
         assert current_stats is not None, "Should collect current packet loss stats"
         assert "packet_loss_rate" in current_stats, "Should calculate packet loss rate"
         assert "interfaces_monitored" in current_stats, "Should list monitored interfaces"
         assert "dropped_packets_delta" in current_stats, "Should track delta from baseline"
         assert "error_rate_per_interface" in current_stats, "Should track per-interface errors"
-        
+
         # Verify packet loss rate calculation (0.0-1.0 range)
         packet_loss_rate = current_stats["packet_loss_rate"]
-        assert 0.0 <= packet_loss_rate <= 1.0, f"Packet loss rate should be 0.0-1.0, got {packet_loss_rate}"
-        
+        assert (
+            0.0 <= packet_loss_rate <= 1.0
+        ), f"Packet loss rate should be 0.0-1.0, got {packet_loss_rate}"
+
         # Test interface filtering (should exclude loopback)
         monitored_interfaces = current_stats["interfaces_monitored"]
         assert len(monitored_interfaces) > 0, "Should monitor at least one interface"
         assert "lo" not in monitored_interfaces, "Should exclude loopback interface"
-        
+
         # Verify network interfaces are real system interfaces
         import psutil
+
         system_interfaces = psutil.net_if_stats().keys()
         for interface in monitored_interfaces:
             assert interface in system_interfaces, f"Interface {interface} should exist on system"
-    
+
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_packet_loss_sliding_window_analysis(self):
         """
         SUBTASK-5.6.2.3 [8e2] - Test packet loss rate calculation with sliding window.
-        
+
         RED PHASE: This test should FAIL initially because sliding window analysis
         methods don't exist yet.
         Tests trend detection and baseline establishment over 10-second intervals.
         """
         network_monitor = NetworkBandwidthMonitor()
-        
+
         # Initialize sliding window for packet loss analysis (will fail initially)
         window_config = {
             "window_duration_seconds": 10.0,
             "sampling_interval_seconds": 1.0,
             "trend_detection_enabled": True,
         }
-        
+
         packet_loss_analyzer = network_monitor.create_packet_loss_analyzer(**window_config)
         assert packet_loss_analyzer is not None, "Should create packet loss analyzer"
-        
+
         # Collect packet loss samples over time window
         import time
+
         samples_collected = []
         for sample_count in range(5):  # Collect 5 samples over 5 seconds
             sample = packet_loss_analyzer.collect_sample()
@@ -3756,10 +3958,10 @@ class TestNetworkCongestionDetection:
             assert "timestamp" in sample, "Sample should have timestamp"
             assert "packet_loss_rate" in sample, "Sample should have packet loss rate"
             assert "interface_stats" in sample, "Sample should have interface statistics"
-            
+
             samples_collected.append(sample)
             time.sleep(1.0)  # 1-second sampling interval
-        
+
         # Test sliding window trend analysis
         trend_analysis = packet_loss_analyzer.analyze_trends()
         assert trend_analysis is not None, "Should analyze packet loss trends"
@@ -3767,32 +3969,36 @@ class TestNetworkCongestionDetection:
         assert "baseline_packet_loss" in trend_analysis, "Should establish baseline"
         assert "samples_in_window" in trend_analysis, "Should track window samples"
         assert "trend_confidence" in trend_analysis, "Should provide trend confidence"
-        
+
         # Verify trend direction classification
         trend_direction = trend_analysis["trend_direction"]
-        assert trend_direction in ["stable", "increasing", "decreasing"], \
-            f"Invalid trend direction: {trend_direction}"
-        
+        assert trend_direction in [
+            "stable",
+            "increasing",
+            "decreasing",
+        ], f"Invalid trend direction: {trend_direction}"
+
         # Test baseline establishment accuracy
         baseline = trend_analysis["baseline_packet_loss"]
         assert 0.0 <= baseline <= 1.0, f"Baseline should be 0.0-1.0, got {baseline}"
-        
+
         # Verify window contains expected number of samples
         samples_in_window = trend_analysis["samples_in_window"]
-        assert samples_in_window == len(samples_collected), \
-            f"Window should contain {len(samples_collected)} samples, got {samples_in_window}"
+        assert samples_in_window == len(
+            samples_collected
+        ), f"Window should contain {len(samples_collected)} samples, got {samples_in_window}"
 
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_adaptive_transmission_rate_control(self):
         """
         SUBTASK-5.6.2.3 [8e3] - Test adaptive transmission rate control.
-        
+
         RED PHASE: This test should FAIL initially because adaptive rate control
         methods don't exist yet.
         Tests RSSI streaming frequency reduction based on packet loss thresholds.
         """
         network_monitor = NetworkBandwidthMonitor()
-        
+
         # Create adaptive rate controller (will fail initially)
         rate_controller = network_monitor.create_adaptive_rate_controller(
             base_frequency_hz=10.0,  # 10Hz RSSI streaming
@@ -3800,27 +4006,28 @@ class TestNetworkCongestionDetection:
             rate_reduction_levels=[5.0, 2.0, 1.0],  # 5Hz, 2Hz, 1Hz
         )
         assert rate_controller is not None, "Should create adaptive rate controller"
-        
+
         # Test rate adjustment based on packet loss
         test_scenarios = [
             {"packet_loss": 0.005, "expected_frequency": 10.0},  # Low loss - keep base rate
-            {"packet_loss": 0.02, "expected_frequency": 5.0},   # Medium loss - reduce to 5Hz
-            {"packet_loss": 0.07, "expected_frequency": 2.0},   # High loss - reduce to 2Hz
-            {"packet_loss": 0.15, "expected_frequency": 1.0},   # Critical loss - reduce to 1Hz
+            {"packet_loss": 0.02, "expected_frequency": 5.0},  # Medium loss - reduce to 5Hz
+            {"packet_loss": 0.07, "expected_frequency": 2.0},  # High loss - reduce to 2Hz
+            {"packet_loss": 0.15, "expected_frequency": 1.0},  # Critical loss - reduce to 1Hz
         ]
-        
+
         for scenario in test_scenarios:
             adjusted_rate = rate_controller.adjust_transmission_rate(
                 current_packet_loss=scenario["packet_loss"],
                 current_latency_ms=50.0,  # Normal latency
             )
-            
+
             assert "new_frequency_hz" in adjusted_rate, "Should return new frequency"
             assert "reduction_reason" in adjusted_rate, "Should explain reduction reason"
             assert "congestion_level" in adjusted_rate, "Should classify congestion level"
-            
+
             # Verify frequency adjustment matches expected level
             actual_freq = adjusted_rate["new_frequency_hz"]
             expected_freq = scenario["expected_frequency"]
-            assert actual_freq == expected_freq, \
-                f"Packet loss {scenario['packet_loss']} should set frequency to {expected_freq}Hz, got {actual_freq}Hz"
+            assert (
+                actual_freq == expected_freq
+            ), f"Packet loss {scenario['packet_loss']} should set frequency to {expected_freq}Hz, got {actual_freq}Hz"

@@ -8,7 +8,6 @@ frequency corrections for SAR scenarios involving moving platforms and beacons.
 
 import math
 from dataclasses import dataclass
-from typing import Optional
 
 # Speed of light constant (m/s)
 SPEED_OF_LIGHT = 299_792_458
@@ -32,7 +31,9 @@ class PlatformVelocity:
 
 
 def calculate_doppler_shift(
-    platform_velocity: PlatformVelocity, signal_frequency_hz: float, beacon_bearing_deg: float
+    platform_velocity: PlatformVelocity,
+    signal_frequency_hz: float,
+    beacon_bearing_deg: float,
 ) -> float:
     """Calculate Doppler shift for moving platform scenario.
 

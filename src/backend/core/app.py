@@ -72,19 +72,31 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(system.router, prefix="/api", tags=["system"])
-    app.include_router(health.router, prefix="/api", tags=["health"])  # Health endpoints
+    app.include_router(
+        health.router, prefix="/api", tags=["health"]
+    )  # Health endpoints
     app.include_router(detections.router, prefix="/api", tags=["detections"])
-    app.include_router(analytics.router, tags=["analytics"])  # Already has /api/analytics prefix
+    app.include_router(
+        analytics.router, tags=["analytics"]
+    )  # Already has /api/analytics prefix
     app.include_router(
         config_routes.router, prefix="/api", tags=["config"]
     )  # Has /config prefix, needs /api
-    app.include_router(asv_integration.router, prefix="/api", tags=["asv"])  # ASV integration endpoints
+    app.include_router(
+        asv_integration.router, prefix="/api", tags=["asv"]
+    )  # ASV integration endpoints
     app.include_router(state.router, tags=["state"])  # Already has /api/state prefix
-    app.include_router(telemetry.router, tags=["telemetry"])  # Already has /api/telemetry prefix
+    app.include_router(
+        telemetry.router, tags=["telemetry"]
+    )  # Already has /api/telemetry prefix
     app.include_router(search.router, tags=["search"])  # Already has /api/search prefix
-    app.include_router(spectrum.router, tags=["spectrum"])  # Already has /api/spectrum prefix
+    app.include_router(
+        spectrum.router, tags=["spectrum"]
+    )  # Already has /api/spectrum prefix
     app.include_router(static.router, prefix="/api", tags=["static"])
-    app.include_router(testing.router, tags=["testing"])  # Already has /api/testing prefix
+    app.include_router(
+        testing.router, tags=["testing"]
+    )  # Already has /api/testing prefix
 
     # Register WebSocket endpoint
     from src.backend.api import websocket
@@ -115,7 +127,10 @@ def create_app() -> FastAPI:
             buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0),
         )
 
-        if info.modified_handler == "/api/telemetry" or info.modified_handler == "/api/state":
+        if (
+            info.modified_handler == "/api/telemetry"
+            or info.modified_handler == "/api/state"
+        ):
             MAVLINK_LATENCY.observe(info.modified_duration)
 
     @instrumentator.add
@@ -129,7 +144,10 @@ def create_app() -> FastAPI:
             buckets=(0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.25, 0.5, 1.0),
         )
 
-        if info.modified_handler == "/api/analytics/rssi" or "signal" in info.modified_handler:
+        if (
+            info.modified_handler == "/api/analytics/rssi"
+            or "signal" in info.modified_handler
+        ):
             RSSI_PROCESSING.observe(info.modified_duration)
 
     # Instrument the app
@@ -140,7 +158,11 @@ def create_app() -> FastAPI:
     # Frontend build directory will be at src/frontend/dist
     frontend_build_path = Path(__file__).parent.parent.parent / "frontend" / "dist"
     if frontend_build_path.exists():
-        app.mount("/", StaticFiles(directory=str(frontend_build_path), html=True), name="static")
+        app.mount(
+            "/",
+            StaticFiles(directory=str(frontend_build_path), html=True),
+            name="static",
+        )
         logger.info(f"Serving static files from {frontend_build_path}")
     else:
         logger.warning(f"Frontend build directory not found at {frontend_build_path}")

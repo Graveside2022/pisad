@@ -115,7 +115,13 @@ class CoordinationLatencyTracker:
         """
         if not self.latencies:
             return LatencyStatistics(
-                count=0, mean=0.0, min_latency=0.0, max_latency=0.0, p95=0.0, p99=0.0, std_dev=0.0
+                count=0,
+                mean=0.0,
+                min_latency=0.0,
+                max_latency=0.0,
+                p95=0.0,
+                p99=0.0,
+                std_dev=0.0,
             )
 
         # Calculate basic statistics
@@ -142,7 +148,9 @@ class CoordinationLatencyTracker:
             std_dev=std_dev,
         )
 
-    def _calculate_percentile(self, sorted_values: list[float], percentile: int) -> float:
+    def _calculate_percentile(
+        self, sorted_values: list[float], percentile: int
+    ) -> float:
         """Calculate percentile from sorted values."""
         if not sorted_values:
             return 0.0
@@ -156,7 +164,10 @@ class CoordinationLatencyTracker:
 
         # Linear interpolation
         weight = index - lower_index
-        return sorted_values[lower_index] * (1 - weight) + sorted_values[upper_index] * weight
+        return (
+            sorted_values[lower_index] * (1 - weight)
+            + sorted_values[upper_index] * weight
+        )
 
     def check_alerts(self) -> list[LatencyAlert]:
         """
@@ -305,11 +316,16 @@ class MessageSerializer:
 
         try:
             # Convert to compact JSON
-            json_str = json.dumps(message, separators=self.json_separators, ensure_ascii=False)
+            json_str = json.dumps(
+                message, separators=self.json_separators, ensure_ascii=False
+            )
             json_bytes = json_str.encode("utf-8")
 
             # Apply compression if enabled and message is large enough
-            if self.compression_enabled and len(json_bytes) >= self.compression_threshold:
+            if (
+                self.compression_enabled
+                and len(json_bytes) >= self.compression_threshold
+            ):
                 compressed_bytes = gzip.compress(json_bytes, compresslevel=6)
                 result_bytes = b"GZIP" + compressed_bytes  # Add compression marker
 
@@ -470,7 +486,9 @@ class MessageSerializer:
         else:
             return self.serialize(current_message)
 
-    def _calculate_delta(self, current: dict[str, Any], previous: dict[str, Any]) -> dict[str, Any]:
+    def _calculate_delta(
+        self, current: dict[str, Any], previous: dict[str, Any]
+    ) -> dict[str, Any]:
         """Calculate delta between two messages."""
         delta = {}
 
@@ -522,7 +540,9 @@ class MessageSerializer:
             "average_deserialization_time_ms": round(avg_deser_time, 3),
             "compression_ratio_average": round(compression_ratio, 3),
             "compression_count": stats.compression_count,
-            "total_bytes_saved": max(0, stats.total_original_bytes - stats.total_compressed_bytes),
+            "total_bytes_saved": max(
+                0, stats.total_original_bytes - stats.total_compressed_bytes
+            ),
             "compression_enabled": self.compression_enabled,
             "compression_threshold": self.compression_threshold,
             "compact_json_enabled": self.use_compact_json,
@@ -612,7 +632,9 @@ class MessageTypeClassifier:
             compression_priority = "efficiency"  # Maximize compression for bulk data
 
         return MessageClassification(
-            category=category, urgency=urgency, compression_priority=compression_priority
+            category=category,
+            urgency=urgency,
+            compression_priority=compression_priority,
         )
 
 
@@ -816,7 +838,9 @@ class LZ4AdaptiveCompressor:
                 compression_level = 4
 
             # Compress with LZ4
-            compressed_data = lz4.frame.compress(json_bytes, compression_level=compression_level)
+            compressed_data = lz4.frame.compress(
+                json_bytes, compression_level=compression_level
+            )
 
             # Check compression ratio
             compression_ratio = len(compressed_data) / original_size
@@ -880,7 +904,9 @@ class LZ4AdaptiveCompressor:
         if not self.performance_monitoring or self.stats.total_original_bytes == 0:
             return {"efficiency_monitoring": False}
 
-        avg_compression_ratio = self.stats.total_compressed_bytes / self.stats.total_original_bytes
+        avg_compression_ratio = (
+            self.stats.total_compressed_bytes / self.stats.total_original_bytes
+        )
 
         bandwidth_savings_percent = (
             (self.stats.total_bytes_saved / self.stats.total_original_bytes) * 100
