@@ -77,9 +77,7 @@ class ASVConfigurationManager:
             if global_config_path.exists():
                 with open(global_config_path, "r") as f:
                     self._global_config = yaml.safe_load(f) or {}
-                logger.info(
-                    f"Loaded global ASV configuration from {global_config_path}"
-                )
+                logger.info(f"Loaded global ASV configuration from {global_config_path}")
             else:
                 self._global_config = self._get_default_global_config()
                 self._save_global_config()
@@ -98,9 +96,7 @@ class ASVConfigurationManager:
                     except TypeError as e:
                         logger.warning(f"Invalid frequency profile {name}: {e}")
 
-                logger.info(
-                    f"Loaded {len(self._frequency_profiles)} frequency profiles"
-                )
+                logger.info(f"Loaded {len(self._frequency_profiles)} frequency profiles")
             else:
                 self._frequency_profiles = self._get_default_frequency_profiles()
                 self._save_frequency_profiles()
@@ -118,9 +114,7 @@ class ASVConfigurationManager:
                         freq_profiles = []
                         for freq_name in analyzer_data.get("frequency_profiles", []):
                             if freq_name in self._frequency_profiles:
-                                freq_profiles.append(
-                                    self._frequency_profiles[freq_name]
-                                )
+                                freq_profiles.append(self._frequency_profiles[freq_name])
 
                         analyzer_data["frequency_profiles"] = freq_profiles
                         profile = ASVAnalyzerProfile(**analyzer_data)
@@ -317,9 +311,7 @@ class ASVConfigurationManager:
         try:
             config_path = self.config_dir / "asv_global.yaml"
             with open(config_path, "w") as f:
-                yaml.safe_dump(
-                    self._global_config, f, default_flow_style=False, indent=2
-                )
+                yaml.safe_dump(self._global_config, f, default_flow_style=False, indent=2)
             logger.debug(f"Saved global config to {config_path}")
         except Exception as e:
             logger.error(f"Failed to save global config: {e}")
@@ -328,8 +320,7 @@ class ASVConfigurationManager:
         """Save frequency profiles to file."""
         try:
             profiles_data = {
-                name: asdict(profile)
-                for name, profile in self._frequency_profiles.items()
+                name: asdict(profile) for name, profile in self._frequency_profiles.items()
             }
             config_path = self.config_dir / "frequency_profiles.yaml"
             with open(config_path, "w") as f:
@@ -345,9 +336,7 @@ class ASVConfigurationManager:
             for analyzer_id, profile in self._analyzer_profiles.items():
                 profile_dict = asdict(profile)
                 # Convert frequency profile objects to names for serialization
-                profile_dict["frequency_profiles"] = [
-                    fp.name for fp in profile.frequency_profiles
-                ]
+                profile_dict["frequency_profiles"] = [fp.name for fp in profile.frequency_profiles]
                 profiles_data[analyzer_id] = profile_dict
 
             config_path = self.config_dir / "analyzer_profiles.yaml"
@@ -423,9 +412,7 @@ class ASVConfigurationManager:
         """Get all frequency profiles."""
         return self._frequency_profiles.copy()
 
-    def create_frequency_profile(
-        self, profile: ASVFrequencyProfile, save: bool = True
-    ) -> None:
+    def create_frequency_profile(self, profile: ASVFrequencyProfile, save: bool = True) -> None:
         """Create or update frequency profile.
 
         Args:
@@ -460,9 +447,7 @@ class ASVConfigurationManager:
         """Get all analyzer profiles."""
         return self._analyzer_profiles.copy()
 
-    def create_analyzer_profile(
-        self, profile: ASVAnalyzerProfile, save: bool = True
-    ) -> None:
+    def create_analyzer_profile(self, profile: ASVAnalyzerProfile, save: bool = True) -> None:
         """Create or update analyzer profile.
 
         Args:
@@ -471,9 +456,7 @@ class ASVConfigurationManager:
         """
         # Validate analyzer configuration
         if profile.analyzer_type not in ["GP", "VOR", "LLZ"]:
-            raise ASVConfigurationError(
-                f"Invalid analyzer type: {profile.analyzer_type}"
-            )
+            raise ASVConfigurationError(f"Invalid analyzer type: {profile.analyzer_type}")
 
         self._analyzer_profiles[profile.analyzer_id] = profile
 
@@ -521,16 +504,12 @@ class ASVConfigurationManager:
             "sdr_service": {
                 "enabled": profile.enabled,
                 "device_type": "hackrf",  # Always HackRF for ASV integration
-                "sample_rate": self.get_global_config(
-                    "hardware_interface.sdr_sample_rate"
-                ),
+                "sample_rate": self.get_global_config("hardware_interface.sdr_sample_rate"),
                 "gain": profile.hardware_config.get("antenna_gain_db", 14),
             },
             "signal_processing": {
                 "fft_size": profile.processing_config.get("fft_size", 1024),
-                "window_function": profile.processing_config.get(
-                    "window_function", "hann"
-                ),
+                "window_function": profile.processing_config.get("window_function", "hann"),
                 "overlap_factor": profile.processing_config.get("overlap_factor", 0.5),
             },
             "frequency_profiles": [],
@@ -563,9 +542,7 @@ class ASVConfigurationManager:
         return {
             "global_config": {
                 "asv_enabled": self.get_global_config("asv_integration.enabled"),
-                "max_analyzers": self.get_global_config(
-                    "asv_integration.max_concurrent_analyzers"
-                ),
+                "max_analyzers": self.get_global_config("asv_integration.max_concurrent_analyzers"),
                 "safety_compliance": self.get_global_config(
                     "safety_integration.safety_authority_compliance"
                 ),
@@ -576,9 +553,7 @@ class ASVConfigurationManager:
             },
             "analyzer_profiles": {
                 "count": len(self._analyzer_profiles),
-                "enabled": len(
-                    [p for p in self._analyzer_profiles.values() if p.enabled]
-                ),
+                "enabled": len([p for p in self._analyzer_profiles.values() if p.enabled]),
                 "analyzers": list(self._analyzer_profiles.keys()),
             },
             "config_files": {

@@ -15,8 +15,13 @@ logger = logging.getLogger(__name__)
 class ASVInteropError(Exception):
     """Base exception for ASV .NET interop errors."""
 
-    def __init__(self, message: str, dotnet_exception: Exception | None = None, 
-                 error_code: str = "ASV_GENERAL", context: Dict[str, Any] | None = None):
+    def __init__(
+        self,
+        message: str,
+        dotnet_exception: Exception | None = None,
+        error_code: str = "ASV_GENERAL",
+        context: Dict[str, Any] | None = None,
+    ):
         """Initialize ASV interop error.
 
         Args:
@@ -29,7 +34,7 @@ class ASVInteropError(Exception):
         self.dotnet_exception = dotnet_exception
         self.error_code = error_code
         self.context = context or {}
-        
+
         # Log the exception for debugging
         logger.error(f"ASV Error [{error_code}]: {message}")
         if dotnet_exception:
@@ -51,10 +56,14 @@ class ASVInteropError(Exception):
 class ASVAssemblyLoadError(ASVInteropError):
     """Raised when ASV .NET assembly cannot be loaded."""
 
-    def __init__(self, message: str, dotnet_exception: Exception | None = None, 
-                 assembly_path: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        dotnet_exception: Exception | None = None,
+        assembly_path: str | None = None,
+    ):
         """Initialize assembly load error.
-        
+
         Args:
             message: Error description
             dotnet_exception: Original .NET exception
@@ -66,9 +75,14 @@ class ASVAssemblyLoadError(ASVInteropError):
 
 class ASVHardwareError(ASVInteropError):
     """Exception for ASV hardware interface errors."""
-    
-    def __init__(self, message: str, hardware_type: str = "unknown", 
-                 dotnet_exception: Exception | None = None, context: Dict[str, Any] | None = None):
+
+    def __init__(
+        self,
+        message: str,
+        hardware_type: str = "unknown",
+        dotnet_exception: Exception | None = None,
+        context: Dict[str, Any] | None = None,
+    ):
         context = context or {}
         context["hardware_type"] = hardware_type
         super().__init__(message, dotnet_exception, "ASV_HARDWARE_ERROR", context)
@@ -77,12 +91,17 @@ class ASVHardwareError(ASVInteropError):
 class ASVAnalyzerError(ASVInteropError):
     """Raised when ASV analyzer operations fail."""
 
-    def __init__(self, message: str, dotnet_exception: Exception | None = None,
-                 analyzer_type: str | None = None, analyzer_id: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        dotnet_exception: Exception | None = None,
+        analyzer_type: str | None = None,
+        analyzer_id: str | None = None,
+    ):
         """Initialize analyzer error.
-        
+
         Args:
-            message: Error description  
+            message: Error description
             dotnet_exception: Original .NET exception
             analyzer_type: Type of analyzer (GP, VOR, LLZ)
             analyzer_id: Specific analyzer instance ID
@@ -98,10 +117,9 @@ class ASVAnalyzerError(ASVInteropError):
 class ASVConfigurationError(ASVInteropError):
     """Raised when ASV configuration is invalid."""
 
-    def __init__(self, message: str, config_key: str | None = None, 
-                 config_value: Any = None):
+    def __init__(self, message: str, config_key: str | None = None, config_value: Any = None):
         """Initialize configuration error.
-        
+
         Args:
             message: Error description
             config_key: Configuration key that caused the error
@@ -118,10 +136,14 @@ class ASVConfigurationError(ASVInteropError):
 class ASVRuntimeError(ASVInteropError):
     """Raised when .NET runtime operations fail."""
 
-    def __init__(self, message: str, dotnet_exception: Exception | None = None,
-                 runtime_state: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        dotnet_exception: Exception | None = None,
+        runtime_state: str | None = None,
+    ):
         """Initialize runtime error.
-        
+
         Args:
             message: Error description
             dotnet_exception: Original .NET exception
@@ -134,10 +156,14 @@ class ASVRuntimeError(ASVInteropError):
 class ASVFrequencyError(ASVAnalyzerError):
     """Raised when frequency configuration is invalid."""
 
-    def __init__(self, message: str, frequency_hz: int | None = None,
-                 valid_range: tuple[int, int] | None = None):
+    def __init__(
+        self,
+        message: str,
+        frequency_hz: int | None = None,
+        valid_range: tuple[int, int] | None = None,
+    ):
         """Initialize frequency error.
-        
+
         Args:
             message: Error description
             frequency_hz: Invalid frequency value
@@ -154,10 +180,14 @@ class ASVFrequencyError(ASVAnalyzerError):
 class ASVCalibrationError(ASVAnalyzerError):
     """Raised when calibration operations fail."""
 
-    def __init__(self, message: str, dotnet_exception: Exception | None = None,
-                 calibration_type: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        dotnet_exception: Exception | None = None,
+        calibration_type: str | None = None,
+    ):
         """Initialize calibration error.
-        
+
         Args:
             message: Error description
             dotnet_exception: Original .NET exception
@@ -170,10 +200,15 @@ class ASVCalibrationError(ASVAnalyzerError):
 class ASVSignalProcessingError(ASVAnalyzerError):
     """Raised when signal processing operations fail."""
 
-    def __init__(self, message: str, dotnet_exception: Exception | None = None,
-                 processing_stage: str | None = None, data_size: int | None = None):
+    def __init__(
+        self,
+        message: str,
+        dotnet_exception: Exception | None = None,
+        processing_stage: str | None = None,
+        data_size: int | None = None,
+    ):
         """Initialize signal processing error.
-        
+
         Args:
             message: Error description
             dotnet_exception: Original .NET exception
@@ -188,20 +223,22 @@ class ASVSignalProcessingError(ASVAnalyzerError):
         super().__init__(message, dotnet_exception, "ASV_SIGNAL_PROCESSING", context)
 
 
-def translate_dotnet_exception(dotnet_exception: Exception, context: Dict[str, Any] | None = None) -> ASVInteropError:
+def translate_dotnet_exception(
+    dotnet_exception: Exception, context: Dict[str, Any] | None = None
+) -> ASVInteropError:
     """Translate .NET exception to appropriate Python ASV exception.
-    
+
     Args:
         dotnet_exception: Original .NET exception
         context: Additional context for error translation
-        
+
     Returns:
         Appropriate ASVInteropError subclass
     """
     exception_type = type(dotnet_exception).__name__
     message = str(dotnet_exception)
     context = context or {}
-    
+
     # Map common .NET exceptions to ASV exceptions
     exception_mappings = {
         "FileNotFoundException": ASVAssemblyLoadError,
@@ -214,67 +251,72 @@ def translate_dotnet_exception(dotnet_exception: Exception, context: Dict[str, A
         "OutOfMemoryException": ASVRuntimeError,
         "TimeoutException": ASVSignalProcessingError,
     }
-    
+
     # Determine appropriate exception type
     if exception_type in exception_mappings:
         exception_class = exception_mappings[exception_type]
     else:
         # Default to generic analyzer error for unknown .NET exceptions
         exception_class = ASVAnalyzerError
-    
+
     # Create translated exception with enhanced message
     translated_message = f".NET {exception_type}: {message}"
-    
+
     if exception_class == ASVAssemblyLoadError:
-        return exception_class(translated_message, dotnet_exception, 
-                             context.get("assembly_path"))
+        return exception_class(translated_message, dotnet_exception, context.get("assembly_path"))
     elif exception_class == ASVFrequencyError:
-        return exception_class(translated_message, 
-                             context.get("frequency_hz"),
-                             context.get("valid_range"))
+        return exception_class(
+            translated_message, context.get("frequency_hz"), context.get("valid_range")
+        )
     elif exception_class == ASVConfigurationError:
-        return exception_class(translated_message,
-                             context.get("config_key"), 
-                             context.get("config_value"))
+        return exception_class(
+            translated_message, context.get("config_key"), context.get("config_value")
+        )
     elif exception_class == ASVRuntimeError:
-        return exception_class(translated_message, dotnet_exception,
-                             context.get("runtime_state"))
+        return exception_class(translated_message, dotnet_exception, context.get("runtime_state"))
     elif exception_class == ASVSignalProcessingError:
-        return exception_class(translated_message, dotnet_exception,
-                             context.get("processing_stage"),
-                             context.get("data_size"))
+        return exception_class(
+            translated_message,
+            dotnet_exception,
+            context.get("processing_stage"),
+            context.get("data_size"),
+        )
     else:
-        return exception_class(translated_message, dotnet_exception,
-                             context.get("analyzer_type"),
-                             context.get("analyzer_id"))
+        return exception_class(
+            translated_message,
+            dotnet_exception,
+            context.get("analyzer_type"),
+            context.get("analyzer_id"),
+        )
 
 
 class ASVExceptionHandler:
     """Centralized exception handler for ASV operations."""
-    
+
     def __init__(self):
         """Initialize exception handler."""
         self._error_counts = {}
         self._last_errors = {}
-    
-    def handle_exception(self, operation: str, exception: Exception, 
-                        context: Dict[str, Any] | None = None) -> ASVInteropError:
+
+    def handle_exception(
+        self, operation: str, exception: Exception, context: Dict[str, Any] | None = None
+    ) -> ASVInteropError:
         """Handle and translate exception with context.
-        
+
         Args:
             operation: Name of operation that failed
             exception: Original exception
             context: Additional context
-            
+
         Returns:
             Translated ASV exception
         """
         # Count error occurrences
         error_key = f"{operation}:{type(exception).__name__}"
         self._error_counts[error_key] = self._error_counts.get(error_key, 0) + 1
-        
+
         # Determine if this is a .NET exception that needs translation
-        if hasattr(exception, '__module__') and 'System' in str(exception.__module__):
+        if hasattr(exception, "__module__") and "System" in str(exception.__module__):
             # This is likely a .NET exception
             translated = translate_dotnet_exception(exception, context)
         elif isinstance(exception, ASVInteropError):
@@ -286,18 +328,20 @@ class ASVExceptionHandler:
                 f"Operation '{operation}' failed: {exception}",
                 exception,
                 "ASV_PYTHON_ERROR",
-                context
+                context,
             )
-        
+
         # Store for analysis
         self._last_errors[operation] = {
-            "timestamp": logger._getCurrentTime() if hasattr(logger, '_getCurrentTime') else "unknown",
+            "timestamp": (
+                logger._getCurrentTime() if hasattr(logger, "_getCurrentTime") else "unknown"
+            ),
             "exception": translated,
-            "count": self._error_counts[error_key]
+            "count": self._error_counts[error_key],
         }
-        
+
         return translated
-    
+
     def get_error_statistics(self) -> Dict[str, Any]:
         """Get error statistics for monitoring."""
         return {
@@ -306,7 +350,7 @@ class ASVExceptionHandler:
             "unique_error_types": len(self._error_counts),
             "recent_errors": list(self._last_errors.keys())[-10:],  # Last 10
         }
-    
+
     def clear_statistics(self) -> None:
         """Clear error statistics."""
         self._error_counts.clear()

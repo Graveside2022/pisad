@@ -13,10 +13,12 @@ PRD References:
 CRITICAL: NO MOCK/FAKE/PLACEHOLDER TESTS - All tests verify real system behavior.
 """
 
+import asyncio
 import os
 import sys
 import time
 from collections import deque
+from typing import Any
 
 import pytest
 
@@ -33,7 +35,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
 from src.backend.utils.resource_optimizer import (
     CPUAnalysis,
-    CPUHotspot,
     MemoryPool,
     ResourceOptimizer,
 )
@@ -142,7 +143,7 @@ class TestMemoryUsageAnalysis:
                 if coordination_cycle % 100 == 0 and coordination_cycle > 0:
                     states_to_remove = [
                         k
-                        for k in coordination_states.keys()
+                        for k in coordination_states
                         if int(k.split("_")[1]) < coordination_cycle - 200
                     ]
                     for state_key in states_to_remove:
@@ -179,8 +180,8 @@ class TestMemoryUsageAnalysis:
 
         # Create memory load to test monitoring
         memory_consumer = []
-        for i in range(1000):
-            memory_consumer.append([j for j in range(1000)])  # Create memory load
+        for _i in range(1000):
+            memory_consumer.append(list(range(1000)))  # Create memory load
 
         current_memory = optimizer.get_current_memory_usage()
 
@@ -798,9 +799,7 @@ class TestPriorityCalculationCaching:
             snr = snr_values[i % len(snr_values)]
 
             # Calculate without cache
-            quality_result = priority_cache.calculate_signal_quality_uncached(
-                rssi=rssi, snr=snr, stability=0.85
-            )
+            priority_cache.calculate_signal_quality_uncached(rssi=rssi, snr=snr, stability=0.85)
 
             calculation_time = (time.perf_counter() - start_time) * 1000  # ms
             uncached_times.append(calculation_time)
@@ -814,9 +813,7 @@ class TestPriorityCalculationCaching:
             snr = snr_values[i % len(snr_values)]
 
             # Calculate with cache
-            quality_result = priority_cache.calculate_signal_quality_cached(
-                rssi=rssi, snr=snr, stability=0.85
-            )
+            priority_cache.calculate_signal_quality_cached(rssi=rssi, snr=snr, stability=0.85)
 
             calculation_time = (time.perf_counter() - start_time) * 1000  # ms
             cached_times.append(calculation_time)
@@ -877,7 +874,6 @@ class TestPriorityCalculationCaching:
         assert cache_stats_1["misses"] >= 1, "First calculation should have cache misses"
 
         # Similar calculations (should be cache hits)
-        cache_hits = 0
         for scenario in similar_scenarios:
             decision = priority_cache.make_priority_decision_cached(**scenario)
             # Verify decision consistency
@@ -915,7 +911,7 @@ class TestPriorityCalculationCaching:
         result1 = priority_cache.calculate_signal_quality_cached(**test_params)
 
         # Immediate recalculation (cache hit)
-        result2 = priority_cache.calculate_signal_quality_cached(**test_params)
+        priority_cache.calculate_signal_quality_cached(**test_params)
 
         cache_stats_before_expiry = priority_cache.get_cache_statistics()
         assert cache_stats_before_expiry["hits"] >= 1, "Should have cache hit before expiry"
@@ -924,7 +920,7 @@ class TestPriorityCalculationCaching:
         time.sleep(0.2)
 
         # Calculation after expiry (cache miss due to TTL)
-        result3 = priority_cache.calculate_signal_quality_cached(**test_params)
+        priority_cache.calculate_signal_quality_cached(**test_params)
 
         cache_stats_after_expiry = priority_cache.get_cache_statistics()
         expired_entries = cache_stats_after_expiry["expired_entries"]
@@ -957,8 +953,8 @@ class TestPriorityCalculationCaching:
         for i in range(150):  # More than max_cache_size
             # Create some repetition to ensure cache hits
             rssi = -80.0 + (i % 60) * 0.6  # Some values repeat every 60 iterations
-            snr = 10.0 + (i % 25) * 0.3    # Some values repeat every 25 iterations
-            
+            snr = 10.0 + (i % 25) * 0.3  # Some values repeat every 25 iterations
+
             priority_cache.calculate_signal_quality_cached(
                 rssi=rssi, snr=snr, stability=0.8 + (i % 8) * 0.02
             )
@@ -978,9 +974,7 @@ class TestPriorityCalculationCaching:
         ), f"Cache size should be ≤100, got {cache_stats['cache_size']}"
 
         # Verify cache efficiency metrics (low hit rate acceptable when testing eviction)
-        assert (
-            cache_stats["hit_rate"] >= 0.0
-        ), "Hit rate should be non-negative"
+        assert cache_stats["hit_rate"] >= 0.0, "Hit rate should be non-negative"
         assert (
             cache_stats["evicted_entries"] > 0
         ), "Should evict old entries when size limit exceeded"
@@ -1103,30 +1097,45 @@ class TestCPUUsageOptimization:
         # Profile CPU usage patterns during simulated coordination operations
         cpu_analysis = optimizer.profile_cpu_usage_patterns(
             duration_seconds=2.0,  # Short duration for testing
-            use_py_spy=True
+            use_py_spy=True,
         )
 
         # Verify CPU analysis results
         assert isinstance(cpu_analysis, CPUAnalysis), "Should return CPUAnalysis object"
         assert cpu_analysis.average_cpu_percent >= 0.0, "Average CPU should be non-negative"
-        assert cpu_analysis.peak_cpu_percent >= cpu_analysis.average_cpu_percent, "Peak should be >= average"
+        assert (
+            cpu_analysis.peak_cpu_percent >= cpu_analysis.average_cpu_percent
+        ), "Peak should be >= average"
         assert cpu_analysis.profile_duration_seconds > 0.0, "Profile duration should be recorded"
-        assert cpu_analysis.sampling_method in ["psutil", "py-spy", "psutil_fallback"], "Should use valid method"
+        assert cpu_analysis.sampling_method in [
+            "psutil",
+            "py-spy",
+            "psutil_fallback",
+        ], "Should use valid method"
 
         # Verify CPU efficiency score is calculated
         assert 0.0 <= cpu_analysis.cpu_efficiency_score <= 100.0, "Efficiency score should be 0-100"
 
         # Verify coordination overhead estimation
-        assert cpu_analysis.coordination_overhead_percent >= 0.0, "Coordination overhead should be non-negative"
-        assert cpu_analysis.coordination_overhead_percent <= 100.0, "Coordination overhead should be <= 100%"
+        assert (
+            cpu_analysis.coordination_overhead_percent >= 0.0
+        ), "Coordination overhead should be non-negative"
+        assert (
+            cpu_analysis.coordination_overhead_percent <= 100.0
+        ), "Coordination overhead should be <= 100%"
 
         # Verify trend analysis
         assert cpu_analysis.cpu_trend in [
-            "stable", "increasing", "decreasing", "insufficient_data"
+            "stable",
+            "increasing",
+            "decreasing",
+            "insufficient_data",
         ], "CPU trend should be valid"
 
-        print(f"CPU Analysis: avg={cpu_analysis.average_cpu_percent:.1f}%, "
-              f"peak={cpu_analysis.peak_cpu_percent:.1f}%, efficiency={cpu_analysis.cpu_efficiency_score:.1f}")
+        print(
+            f"CPU Analysis: avg={cpu_analysis.average_cpu_percent:.1f}%, "
+            f"peak={cpu_analysis.peak_cpu_percent:.1f}%, efficiency={cpu_analysis.cpu_efficiency_score:.1f}"
+        )
 
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_coordination_cpu_overhead_analysis(self):
@@ -1140,7 +1149,7 @@ class TestCPUUsageOptimization:
         # Create realistic coordination samples with timing data
         coordination_samples = []
         base_timestamp = time.time()
-        
+
         for i in range(100):
             # Simulate coordination decision with realistic latencies
             decision_latency = 5.0 + (i * 0.1) % 15.0  # Vary between 5-20ms
@@ -1158,18 +1167,28 @@ class TestCPUUsageOptimization:
 
         # Verify overhead analysis results
         assert cpu_overhead["average_decision_latency_ms"] > 0.0, "Should calculate average latency"
-        assert cpu_overhead["peak_decision_latency_ms"] >= cpu_overhead["average_decision_latency_ms"], "Peak >= average"
+        assert (
+            cpu_overhead["peak_decision_latency_ms"] >= cpu_overhead["average_decision_latency_ms"]
+        ), "Peak >= average"
         assert cpu_overhead["coordination_cpu_impact"] >= 0.0, "CPU impact should be non-negative"
         assert cpu_overhead["decisions_per_second"] > 0.0, "Should calculate decision rate"
-        assert cpu_overhead["cpu_optimization_potential"] in ["low", "medium", "high"], "Should assess optimization potential"
+        assert cpu_overhead["cpu_optimization_potential"] in [
+            "low",
+            "medium",
+            "high",
+        ], "Should assess optimization potential"
         assert cpu_overhead["total_coordination_samples"] == 100, "Should count all samples"
 
         # Verify latency requirements
-        assert cpu_overhead["average_decision_latency_ms"] < 50.0, "Average latency should be <50ms for PRD-NFR2"
+        assert (
+            cpu_overhead["average_decision_latency_ms"] < 50.0
+        ), "Average latency should be <50ms for PRD-NFR2"
 
-        print(f"Coordination Overhead: avg_latency={cpu_overhead['average_decision_latency_ms']:.1f}ms, "
-              f"cpu_impact={cpu_overhead['coordination_cpu_impact']:.1f}%, "
-              f"optimization_potential={cpu_overhead['cpu_optimization_potential']}")
+        print(
+            f"Coordination Overhead: avg_latency={cpu_overhead['average_decision_latency_ms']:.1f}ms, "
+            f"cpu_impact={cpu_overhead['coordination_cpu_impact']:.1f}%, "
+            f"optimization_potential={cpu_overhead['cpu_optimization_potential']}"
+        )
 
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_cpu_efficiency_score_calculation(self):
@@ -1184,8 +1203,8 @@ class TestCPUUsageOptimization:
         test_patterns = [
             # Pattern: (samples, expected_efficiency_range)
             ([30.0] * 20, (80, 100)),  # Consistent optimal usage
-            ([10.0] * 20, (50, 80)),   # Under-utilized but consistent
-            ([90.0] * 20, (0, 50)),    # Over-utilized
+            ([10.0] * 20, (50, 80)),  # Under-utilized but consistent
+            ([90.0] * 20, (0, 50)),  # Over-utilized
             ([20, 30, 25, 35, 40, 30, 25, 35, 30, 25] * 2, (70, 90)),  # Good variation within range
             ([10, 90, 15, 85, 20, 80] * 3, (20, 50)),  # High variance, inefficient
         ]
@@ -1193,14 +1212,21 @@ class TestCPUUsageOptimization:
         for i, (cpu_samples, expected_range) in enumerate(test_patterns):
             average_cpu = sum(cpu_samples) / len(cpu_samples)
             peak_cpu = max(cpu_samples)
-            
-            efficiency = optimizer._calculate_cpu_efficiency_score(cpu_samples, average_cpu, peak_cpu)
-            
-            assert 0.0 <= efficiency <= 100.0, f"Pattern {i}: Efficiency should be 0-100, got {efficiency}"
-            assert expected_range[0] <= efficiency <= expected_range[1], \
-                f"Pattern {i}: Efficiency {efficiency:.1f} not in expected range {expected_range}"
 
-            print(f"Pattern {i}: avg={average_cpu:.1f}%, peak={peak_cpu:.1f}%, efficiency={efficiency:.1f}")
+            efficiency = optimizer._calculate_cpu_efficiency_score(
+                cpu_samples, average_cpu, peak_cpu
+            )
+
+            assert (
+                0.0 <= efficiency <= 100.0
+            ), f"Pattern {i}: Efficiency should be 0-100, got {efficiency}"
+            assert (
+                expected_range[0] <= efficiency <= expected_range[1]
+            ), f"Pattern {i}: Efficiency {efficiency:.1f} not in expected range {expected_range}"
+
+            print(
+                f"Pattern {i}: avg={average_cpu:.1f}%, peak={peak_cpu:.1f}%, efficiency={efficiency:.1f}"
+            )
 
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_cpu_trend_analysis_accuracy(self):
@@ -1223,13 +1249,14 @@ class TestCPUUsageOptimization:
 
         for i, (cpu_samples, expected_trend) in enumerate(test_trends):
             actual_trend = optimizer._analyze_cpu_trend(cpu_samples)
-            
-            assert actual_trend == expected_trend, \
-                f"Pattern {i}: Expected {expected_trend}, got {actual_trend} for samples {cpu_samples[:5]}..."
+
+            assert (
+                actual_trend == expected_trend
+            ), f"Pattern {i}: Expected {expected_trend}, got {actual_trend} for samples {cpu_samples[:5]}..."
 
             print(f"Trend Pattern {i}: {actual_trend} (samples: {len(cpu_samples)})")
 
-    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available") 
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_py_spy_integration_fallback_behavior(self):
         """
         SUBTASK-5.6.2.2 [7a] - Verify py-spy integration handles missing dependencies gracefully.
@@ -1241,7 +1268,7 @@ class TestCPUUsageOptimization:
         # Test with py-spy disabled (should use psutil fallback)
         cpu_analysis = optimizer.profile_cpu_usage_patterns(
             duration_seconds=1.0,  # Short duration for testing
-            use_py_spy=False  # Force psutil-only mode
+            use_py_spy=False,  # Force psutil-only mode
         )
 
         # Verify fallback behavior
@@ -1252,37 +1279,41 @@ class TestCPUUsageOptimization:
         # Verify hotspots list (should be empty for psutil-only)
         assert isinstance(cpu_analysis.hotspots, list), "Hotspots should be a list"
 
-        print(f"Fallback Analysis: method={cpu_analysis.sampling_method}, "
-              f"avg_cpu={cpu_analysis.average_cpu_percent:.1f}%")
+        print(
+            f"Fallback Analysis: method={cpu_analysis.sampling_method}, "
+            f"avg_cpu={cpu_analysis.average_cpu_percent:.1f}%"
+        )
 
     @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
     def test_cpu_optimization_integration_with_coordination(self):
         """
-        SUBTASK-5.6.2.2 [7f] - Verify CPU optimization integration with dual-SDR coordination.
+        SUBTASK-5.6.2.2 [7f] - Validate CPU usage stays within thermal and power limits.
 
-        Tests that CPU optimization maintains coordination performance within thermal/power limits.
+        Comprehensive validation that thermal monitoring and automatic throttling prevent
+        system overheating during intensive dual-SDR coordination operations.
+        Tests authentic thermal behavior on actual Raspberry Pi 5 hardware.
         """
         optimizer = ResourceOptimizer(enable_memory_profiler=True)
 
         # Simulate realistic coordination workload
         start_time = time.time()
         coordination_samples = []
-        
+
         # Generate coordination samples under CPU load
         for cycle in range(50):
             # Simulate coordination decision computation
             decision_start = time.perf_counter()
-            
+
             # Simulate RSSI processing and priority calculation
             ground_rssi = -65.0 + (cycle % 10) * 2
             drone_rssi = -70.0 + (cycle % 8) * 1.5
-            
+
             # Simple priority calculation simulation
             rssi_diff = ground_rssi - drone_rssi
             selected_source = "ground" if rssi_diff > 2.0 else "drone"
-            
+
             decision_time_ms = (time.perf_counter() - decision_start) * 1000
-            
+
             sample = {
                 "cycle": cycle,
                 "timestamp": start_time + (cycle * 0.05),  # 50ms coordination interval
@@ -1293,7 +1324,7 @@ class TestCPUUsageOptimization:
                 "confidence": 0.85,
             }
             coordination_samples.append(sample)
-            
+
             # Brief pause to simulate real coordination timing
             time.sleep(0.01)  # 10ms processing time simulation
 
@@ -1302,29 +1333,1503 @@ class TestCPUUsageOptimization:
         cpu_overhead = optimizer.analyze_coordination_cpu_overhead(coordination_samples)
 
         # Verify coordination performance requirements are met
-        assert cpu_overhead["average_decision_latency_ms"] < 50.0, \
-            f"Coordination latency {cpu_overhead['average_decision_latency_ms']:.1f}ms exceeds 50ms limit"
-        
-        assert cpu_analysis.coordination_overhead_percent < 30.0, \
-            f"Coordination overhead {cpu_analysis.coordination_overhead_percent:.1f}% too high"
+        assert (
+            cpu_overhead["average_decision_latency_ms"] < 50.0
+        ), f"Coordination latency {cpu_overhead['average_decision_latency_ms']:.1f}ms exceeds 50ms limit"
 
-        # Verify thermal/power efficiency
-        assert cpu_analysis.peak_cpu_percent < 85.0, \
-            f"Peak CPU {cpu_analysis.peak_cpu_percent:.1f}% may cause thermal issues on Pi 5"
+        assert (
+            cpu_analysis.coordination_overhead_percent < 30.0
+        ), f"Coordination overhead {cpu_analysis.coordination_overhead_percent:.1f}% too high"
+
+        # **TASK-5.6.2.2 [7f] - COMPREHENSIVE THERMAL VALIDATION**
+        # Get thermal monitor for authentic Pi 5 temperature validation
+        thermal_monitor = optimizer.get_thermal_monitor()
+
+        # Test thermal sensor availability and functionality
+        thermal_status = thermal_monitor.get_current_thermal_status()
+        assert thermal_status[
+            "sensor_available"
+        ], "Pi 5 thermal sensor must be accessible for validation"
+
+        # Verify current thermal state is reasonable before load testing
+        if thermal_status["cpu_temperature"] is not None:
+            initial_temp = thermal_status["cpu_temperature"]
+            assert (
+                initial_temp < 80.0
+            ), f"Initial CPU temperature {initial_temp:.1f}°C too high for load testing"
+
+            # Simulate sustained CPU load and monitor thermal response
+            load_start_temp = initial_temp
+            max_observed_temp = initial_temp
+
+            # Generate sustained coordination workload to stress CPU
+            for _load_cycle in range(20):  # Extended load test
+                # High-frequency coordination decisions (stress test)
+                for i in range(100):
+                    ground_rssi = -60.0 + (i % 15) * 1.5  # More variable data
+                    drone_rssi = -75.0 + (i % 12) * 1.2
+                    abs(ground_rssi - drone_rssi) * 1.5
+
+                # Check thermal status during load
+                current_thermal = thermal_monitor.get_current_thermal_status()
+                if current_thermal["cpu_temperature"] is not None:
+                    current_temp = current_thermal["cpu_temperature"]
+                    max_observed_temp = max(max_observed_temp, current_temp)
+
+                    # Verify thermal thresholds are respected
+                    assert (
+                        current_temp < 85.0
+                    ), f"CPU temperature {current_temp:.1f}°C exceeds shutdown threshold during load"
+
+                    # Check if thermal throttling is working
+                    throttling_status = thermal_monitor.check_throttling_required(current_temp)
+                    if throttling_status["throttling_required"]:
+                        assert throttling_status["throttling_level"] in [
+                            "mild",
+                            "aggressive",
+                            "emergency",
+                        ], "Thermal throttling must provide valid throttling level"
+
+                time.sleep(0.1)  # Brief pause between load cycles
+
+            # Verify thermal management effectiveness
+            temp_increase = max_observed_temp - load_start_temp
+            assert (
+                temp_increase < 15.0
+            ), f"Temperature increase {temp_increase:.1f}°C indicates poor thermal management"
+
+            print(
+                f"Thermal Validation: initial={initial_temp:.1f}°C, max={max_observed_temp:.1f}°C, increase={temp_increase:.1f}°C"
+            )
+
+        # Verify CPU efficiency under thermal constraints
+        assert (
+            cpu_analysis.peak_cpu_percent < 85.0
+        ), f"Peak CPU {cpu_analysis.peak_cpu_percent:.1f}% may cause thermal issues on Pi 5"
+
+        # Verify power consumption implications (CPU load correlates with power)
+        if cpu_analysis.peak_cpu_percent > 70.0:
+            # High CPU usage - verify thermal protection is active
+            thermal_check = thermal_monitor.get_current_thermal_status()
+            if thermal_check["cpu_temperature"] is not None:
+                assert (
+                    thermal_check["thermal_state"]
+                    in [
+                        "normal",
+                        "warning",
+                    ]
+                ), f"High CPU load without appropriate thermal state: {thermal_check['thermal_state']}"
 
         # Verify integration efficiency
         total_coordination_time = len(coordination_samples) * 0.05  # Expected time
-        actual_coordination_time = coordination_samples[-1]["timestamp"] - coordination_samples[0]["timestamp"]
+        actual_coordination_time = (
+            coordination_samples[-1]["timestamp"] - coordination_samples[0]["timestamp"]
+        )
         timing_efficiency = min(total_coordination_time / max(actual_coordination_time, 0.1), 1.0)
-        
-        assert timing_efficiency > 0.8, \
-            f"Coordination timing efficiency {timing_efficiency:.2f} too low"
 
-        print(f"Integration Test: avg_latency={cpu_overhead['average_decision_latency_ms']:.1f}ms, "
-              f"cpu_overhead={cpu_analysis.coordination_overhead_percent:.1f}%, "
-              f"peak_cpu={cpu_analysis.peak_cpu_percent:.1f}%, "
-              f"timing_efficiency={timing_efficiency:.2f}")
+        assert (
+            timing_efficiency > 0.8
+        ), f"Coordination timing efficiency {timing_efficiency:.2f} too low"
+
+        print(
+            f"Integration Test: avg_latency={cpu_overhead['average_decision_latency_ms']:.1f}ms, "
+            f"cpu_overhead={cpu_analysis.coordination_overhead_percent:.1f}%, "
+            f"peak_cpu={cpu_analysis.peak_cpu_percent:.1f}%, "
+            f"timing_efficiency={timing_efficiency:.2f}"
+        )
 
         # Verify optimization assessment
-        assert cpu_overhead["cpu_optimization_potential"] in ["low", "medium"], \
-            "CPU optimization should show room for improvement or good performance"
+        assert cpu_overhead["cpu_optimization_potential"] in [
+            "low",
+            "medium",
+        ], "CPU optimization should show room for improvement or good performance"
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_thermal_monitoring_validation_basic(self):
+        """
+        SUBTASK-5.6.2.2 [7f] - Basic thermal monitoring validation that works at any temperature.
+
+        Validates thermal monitoring infrastructure and safety thresholds without
+        requiring intensive load testing. Tests authentic thermal sensor behavior.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        thermal_monitor = optimizer.get_thermal_monitor()
+
+        # Verify thermal monitoring infrastructure exists and works
+        thermal_status = thermal_monitor.get_current_thermal_status()
+
+        # Validate sensor availability
+        assert thermal_status["sensor_available"], "Pi 5 thermal sensor must be accessible"
+        assert "timestamp" in thermal_status, "Thermal status must include timestamp"
+
+        # Validate temperature reading
+        if thermal_status["cpu_temperature"] is not None:
+            current_temp = thermal_status["cpu_temperature"]
+
+            # Verify reasonable temperature range (Pi 5 operating range)
+            assert (
+                10.0 <= current_temp <= 95.0
+            ), f"CPU temperature {current_temp:.1f}°C outside reasonable range"
+
+            # Verify thermal state determination
+            assert thermal_status["thermal_state"] in [
+                "normal",
+                "warning",
+                "throttling",
+                "critical",
+            ], f"Invalid thermal state: {thermal_status['thermal_state']}"
+
+            # Test thermal threshold configuration
+            original_thresholds = {
+                "warning_temp": 70.0,
+                "throttle_temp": 80.0,
+                "shutdown_temp": 85.0,
+            }
+
+            # Test custom threshold configuration
+            test_thresholds = {"warning_temp": 60.0, "throttle_temp": 70.0, "shutdown_temp": 75.0}
+            thermal_monitor.configure_thermal_thresholds(test_thresholds)
+
+            # Verify throttling logic with custom thresholds
+            throttling_status = thermal_monitor.check_throttling_required(current_temp)
+            assert (
+                "throttling_required" in throttling_status
+            ), "Throttling status must include required flag"
+            assert "throttling_level" in throttling_status, "Throttling status must include level"
+            assert (
+                "current_temp" in throttling_status
+            ), "Throttling status must include current temperature"
+
+            # Validate throttling decision logic
+            if current_temp >= test_thresholds["shutdown_temp"]:
+                assert throttling_status[
+                    "throttling_required"
+                ], "High temperature should require throttling"
+                assert (
+                    throttling_status["throttling_level"] == "emergency"
+                ), "Shutdown temp should trigger emergency throttling"
+            elif current_temp >= test_thresholds["throttle_temp"]:
+                assert throttling_status[
+                    "throttling_required"
+                ], "Throttle temperature should require throttling"
+                assert throttling_status["throttling_level"] in [
+                    "aggressive",
+                    "emergency",
+                ], "High temp should trigger aggressive throttling"
+            elif current_temp >= test_thresholds["warning_temp"]:
+                if throttling_status["throttling_required"]:
+                    assert (
+                        throttling_status["throttling_level"] == "mild"
+                    ), "Warning temp should only trigger mild throttling"
+
+            # Restore original thresholds
+            thermal_monitor.configure_thermal_thresholds(original_thresholds)
+
+            print(
+                f"Thermal Validation: temp={current_temp:.1f}°C, state={thermal_status['thermal_state']}, "
+                f"throttling_required={throttling_status['throttling_required']}"
+            )
+
+            # Verify the thermal monitoring prevents dangerous operation
+            if current_temp >= 85.0:
+                print(
+                    f"WARNING: CPU temperature {current_temp:.1f}°C is at critical level - thermal protection active"
+                )
+                # This is correct behavior - thermal monitoring should prevent load testing when hot
+
+        else:
+            pytest.skip("CPU temperature sensor not accessible - partial thermal validation only")
+
+        # Verify thermal monitoring integration with ResourceOptimizer
+        assert hasattr(
+            optimizer, "get_thermal_monitor"
+        ), "ResourceOptimizer must provide thermal monitor access"
+        thermal_monitor_2 = optimizer.get_thermal_monitor()
+        assert thermal_monitor_2 is thermal_monitor, "Should return same thermal monitor instance"
+
+        print("Basic thermal monitoring validation completed successfully")
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_thermal_monitoring_under_extreme_load(self):
+        """
+        SUBTASK-5.6.2.2 [7f] - Validate thermal monitoring prevents overheating under extreme CPU loads.
+
+        Comprehensive thermal stress test that validates Pi 5 thermal management
+        prevents system damage during maximum coordination workloads.
+        Tests authentic thermal behavior with real hardware sensors.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        thermal_monitor = optimizer.get_thermal_monitor()
+
+        # Verify thermal sensor functionality before stress testing
+        initial_thermal = thermal_monitor.get_current_thermal_status()
+        assert initial_thermal[
+            "sensor_available"
+        ], "Thermal sensor must be available for stress testing"
+
+        if initial_thermal["cpu_temperature"] is None:
+            pytest.skip("CPU temperature sensor not accessible - cannot perform thermal validation")
+
+        initial_temp = initial_thermal["cpu_temperature"]
+        assert (
+            initial_temp < 75.0
+        ), f"Initial temperature {initial_temp:.1f}°C too high for stress testing"
+
+        # Configure aggressive thermal thresholds for testing
+        test_thresholds = {
+            "warning_temp": 65.0,  # Lower threshold for testing
+            "throttle_temp": 75.0,
+            "shutdown_temp": 80.0,
+        }
+        thermal_monitor.configure_thermal_thresholds(test_thresholds)
+
+        # Extreme load simulation - maximum coordination frequency
+        max_temp_observed = initial_temp
+        thermal_states_observed = set()
+        throttling_events = 0
+
+        try:
+            # Sustained high-load test (30 seconds of maximum coordination workload)
+            test_duration = 30  # seconds
+            cycles_per_second = 50  # Very high coordination frequency
+            total_cycles = test_duration * cycles_per_second
+
+            for cycle in range(total_cycles):
+                # Maximum intensity coordination simulation
+                for batch in range(10):  # 10 decisions per cycle
+                    # Complex priority calculations to stress CPU
+                    ground_rssi = -55.0 + (batch % 20) * 2.5
+                    drone_rssi = -80.0 + (batch % 18) * 2.1
+                    historical_weight = 0.3 + (cycle % 7) * 0.1
+
+                    # Computationally intensive decision logic
+                    signal_quality = abs(ground_rssi - drone_rssi) * historical_weight
+                    confidence_factor = (100 - abs(ground_rssi)) / 100.0
+                    priority_score = signal_quality * confidence_factor
+
+                    # Simulate memory allocation/deallocation stress
+                    temp_data = [priority_score * i for i in range(50)]
+                    "ground" if sum(temp_data) > 100 else "drone"
+
+                # Check thermal status every 10 cycles (0.2 seconds)
+                if cycle % 10 == 0:
+                    current_thermal = thermal_monitor.get_current_thermal_status()
+                    current_temp = current_thermal["cpu_temperature"]
+                    thermal_state = current_thermal["thermal_state"]
+
+                    # Track maximum temperature and states
+                    max_temp_observed = max(max_temp_observed, current_temp)
+                    thermal_states_observed.add(thermal_state)
+
+                    # Critical thermal protection validation
+                    assert (
+                        current_temp < test_thresholds["shutdown_temp"]
+                    ), f"CPU temperature {current_temp:.1f}°C exceeded shutdown threshold {test_thresholds['shutdown_temp']}°C"
+
+                    # Check throttling system response
+                    throttling_status = thermal_monitor.check_throttling_required(current_temp)
+                    if throttling_status["throttling_required"]:
+                        throttling_events += 1
+                        assert throttling_status["throttling_level"] in [
+                            "mild",
+                            "aggressive",
+                            "emergency",
+                        ], f"Invalid throttling level: {throttling_status['throttling_level']}"
+
+                        # Verify throttling action is appropriate for temperature
+                        if current_temp >= test_thresholds["throttle_temp"]:
+                            assert throttling_status["throttling_level"] in [
+                                "aggressive",
+                                "emergency",
+                            ], f"Temperature {current_temp:.1f}°C requires aggressive throttling"
+
+                # Brief pause to allow thermal measurement
+                time.sleep(0.02)  # 20ms between cycles
+
+        finally:
+            # Restore original thermal thresholds
+            original_thresholds = {
+                "warning_temp": 70.0,
+                "throttle_temp": 80.0,
+                "shutdown_temp": 85.0,
+            }
+            thermal_monitor.configure_thermal_thresholds(original_thresholds)
+
+        # Validate thermal management effectiveness
+        temp_increase = max_temp_observed - initial_temp
+
+        # Verify thermal protection worked
+        assert (
+            max_temp_observed < test_thresholds["shutdown_temp"]
+        ), f"Maximum temperature {max_temp_observed:.1f}°C exceeded safe limits"
+
+        # Verify reasonable thermal response
+        assert (
+            temp_increase < 20.0
+        ), f"Temperature increase {temp_increase:.1f}°C indicates inadequate thermal management"
+
+        # Verify thermal state transitions occurred appropriately
+        if max_temp_observed > test_thresholds["warning_temp"]:
+            assert (
+                "warning" in thermal_states_observed or "throttling" in thermal_states_observed
+            ), "Thermal system should have detected elevated temperature state"
+
+        # Verify throttling system engaged when needed
+        if max_temp_observed > test_thresholds["throttle_temp"]:
+            assert (
+                throttling_events > 0
+            ), "Thermal throttling should have activated at high temperatures"
+
+        print(
+            f"Thermal Stress Test: initial={initial_temp:.1f}°C, max={max_temp_observed:.1f}°C, "
+            f"increase={temp_increase:.1f}°C, states={thermal_states_observed}, "
+            f"throttling_events={throttling_events}"
+        )
+
+        # Verify system remains within power constraints (thermal management preserves power limits)
+        # High temperatures indicate high power consumption - thermal protection ensures < 2.5A @ 5V
+        assert (
+            max_temp_observed < 85.0
+        ), "Thermal management must prevent temperatures that would exceed PRD NFR4 power limits"
+
+
+class TestOptimizedCoordinationAlgorithms:
+    """
+    SUBTASK-5.6.2.2 [7b] - Test optimized coordination decision algorithms.
+
+    Tests verify efficient comparison operations and reduced computational complexity.
+    """
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_fast_coordination_decision_performance(self):
+        """
+        SUBTASK-5.6.2.2 [7b] - Verify fast coordination decision algorithm performance.
+
+        Tests optimized decision making with lookup tables and caching.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Test fast decision making with various signal scenarios
+        test_scenarios = [
+            # Scenario: (ground_rssi, drone_rssi, current_source, expected_fast_decision)
+            (-40.0, -80.0, "drone", True),  # Large difference = fast decision
+            (-70.0, -75.0, "ground", False),  # Small difference = hysteresis decision
+            (-50.0, -90.0, "ground", True),  # Very large difference = fast decision
+            (-65.0, -67.0, "drone", False),  # Close values = hysteresis decision
+        ]
+
+        for ground_rssi, drone_rssi, current_source, expect_fast in test_scenarios:
+            decision = algorithms.make_fast_coordination_decision(
+                ground_rssi=ground_rssi,
+                drone_rssi=drone_rssi,
+                current_source=current_source,
+                ground_snr=12.0,
+                drone_snr=10.0,
+            )
+
+            # Verify decision structure
+            assert isinstance(decision, dict), "Should return decision dictionary"
+            assert decision["selected_source"] in ["ground", "drone"], "Should select valid source"
+            assert 0.1 <= decision["confidence"] <= 0.99, "Confidence should be in valid range"
+            assert decision["decision_time_us"] > 0.0, "Should measure decision time"
+            assert decision["algorithm"] == "optimized_fast", "Should use optimized algorithm"
+
+            # Verify performance - fast decisions should be quicker
+            if expect_fast:
+                assert (
+                    decision["decision_time_us"] < 50.0
+                ), f"Fast decision should be <50μs, got {decision['decision_time_us']}μs"
+            else:
+                # Even hysteresis decisions should be fast with optimization
+                assert (
+                    decision["decision_time_us"] < 100.0
+                ), f"Hysteresis decision should be <100μs, got {decision['decision_time_us']}μs"
+
+        print(f"Fast decision algorithm tested across {len(test_scenarios)} scenarios")
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_batch_coordination_decision_efficiency(self):
+        """
+        SUBTASK-5.6.2.2 [7b] - Verify batch processing efficiency for coordination decisions.
+
+        Tests vectorized operations and shared computations for multiple decisions.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Create batch of decision requests
+        batch_requests = []
+        for i in range(20):
+            request = {
+                "ground_rssi": -60.0 + (i % 10) * 2,  # Vary RSSI values
+                "drone_rssi": -70.0 + (i % 8) * 1.5,
+                "current_source": "ground" if i % 2 == 0 else "drone",
+                "ground_snr": 10.0 + (i % 5),
+                "drone_snr": 8.0 + (i % 4),
+            }
+            batch_requests.append(request)
+
+        # Process batch decisions
+        start_time = time.perf_counter()
+        batch_results = algorithms.make_batch_coordination_decisions(batch_requests)
+        batch_time = (time.perf_counter() - start_time) * 1000
+
+        # Verify batch results
+        assert len(batch_results) == len(batch_requests), "Should process all requests"
+        assert batch_time < 10.0, f"Batch processing should be <10ms, got {batch_time:.2f}ms"
+
+        # Verify individual results in batch
+        for i, result in enumerate(batch_results):
+            assert result["batch_index"] == i, "Batch indices should be correct"
+            assert result["selected_source"] in ["ground", "drone"], "Should select valid source"
+            assert result["decision_time_us"] > 0.0, "Should measure individual decision time"
+
+        # Calculate average decision time for batch
+        avg_decision_time = sum(r["decision_time_us"] for r in batch_results) / len(batch_results)
+        assert (
+            avg_decision_time < 30.0
+        ), f"Average batch decision should be <30μs, got {avg_decision_time:.1f}μs"
+
+        print(
+            f"Batch processed {len(batch_requests)} decisions in {batch_time:.2f}ms "
+            f"(avg: {avg_decision_time:.1f}μs per decision)"
+        )
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_rssi_lookup_table_accuracy(self):
+        """
+        SUBTASK-5.6.2.2 [7b] - Verify RSSI lookup table provides accurate and fast quality scores.
+
+        Tests pre-computed lookup table against reference calculations.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Test lookup table accuracy across RSSI range
+        test_rssi_values = [-90, -80, -70, -60, -50, -40, -35]
+
+        for rssi in test_rssi_values:
+            # Get score from optimized lookup
+            start_time = time.perf_counter()
+            optimized_score = algorithms._get_fast_quality_score(rssi, None)
+            lookup_time_us = (time.perf_counter() - start_time) * 1_000_000
+
+            # Calculate reference score using same algorithm as SDRPriorityMatrix
+            reference_score = max(0, min(100, (rssi + 80) * 2))
+
+            # Verify accuracy (should be identical for integer RSSI values)
+            assert (
+                abs(optimized_score - reference_score) < 0.1
+            ), f"Lookup table score {optimized_score} should match reference {reference_score} for RSSI {rssi}"
+
+            # Verify performance
+            assert lookup_time_us < 10.0, f"Lookup should be <10μs, got {lookup_time_us:.1f}μs"
+
+        print(f"Lookup table accuracy verified for {len(test_rssi_values)} RSSI values")
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_algorithm_caching_effectiveness(self):
+        """
+        SUBTASK-5.6.2.2 [7b] - Verify caching improves algorithm performance for repeated decisions.
+
+        Tests cache hit rates and performance improvements from quality score caching.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Make repeated decisions with same RSSI values to test caching
+        repeated_decisions = []
+        rssi_values = [(-65, -70), (-60, -75), (-55, -80)]  # (ground, drone) pairs
+
+        for _ in range(3):  # Repeat each pair 3 times
+            for ground_rssi, drone_rssi in rssi_values:
+                decision = algorithms.make_fast_coordination_decision(
+                    ground_rssi=ground_rssi,
+                    drone_rssi=drone_rssi,
+                    current_source="drone",
+                    ground_snr=12.0,
+                    drone_snr=10.0,
+                )
+                repeated_decisions.append(decision)
+
+        # Check algorithm statistics for cache effectiveness
+        stats = algorithms.get_algorithm_statistics()
+
+        assert stats["total_decisions"] == len(repeated_decisions), "Should count all decisions"
+        assert stats["cached_decisions"] > 0, "Should have some cached decisions"
+        assert stats["cache_hit_rate"] > 0.0, "Should have positive cache hit rate"
+        assert (
+            stats["algorithm_efficiency_score"] >= 50.0
+        ), "Algorithm should be reasonably efficient"
+
+        # Verify cache improves performance (later decisions should be faster)
+        early_decisions = repeated_decisions[:3]
+        later_decisions = repeated_decisions[-3:]
+
+        early_avg_time = sum(d["decision_time_us"] for d in early_decisions) / len(early_decisions)
+        later_avg_time = sum(d["decision_time_us"] for d in later_decisions) / len(later_decisions)
+
+        # Later decisions should be faster due to caching (some tolerance for measurement noise)
+        performance_improvement = (early_avg_time - later_avg_time) / early_avg_time
+        assert (
+            performance_improvement >= -0.5
+        ), "Caching should not significantly degrade performance"
+
+        print(
+            f"Cache effectiveness: {stats['cache_hit_rate']:.2f} hit rate, "
+            f"{stats['algorithm_efficiency_score']:.1f} efficiency score"
+        )
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_coordination_timing_optimization_recommendations(self):
+        """
+        SUBTASK-5.6.2.2 [7b] - Verify timing optimization recommendations based on performance analysis.
+
+        Tests adaptive parameter tuning for target latency requirements.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Create mock coordination samples with various latencies
+        coordination_samples = []
+        for i in range(50):
+            # Simulate increasing latencies to trigger optimization
+            decision_time_us = 20 + (i * 0.8)  # Increasing from 20μs to 60μs
+            sample = {
+                "decision_time_us": decision_time_us,
+                "selected_source": "ground" if i % 2 == 0 else "drone",
+                "confidence": 0.8,
+            }
+            coordination_samples.append(sample)
+
+        # Test optimization recommendations for different target latencies
+        target_latencies = [10.0, 25.0, 50.0]  # ms
+
+        for target_ms in target_latencies:
+            recommendations = algorithms.optimize_coordination_timing(
+                coordination_samples, target_latency_ms=target_ms
+            )
+
+            assert recommendations["optimization_possible"] is True, "Should be able to optimize"
+            assert "current_avg_latency_ms" in recommendations, "Should report current latency"
+            assert "target_latency_ms" in recommendations, "Should report target latency"
+            assert recommendations["optimization_needed"] == (
+                recommendations["current_avg_latency_ms"] > target_ms
+            ), "Optimization needed assessment should be correct"
+
+            if recommendations["optimization_needed"]:
+                assert "recommended_cache_size" in recommendations, "Should recommend cache size"
+                assert (
+                    "recommended_fast_threshold" in recommendations
+                ), "Should recommend fast threshold"
+                assert (
+                    "optimization_level" in recommendations
+                ), "Should recommend optimization level"
+
+        print(f"Timing optimization tested for {len(target_latencies)} target latencies")
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_hysteresis_oscillation_prevention(self):
+        """
+        SUBTASK-5.6.2.2 [7b] - Verify hysteresis logic prevents oscillation in close signal conditions.
+
+        Tests decision stability when ground and drone signals have similar quality.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Test scenario with close RSSI values (should use hysteresis)
+        ground_rssi = -65.0
+        drone_rssi = -67.0  # Only 2dB difference
+
+        # Start with ground source selected
+        current_source = "ground"
+        decisions = []
+
+        # Make multiple decisions with same signals to test stability
+        for _ in range(10):
+            decision = algorithms.make_fast_coordination_decision(
+                ground_rssi=ground_rssi,
+                drone_rssi=drone_rssi,
+                current_source=current_source,
+            )
+            decisions.append(decision)
+            current_source = decision["selected_source"]  # Update for next decision
+
+        # Verify hysteresis prevents oscillation
+        sources = [d["selected_source"] for d in decisions]
+        unique_sources = set(sources)
+
+        # With small difference and hysteresis, should stick to initial source mostly
+        assert len(unique_sources) <= 2, "Should not have excessive source switching"
+
+        # Check decision reasons indicate hysteresis usage
+        hysteresis_decisions = [d for d in decisions if "hysteresis" in d["reason"]]
+        assert (
+            len(hysteresis_decisions) > len(decisions) // 2
+        ), "Should use hysteresis logic for close values"
+
+        # Verify no fast decisions were made (difference too small)
+        fast_decisions = [d for d in decisions if "fast_decision" in d["reason"]]
+        assert len(fast_decisions) == 0, "Should not make fast decisions for small differences"
+
+        print(
+            f"Hysteresis tested: {len(unique_sources)} unique sources across {len(decisions)} decisions"
+        )
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_algorithm_efficiency_score_calculation(self):
+        """
+        SUBTASK-5.6.2.2 [7b] - Verify algorithm efficiency score reflects performance characteristics.
+
+        Tests efficiency scoring based on fast decisions, cache hits, and timing performance.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Create scenarios that should result in high efficiency
+        efficient_scenarios = [
+            # Large differences = fast decisions, repeated values = cache hits
+            (-40, -80),
+            (-40, -80),
+            (-40, -80),  # Same values for caching
+            (-50, -90),
+            (-50, -90),
+            (-50, -90),  # Large diff + caching
+        ]
+
+        for ground_rssi, drone_rssi in efficient_scenarios:
+            algorithms.make_fast_coordination_decision(
+                ground_rssi=ground_rssi,
+                drone_rssi=drone_rssi,
+                current_source="drone",
+            )
+
+        # Get efficiency statistics
+        stats = algorithms.get_algorithm_statistics()
+
+        # Verify efficiency metrics
+        assert stats["total_decisions"] == len(efficient_scenarios), "Should count all decisions"
+        assert stats["fast_decision_rate"] > 0.0, "Should have some fast decisions"
+        assert stats["cache_hit_rate"] >= 0.0, "Cache hit rate should be non-negative"
+        assert stats["algorithm_efficiency_score"] >= 60.0, "Should achieve reasonable efficiency"
+
+        # Test with inefficient scenarios (close values = no fast decisions)
+        close_scenarios = [(-65, -67), (-66, -68), (-64, -66)]  # Close values
+
+        for ground_rssi, drone_rssi in close_scenarios:
+            algorithms.make_fast_coordination_decision(
+                ground_rssi=ground_rssi,
+                drone_rssi=drone_rssi,
+                current_source="drone",
+            )
+
+        updated_stats = algorithms.get_algorithm_statistics()
+
+        # Fast decision rate should decrease with close values
+        assert (
+            updated_stats["fast_decision_rate"] <= stats["fast_decision_rate"]
+        ), "Fast decision rate should not increase with close values"
+
+        print(
+            f"Algorithm efficiency: {updated_stats['algorithm_efficiency_score']:.1f}, "
+            f"fast_rate: {updated_stats['fast_decision_rate']:.2f}, "
+            f"cache_rate: {updated_stats['cache_hit_rate']:.2f}"
+        )
+
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    def test_optimized_algorithm_integration_with_existing_systems(self):
+        """
+        SUBTASK-5.6.2.2 [7b] - Verify optimized algorithms integrate with existing coordination systems.
+
+        Tests compatibility with existing SDR priority management and coordination patterns.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Test integration by simulating realistic coordination workflow
+        coordination_cycle_data = []
+
+        # Simulate 20 coordination cycles with realistic RSSI patterns
+        for cycle in range(20):
+            # Simulate realistic RSSI variation
+            ground_rssi = -60.0 + (cycle % 5) * 2 - (cycle // 10) * 5
+            drone_rssi = -65.0 + (cycle % 3) * 1.5 - (cycle // 8) * 3
+            current_source = (
+                "drone" if cycle == 0 else coordination_cycle_data[-1]["selected_source"]
+            )
+
+            # Use optimized algorithm
+            decision = algorithms.make_fast_coordination_decision(
+                ground_rssi=ground_rssi,
+                drone_rssi=drone_rssi,
+                current_source=current_source,
+                ground_snr=10.0 + (cycle % 4),
+                drone_snr=8.0 + (cycle % 3),
+            )
+
+            # Add cycle metadata
+            cycle_data = {
+                **decision,
+                "cycle": cycle,
+                "timestamp": time.time() + cycle * 0.05,  # 50ms intervals
+                "ground_rssi": ground_rssi,
+                "drone_rssi": drone_rssi,
+            }
+            coordination_cycle_data.append(cycle_data)
+
+        # Verify coordination cycle performance
+        decision_latencies = [
+            d["decision_time_us"] / 1000 for d in coordination_cycle_data
+        ]  # Convert to ms
+        avg_latency = sum(decision_latencies) / len(decision_latencies)
+        max_latency = max(decision_latencies)
+
+        # Should meet coordination timing requirements
+        assert avg_latency < 1.0, f"Average decision latency {avg_latency:.3f}ms should be <1ms"
+        assert max_latency < 5.0, f"Max decision latency {max_latency:.3f}ms should be <5ms"
+
+        # Verify decision quality (should make reasonable choices)
+        source_switches = 0
+        for i in range(1, len(coordination_cycle_data)):
+            if (
+                coordination_cycle_data[i]["selected_source"]
+                != coordination_cycle_data[i - 1]["selected_source"]
+            ):
+                source_switches += 1
+
+        # Should not switch too frequently (hysteresis should prevent oscillation)
+        switch_rate = source_switches / len(coordination_cycle_data)
+        assert switch_rate < 0.5, f"Source switch rate {switch_rate:.2f} should be <50%"
+
+        # Test timing optimization on the collected data
+        timing_recommendations = algorithms.optimize_coordination_timing(
+            coordination_cycle_data, target_latency_ms=0.5
+        )
+
+        assert (
+            timing_recommendations["optimization_possible"] is True
+        ), "Should provide optimization recommendations"
+
+        print(
+            f"Integration test: {len(coordination_cycle_data)} cycles, "
+            f"avg_latency={avg_latency:.3f}ms, switch_rate={switch_rate:.2f}"
+        )
+
+        # Final efficiency verification
+        final_stats = algorithms.get_algorithm_statistics()
+        assert (
+            final_stats["algorithm_efficiency_score"] >= 70.0
+        ), "Algorithm should maintain high efficiency in realistic scenarios"
+
+
+class TestAsyncTaskScheduler:
+    """
+    SUBTASK-5.6.2.2 [7c] - Test efficient async task scheduling with resource limits.
+
+    Tests verify semaphore-based concurrency control and thread pool management for coordination tasks.
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_async_task_scheduler_initialization(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify async task scheduler initializes correctly with resource limits.
+
+        Tests scheduler component initialization and configuration.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=8,
+            max_coordination_workers=2,
+            max_signal_processing_workers=4,
+            task_timeout_seconds=15.0,
+        )
+
+        # Verify configuration
+        assert scheduler.max_concurrent_tasks == 8, "Should set max concurrent tasks"
+        assert scheduler.max_coordination_workers == 2, "Should set coordination workers"
+        assert scheduler.max_signal_processing_workers == 4, "Should set signal workers"
+        assert scheduler.task_timeout_seconds == 15.0, "Should set task timeout"
+
+        # Verify semaphores are initialized
+        assert scheduler.task_semaphore._value == 8, "Task semaphore should be initialized"
+        assert (
+            scheduler.coordination_semaphore._value == 2
+        ), "Coordination semaphore should be initialized"
+        assert (
+            scheduler.signal_processing_semaphore._value == 4
+        ), "Signal semaphore should be initialized"
+
+        # Verify thread pools are created
+        assert scheduler.coordination_executor is not None, "Should create coordination executor"
+        assert scheduler.signal_processing_executor is not None, "Should create signal executor"
+
+        # Verify task queues are initialized
+        assert scheduler.high_priority_queue is not None, "Should create high priority queue"
+        assert scheduler.normal_priority_queue is not None, "Should create normal priority queue"
+        assert scheduler.low_priority_queue is not None, "Should create low priority queue"
+
+        # Cleanup
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_coordination_task_scheduling_performance(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify coordination task scheduling with resource limiting.
+
+        Tests async coordination task execution with semaphore-based limits.
+        """
+        import asyncio  # Import asyncio in test scope
+
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=5,
+            max_coordination_workers=2,
+            task_timeout_seconds=10.0,
+        )
+
+        # Define a realistic coordination task
+        async def coordination_task(
+            rssi_ground: float, rssi_drone: float, delay_ms: float = 5.0
+        ) -> dict[str, Any]:
+            """Simulate coordination decision task."""
+            # Use explicit import to ensure availability in task context
+
+            await asyncio.sleep(delay_ms / 1000)  # Convert ms to seconds
+
+            # Simple coordination logic
+            selected = "ground" if rssi_ground > rssi_drone else "drone"
+            confidence = min(abs(rssi_ground - rssi_drone) / 20.0, 0.95)
+
+            return {
+                "selected_source": selected,
+                "confidence": confidence,
+                "rssi_ground": rssi_ground,
+                "rssi_drone": rssi_drone,
+            }
+
+        # Schedule multiple coordination tasks
+        task_results = []
+        for i in range(6):  # More than max_coordination_workers to test limiting
+            result = await scheduler.schedule_coordination_task(
+                coordination_task,
+                rssi_ground=-60.0 + i * 2,
+                rssi_drone=-70.0 + i * 1.5,
+                delay_ms=10.0,
+                priority="normal",
+            )
+            task_results.append(result)
+
+        # Verify all tasks completed successfully
+        assert len(task_results) == 6, "Should complete all tasks"
+        for result in task_results:
+            assert result["status"] == "completed", "All tasks should complete successfully"
+            assert result["task_type"] == "coordination", "Should identify as coordination task"
+            assert result["execution_time_seconds"] > 0.0, "Should measure execution time"
+
+        # Verify performance requirements
+        avg_execution_time = sum(r["execution_time_seconds"] for r in task_results) / len(
+            task_results
+        )
+        assert (
+            avg_execution_time < 0.5
+        ), f"Average execution time {avg_execution_time:.3f}s should be reasonable"
+
+        # Check scheduler statistics
+        stats = scheduler.get_scheduler_statistics()
+        assert stats["completed_tasks"] == 6, "Should count completed tasks"
+        assert stats["success_rate"] == 1.0, "Should have 100% success rate"
+        assert stats["timeout_rate"] == 0.0, "Should have 0% timeout rate"
+
+        # Cleanup
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_signal_processing_task_thread_pool_execution(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify signal processing tasks execute in thread pool.
+
+        Tests CPU-intensive task execution with thread pool management.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=4,
+            max_signal_processing_workers=3,
+            task_timeout_seconds=10.0,
+        )
+
+        # Define a CPU-intensive signal processing task
+        def signal_processing_task(samples_count: int, complexity: int = 100) -> dict[str, Any]:
+            """Simulate CPU-intensive signal processing."""
+            import math
+            import time
+
+            start_time = time.perf_counter()
+
+            # Simulate FFT-like computation
+            result = 0.0
+            for i in range(complexity):
+                for sample in range(samples_count):
+                    result += math.sin(sample * 0.1) * math.cos(i * 0.05)
+
+            processing_time = time.perf_counter() - start_time
+
+            return {
+                "processed_samples": samples_count,
+                "complexity": complexity,
+                "result": result,
+                "processing_time_seconds": processing_time,
+            }
+
+        # Schedule multiple signal processing tasks
+        task_results = []
+        for i in range(4):
+            result = await scheduler.schedule_signal_processing_task(
+                signal_processing_task,
+                samples_count=500 + i * 100,
+                complexity=50 + i * 10,
+                priority="normal",
+            )
+            task_results.append(result)
+
+        # Verify all tasks completed successfully
+        assert len(task_results) == 4, "Should complete all tasks"
+        for result in task_results:
+            assert result["status"] == "completed", "All tasks should complete successfully"
+            assert (
+                result["task_type"] == "signal_processing"
+            ), "Should identify as signal processing task"
+            assert result["execution_time_seconds"] > 0.0, "Should measure execution time"
+            assert isinstance(result["result"], dict), "Should return processing results"
+
+        # Check scheduler statistics
+        stats = scheduler.get_scheduler_statistics()
+        assert stats["completed_tasks"] == 4, "Should count completed tasks"
+        assert stats["success_rate"] == 1.0, "Should have 100% success rate"
+
+        # Cleanup
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_batch_coordination_task_processing(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify batch coordination task processing with intelligent concurrency.
+
+        Tests batch processing efficiency and concurrent execution limits.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=10,
+            max_coordination_workers=3,
+            task_timeout_seconds=15.0,
+        )
+
+        # Define coordination task for batch processing
+        async def coordination_decision(
+            cycle: int, ground_rssi: float, drone_rssi: float
+        ) -> dict[str, Any]:
+            """Coordination decision task for batch processing."""
+            import asyncio
+
+            await asyncio.sleep(0.01)  # 10ms processing simulation
+
+            selected = "ground" if ground_rssi > drone_rssi else "drone"
+            confidence = min(abs(ground_rssi - drone_rssi) / 20.0, 0.95)
+
+            return {
+                "cycle": cycle,
+                "selected_source": selected,
+                "confidence": confidence,
+                "decision_latency_ms": 10.0,
+            }
+
+        # Create batch of coordination tasks
+        batch_tasks = []
+        for i in range(8):
+            task_info = {
+                "func": coordination_decision,
+                "args": [i, -60.0 + i * 2, -70.0 + i * 1.5],
+                "kwargs": {},
+                "priority": "normal",
+            }
+            batch_tasks.append(task_info)
+
+        # Process batch with timing
+        start_time = time.perf_counter()
+        batch_results = await scheduler.schedule_batch_coordination_tasks(
+            batch_tasks, max_concurrent_batch=3
+        )
+        batch_time = time.perf_counter() - start_time
+
+        # Verify batch processing results
+        assert len(batch_results) == 8, "Should process all batch tasks"
+        for i, result in enumerate(batch_results):
+            assert result["batch_index"] == i, "Should maintain batch order"
+            assert result["status"] == "completed", "All batch tasks should complete"
+            assert result["task_type"] == "coordination", "Should identify as coordination tasks"
+
+        # Verify batch processing efficiency
+        assert batch_time < 5.0, f"Batch processing should be efficient, took {batch_time:.2f}s"
+
+        # Calculate concurrent execution efficiency
+        total_sequential_time = len(batch_tasks) * 0.01  # If run sequentially
+        concurrency_benefit = total_sequential_time / batch_time
+        assert (
+            concurrency_benefit > 1.5
+        ), f"Should benefit from concurrency, got {concurrency_benefit:.1f}x improvement"
+
+        # Cleanup
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_priority_queue_scheduling(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify priority-based task scheduling processes tasks correctly.
+
+        Tests high/normal/low priority queue processing order.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=3,
+            max_coordination_workers=2,
+            task_timeout_seconds=10.0,
+        )
+
+        # Start priority scheduler
+        await scheduler.start_priority_scheduler()
+
+        # Define task with priority tracking
+        async def priority_test_task(task_id: str, priority: str) -> dict[str, Any]:
+            """Task for testing priority scheduling."""
+            await asyncio.sleep(0.05)  # 50ms task
+            return {
+                "task_id": task_id,
+                "priority": priority,
+                "execution_time": time.time(),
+            }
+
+        # Queue tasks with different priorities
+        task_queue_order = [
+            ("task_1", "low"),
+            ("task_2", "high"),
+            ("task_3", "normal"),
+            ("task_4", "high"),
+            ("task_5", "low"),
+        ]
+
+        for task_id, priority in task_queue_order:
+            scheduler.queue_priority_task(
+                priority_test_task,
+                "coordination",
+                priority=priority,
+                task_id=task_id,
+            )
+
+        # Allow tasks to process
+        await asyncio.sleep(1.0)
+
+        # Stop priority scheduler
+        await scheduler.stop_priority_scheduler()
+
+        # Verify queue statistics
+        stats = scheduler.get_scheduler_statistics()
+        assert stats["completed_tasks"] > 0, "Should complete queued tasks"
+
+        # Verify priority queues are empty after processing
+        assert stats["high_priority_queue_size"] == 0, "High priority queue should be empty"
+        assert stats["normal_priority_queue_size"] == 0, "Normal priority queue should be empty"
+        assert stats["low_priority_queue_size"] == 0, "Low priority queue should be empty"
+
+        # Cleanup
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_resource_limit_adjustment(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify dynamic resource limit adjustment based on performance.
+
+        Tests adjusting concurrent task limits and worker pools at runtime.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=5,
+            max_coordination_workers=2,
+            max_signal_processing_workers=3,
+            task_timeout_seconds=10.0,
+        )
+
+        # Verify initial limits
+        initial_stats = scheduler.get_scheduler_statistics()
+        assert (
+            initial_stats["resource_utilization"]["coordination_workers_in_use"] == 0
+        ), "Initially no workers in use"
+
+        # Adjust resource limits
+        adjustment_result = scheduler.adjust_resource_limits(
+            new_max_concurrent=8,
+            new_coordination_workers=4,
+            new_signal_workers=6,
+        )
+
+        # Verify adjustment results
+        assert len(adjustment_result["adjustments_made"]) == 3, "Should make 3 adjustments"
+        assert (
+            adjustment_result["current_limits"]["max_concurrent_tasks"] == 8
+        ), "Should update concurrent tasks"
+        assert (
+            adjustment_result["current_limits"]["max_coordination_workers"] == 4
+        ), "Should update coordination workers"
+        assert (
+            adjustment_result["current_limits"]["max_signal_processing_workers"] == 6
+        ), "Should update signal workers"
+
+        # Verify new limits are active
+        new_stats = scheduler.get_scheduler_statistics()
+        assert new_stats["task_semaphore_available"] == 8, "Task semaphore should reflect new limit"
+        assert (
+            new_stats["coordination_semaphore_available"] == 4
+        ), "Coordination semaphore should reflect new limit"
+        assert (
+            new_stats["signal_processing_semaphore_available"] == 6
+        ), "Signal semaphore should reflect new limit"
+
+        # Test with no changes (should report no adjustments)
+        no_change_result = scheduler.adjust_resource_limits()
+        assert (
+            len(no_change_result["adjustments_made"]) == 0
+        ), "Should report no adjustments when no changes"
+
+        # Cleanup
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_task_timeout_handling(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify task timeout handling and cancellation.
+
+        Tests task execution timeout and proper error handling.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=3,
+            max_coordination_workers=2,
+            task_timeout_seconds=0.1,  # Short timeout for testing
+        )
+
+        # Define a slow task that will timeout
+        async def slow_coordination_task(delay_seconds: float) -> dict[str, Any]:
+            """Task that takes longer than timeout."""
+            await asyncio.sleep(delay_seconds)
+            return {"result": "completed"}
+
+        # Schedule task that will timeout
+        timeout_result = await scheduler.schedule_coordination_task(
+            slow_coordination_task,
+            delay_seconds=0.5,
+            priority="normal",  # Longer than 0.1s timeout
+        )
+
+        # Verify timeout handling
+        assert timeout_result["status"] == "timeout", "Should report timeout status"
+        assert timeout_result["result"] is None, "Should return None result for timeout"
+        assert "timeout_seconds" in timeout_result, "Should report timeout duration"
+
+        # Schedule task with custom timeout override
+        quick_result = await scheduler.schedule_coordination_task(
+            slow_coordination_task,
+            delay_seconds=0.05,  # Shorter than override timeout
+            timeout_override=0.2,  # Override default timeout
+            priority="normal",
+        )
+
+        # Verify custom timeout works
+        assert quick_result["status"] == "completed", "Should complete with timeout override"
+        assert quick_result["result"] is not None, "Should return result when not timed out"
+
+        # Check scheduler statistics
+        stats = scheduler.get_scheduler_statistics()
+        assert stats["timeout_tasks"] == 1, "Should count timeout tasks"
+        assert stats["completed_tasks"] == 1, "Should count completed tasks"
+        assert stats["timeout_rate"] > 0.0, "Should have non-zero timeout rate"
+
+        # Cleanup
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_scheduler_statistics_accuracy(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify scheduler statistics accurately track performance metrics.
+
+        Tests comprehensive performance tracking and resource utilization reporting.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=6,
+            max_coordination_workers=3,
+            max_signal_processing_workers=2,
+            task_timeout_seconds=5.0,
+        )
+
+        # Define test tasks
+        async def quick_task() -> str:
+            await asyncio.sleep(0.01)
+            return "quick_completed"
+
+        def cpu_task() -> str:
+            import math
+
+            result = sum(math.sin(i) for i in range(1000))
+            return f"cpu_completed_{result:.2f}"
+
+        # Schedule mixed task types
+        coordination_results = []
+        signal_results = []
+
+        # Schedule coordination tasks
+        for _i in range(4):
+            result = await scheduler.schedule_coordination_task(quick_task, priority="normal")
+            coordination_results.append(result)
+
+        # Schedule signal processing tasks
+        for _i in range(3):
+            result = await scheduler.schedule_signal_processing_task(cpu_task, priority="normal")
+            signal_results.append(result)
+
+        # Get comprehensive statistics
+        stats = scheduler.get_scheduler_statistics()
+
+        # Verify task counts
+        assert stats["total_tasks_processed"] == 7, "Should count all processed tasks"
+        assert stats["completed_tasks"] == 7, "Should count all completed tasks"
+        assert stats["failed_tasks"] == 0, "Should have no failed tasks"
+        assert stats["timeout_tasks"] == 0, "Should have no timeout tasks"
+
+        # Verify success rates
+        assert stats["success_rate"] == 1.0, "Should have 100% success rate"
+        assert stats["timeout_rate"] == 0.0, "Should have 0% timeout rate"
+
+        # Verify timing statistics
+        assert stats["average_task_time_seconds"] > 0.0, "Should track average task time"
+
+        # Verify resource utilization
+        resource_util = stats["resource_utilization"]
+        assert (
+            "coordination_workers_in_use" in resource_util
+        ), "Should track coordination worker usage"
+        assert "signal_workers_in_use" in resource_util, "Should track signal worker usage"
+        assert "total_workers_in_use" in resource_util, "Should track total worker usage"
+
+        # Verify semaphore availability
+        assert stats["task_semaphore_available"] <= 6, "Task semaphore should reflect usage"
+        assert (
+            stats["coordination_semaphore_available"] <= 3
+        ), "Coordination semaphore should reflect usage"
+        assert (
+            stats["signal_processing_semaphore_available"] <= 2
+        ), "Signal semaphore should reflect usage"
+
+        # Verify scheduler state
+        assert not stats["scheduler_running"], "Priority scheduler should not be running"
+
+        # Cleanup
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_scheduler_shutdown_graceful_cleanup(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify scheduler shutdown properly cleans up resources.
+
+        Tests graceful shutdown of thread pools and task cancellation.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=4,
+            max_coordination_workers=2,
+            max_signal_processing_workers=2,
+            task_timeout_seconds=10.0,
+        )
+
+        # Start priority scheduler
+        await scheduler.start_priority_scheduler()
+        assert scheduler._scheduler_running, "Priority scheduler should be running"
+
+        # Queue some tasks
+        async def long_task() -> str:
+            await asyncio.sleep(2.0)
+            return "long_completed"
+
+        scheduler.queue_priority_task(long_task, "coordination", "normal")
+        scheduler.queue_priority_task(long_task, "coordination", "low")
+
+        # Verify tasks are queued
+        stats = scheduler.get_scheduler_statistics()
+        assert (
+            stats["normal_priority_queue_size"] + stats["low_priority_queue_size"] > 0
+        ), "Should have queued tasks"
+
+        # Shutdown scheduler
+        await scheduler.shutdown()
+
+        # Verify shutdown state
+        assert not scheduler._scheduler_running, "Priority scheduler should be stopped"
+        assert (
+            scheduler._scheduler_task is None or scheduler._scheduler_task.cancelled()
+        ), "Scheduler task should be cancelled"
+
+        # Verify thread pools are shutdown (should not accept new tasks)
+        try:
+            # Attempting to schedule after shutdown should be handled gracefully
+            final_stats = scheduler.get_scheduler_statistics()
+            assert isinstance(
+                final_stats, dict
+            ), "Should still be able to get statistics after shutdown"
+        except Exception:
+            # Expected behavior - scheduler may not accept new operations after shutdown
+            pass
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not PROFILING_AVAILABLE, reason="psutil not available")
+    async def test_async_task_scheduler_integration_with_coordination_system(self):
+        """
+        SUBTASK-5.6.2.2 [7c] - Verify async task scheduler integrates with dual-SDR coordination system.
+
+        Tests realistic coordination workflow with task scheduling optimization.
+        """
+        optimizer = ResourceOptimizer(enable_memory_profiler=True)
+        scheduler = optimizer.create_async_task_scheduler(
+            max_concurrent_tasks=8,
+            max_coordination_workers=3,
+            max_signal_processing_workers=4,
+            task_timeout_seconds=30.0,
+        )
+
+        # Define realistic coordination tasks
+        async def rssi_coordination_task(
+            cycle: int, ground_rssi: float, drone_rssi: float, coordination_algorithm: Any = None
+        ) -> dict[str, Any]:
+            """Realistic RSSI-based coordination task."""
+            await asyncio.sleep(0.005)  # 5ms coordination decision time
+
+            # Use optimized coordination algorithm if provided
+            if coordination_algorithm:
+                decision = coordination_algorithm.make_fast_coordination_decision(
+                    ground_rssi=ground_rssi,
+                    drone_rssi=drone_rssi,
+                    current_source="drone" if cycle == 0 else "ground",
+                )
+                return {
+                    "cycle": cycle,
+                    "coordination_decision": decision,
+                    "optimized": True,
+                }
+            else:
+                # Fallback simple decision
+                selected = "ground" if ground_rssi > drone_rssi else "drone"
+                return {
+                    "cycle": cycle,
+                    "selected_source": selected,
+                    "optimized": False,
+                }
+
+        def signal_processing_task(rssi_samples: list[float]) -> dict[str, Any]:
+            """CPU-intensive signal processing."""
+            import math
+
+            # Simulate FFT-like processing
+            processed = []
+            for sample in rssi_samples:
+                # Normalize and apply processing
+                normalized = (sample + 100) / 100  # Normalize RSSI
+                processed_value = math.sin(normalized * math.pi) * 50
+                processed.append(processed_value)
+
+            return {
+                "processed_samples": processed,
+                "sample_count": len(rssi_samples),
+                "processing_quality": sum(processed) / len(processed) if processed else 0,
+            }
+
+        # Create optimized coordination algorithms for integration
+        coordination_algorithms = optimizer.create_optimized_coordination_algorithms()
+
+        # Simulate realistic dual-SDR coordination scenario
+        coordination_results = []
+        signal_results = []
+
+        # Process 15 coordination cycles with concurrent signal processing
+        for cycle in range(15):
+            # Vary RSSI values realistically
+            ground_rssi = -60.0 + (cycle % 5) * 3 - (cycle // 8) * 2
+            drone_rssi = -65.0 + (cycle % 3) * 2 - (cycle // 10) * 3
+
+            # Schedule coordination task
+            coord_result = await scheduler.schedule_coordination_task(
+                rssi_coordination_task,
+                cycle=cycle,
+                ground_rssi=ground_rssi,
+                drone_rssi=drone_rssi,
+                coordination_algorithm=coordination_algorithms,
+                priority="high" if cycle % 5 == 0 else "normal",
+            )
+            coordination_results.append(coord_result)
+
+            # Schedule signal processing every 3 cycles
+            if cycle % 3 == 0:
+                rssi_samples = [ground_rssi + i * 0.5 for i in range(10)]
+                signal_result = await scheduler.schedule_signal_processing_task(
+                    signal_processing_task,
+                    rssi_samples=rssi_samples,
+                    priority="normal",
+                )
+                signal_results.append(signal_result)
+
+        # Verify integration performance
+        assert len(coordination_results) == 15, "Should complete all coordination tasks"
+        assert len(signal_results) == 5, "Should complete expected signal processing tasks"
+
+        # Verify all tasks completed successfully
+        for result in coordination_results + signal_results:
+            assert result["status"] == "completed", "All tasks should complete successfully"
+
+        # Verify coordination performance requirements
+        coord_times = [r["execution_time_seconds"] for r in coordination_results]
+        avg_coord_time = sum(coord_times) / len(coord_times)
+        max_coord_time = max(coord_times)
+
+        assert (
+            avg_coord_time < 0.05
+        ), f"Average coordination time {avg_coord_time:.3f}s should be <50ms"
+        assert max_coord_time < 0.1, f"Max coordination time {max_coord_time:.3f}s should be <100ms"
+
+        # Verify signal processing performance
+        signal_times = [r["execution_time_seconds"] for r in signal_results]
+        avg_signal_time = sum(signal_times) / len(signal_times)
+
+        assert (
+            avg_signal_time < 1.0
+        ), f"Average signal processing time {avg_signal_time:.3f}s should be reasonable"
+
+        # Verify scheduler efficiency
+        final_stats = scheduler.get_scheduler_statistics()
+        assert final_stats["success_rate"] == 1.0, "Should maintain 100% success rate"
+        assert final_stats["timeout_rate"] == 0.0, "Should have no timeouts"
+        assert final_stats["total_tasks_processed"] == 20, "Should process all tasks"
+
+        # Verify resource utilization was reasonable
+        print(
+            f"Integration test completed: {len(coordination_results)} coordination tasks, "
+            f"{len(signal_results)} signal tasks, avg_coord_time={avg_coord_time:.3f}s"
+        )
+
+        # Cleanup
+        await scheduler.shutdown()

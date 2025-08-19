@@ -899,3 +899,170 @@ class SignalProcessor:
 
         # Apply bounds (6-18 dB range)
         return max(6.0, min(18.0, adaptive_threshold))
+
+    def compute_rssi_vectorized(self, samples_batch: np.ndarray) -> list[RSSIReading]:
+        """
+        SUBTASK-5.6.2.2 [7e-1] - Vectorized RSSI computation for batch processing.
+        
+        Computes RSSI for multiple sample batches using vectorized NumPy operations.
+        Significantly faster than individual compute_rssi calls.
+        
+        Args:
+            samples_batch: Array of shape (batch_size, samples_per_batch) with IQ samples
+            
+        Returns:
+            List of RSSIReading objects for each batch
+        """
+        start_time = time.perf_counter()
+        
+        if samples_batch.ndim != 2:
+            raise SignalProcessingError("samples_batch must be 2D array (batch_size, samples_per_batch)")
+        
+        batch_size, samples_per_batch = samples_batch.shape
+        results = []
+        
+        # Vectorized power computation for all batches at once
+        if np.isrealobj(samples_batch):
+            # For real samples, compute power directly
+            powers = np.mean(samples_batch**2, axis=1)
+        else:
+            # For complex IQ samples, compute magnitude squared  
+            powers = np.mean(np.abs(samples_batch) ** 2, axis=1)
+        
+        # Vectorized dBm conversion
+        # Handle zero power cases
+        powers = np.maximum(powers, 1e-20)  # Prevent log(0)
+        rssi_dbm_batch = 10 * np.log10(powers) + self.calibration_offset
+        
+        # Create RSSIReading objects for each result
+        current_time = datetime.now(UTC)
+        for i, rssi_dbm in enumerate(rssi_dbm_batch):
+            # Update noise floor (could be optimized further but maintain compatibility)
+            self.update_noise_floor(rssi_dbm)
+            snr = rssi_dbm - self.noise_floor
+            
+            # Create RSSIReading
+            reading = RSSIReading(
+                timestamp=current_time,
+                rssi=float(rssi_dbm),
+                snr=float(snr),
+                noise_floor=self.noise_floor
+            )
+            results.append(reading)
+            self.samples_processed += 1
+        
+        # Performance verification
+        latency_ms = (time.perf_counter() - start_time) * 1000
+        avg_latency_per_batch = latency_ms / batch_size
+        if avg_latency_per_batch > 0.5:
+            logger.warning(f"Vectorized RSSI computation exceeded 0.5ms per batch: {avg_latency_per_batch:.3f}ms")
+        
+        return results
+
+    def apply_window_optimized(self, samples: np.ndarray, inplace: bool = False) -> np.ndarray:
+        """
+        SUBTASK-5.6.2.2 [7e-2] - Optimized FFT window application using broadcasting.
+        
+        Applies window function to samples using memory-efficient operations.
+        
+        Args:
+            samples: Input IQ samples
+            inplace: If True, modifies samples in-place for memory efficiency
+            
+        Returns:
+            Windowed samples
+        """
+        if inplace:
+            samples *= self._fft_window
+            return samples
+        else:
+            return samples * self._fft_window
+
+    def compute_power_vectorized(self, samples_batch: np.ndarray) -> np.ndarray:
+        """
+        SUBTASK-5.6.2.2 [7e-3] - Vectorized power computation for multiple sample batches.
+        
+        Computes signal power for multiple sample sets using vectorized operations.
+        
+        Args:
+            samples_batch: Array of shape (batch_size, samples_per_batch)
+            
+        Returns:
+            Array of power values for each batch
+        """
+        if samples_batch.ndim != 2:
+            raise SignalProcessingError("samples_batch must be 2D array")
+        
+        if np.isrealobj(samples_batch):
+            # Real samples: power = mean(samples^2)
+            return np.mean(samples_batch**2, axis=1)
+        else:
+            # Complex samples: power = mean(|samples|^2)
+            return np.mean(np.abs(samples_batch) ** 2, axis=1)
+
+    def process_batch_memory_optimized(self, samples_batch: np.ndarray) -> list[RSSIReading]:
+        """
+        SUBTASK-5.6.2.2 [7e-4] - Memory-efficient batch processing of signal samples.
+        
+        Processes large batches of samples with minimal memory allocation.
+        
+        Args:
+            samples_batch: Array of IQ samples to process
+            
+        Returns:
+            List of RSSIReading results
+        """
+        # Use chunked processing to limit memory usage
+        chunk_size = 20  # Process 20 samples at a time
+        batch_size = len(samples_batch)
+        results = []
+        
+        for start_idx in range(0, batch_size, chunk_size):
+            end_idx = min(start_idx + chunk_size, batch_size)
+            chunk = samples_batch[start_idx:end_idx]
+            
+            # Process chunk using vectorized operations
+            chunk_results = self.compute_rssi_vectorized(chunk)
+            results.extend(chunk_results)
+        
+        return results
+
+    def estimate_noise_floor_optimized(self, rssi_history: list[float]) -> float:
+        """
+        SUBTASK-5.6.2.2 [7e-5] - Optimized noise floor estimation using efficient percentile computation.
+        
+        Estimates noise floor from RSSI history using vectorized operations.
+        
+        Args:
+            rssi_history: List or array of RSSI values
+            
+        Returns:
+            Estimated noise floor in dBm
+        """
+        if not rssi_history:
+            return self.noise_floor
+        
+        # Convert to NumPy array for efficient computation
+        rssi_array = np.array(rssi_history)
+        
+        # Use NumPy's optimized percentile function
+        # 10th percentile typically represents noise floor
+        noise_floor = np.percentile(rssi_array, 10)
+        
+        return float(noise_floor)
+
+    def compute_snr_vectorized(self, rssi_values: np.ndarray, noise_floor: float) -> np.ndarray:
+        """
+        SUBTASK-5.6.2.2 [7e-6] - Vectorized SNR computation for multiple RSSI values.
+        
+        Computes SNR for multiple RSSI values simultaneously using broadcasting.
+        
+        Args:
+            rssi_values: Array of RSSI values in dBm
+            noise_floor: Noise floor reference in dBm
+            
+        Returns:
+            Array of SNR values in dB
+        """
+        # Vectorized SNR computation: SNR = RSSI - noise_floor
+        return rssi_values - noise_floor

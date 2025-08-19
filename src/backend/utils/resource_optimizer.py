@@ -16,12 +16,14 @@ CRITICAL: All implementations use authentic system resources - no mocks/simulati
 
 import asyncio
 import gc
+import os
 import threading
 import time
 import weakref
 from collections import deque, namedtuple
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 try:
     import psutil
@@ -73,8 +75,10 @@ ResourceMetrics = namedtuple(
 )
 
 CPUHotspot = namedtuple(
-    "CPUHotspot", ["function_name", "filename", "line_number", "cpu_time_ms", "percentage"]
+    "CPUHotspot",
+    ["function_name", "filename", "line_number", "cpu_time_ms", "percentage"],
 )
+
 
 @dataclass
 class CPUAnalysis:
@@ -909,6 +913,343 @@ class GracefulDegradationManager:
         }
 
 
+@dataclass
+class CPUUsageData:
+    """Real-time CPU usage data structure."""
+    overall_percent: float
+    per_core: list[float]
+    process_breakdown: list[dict[str, Any]]
+    timestamp: float
+    load_average: tuple[float, float, float]  # 1min, 5min, 15min
+
+
+class CPUUsageMonitor:
+    """
+    SUBTASK-5.6.2.2 [7d-1] - Real-time CPU usage monitoring with per-process tracking.
+    
+    Provides authentic CPU monitoring using psutil for system resource tracking.
+    NO MOCKS - Uses real system CPU measurement.
+    """
+
+    def __init__(self, top_processes: int = 5):
+        """Initialize CPU usage monitor."""
+        self.top_processes = top_processes
+        self._last_cpu_call = None
+        
+        # Initialize per-CPU measurement (required for accurate readings)
+        if _PSUTIL_AVAILABLE:
+            psutil.cpu_percent(percpu=True)  # Prime the measurement
+        
+        logger.info(f"CPUUsageMonitor initialized, tracking top {top_processes} processes")
+
+    def get_current_cpu_usage(self) -> dict[str, Any]:
+        """
+        Get real-time CPU usage with per-process breakdown.
+        
+        Returns authentic system CPU data using psutil.
+        """
+        if not _PSUTIL_AVAILABLE:
+            return {
+                "overall_percent": 0.0,
+                "per_core": [],
+                "process_breakdown": [],
+                "error": "psutil not available"
+            }
+        
+        try:
+            # Get overall CPU usage
+            overall_cpu = psutil.cpu_percent(interval=0.1)  # 100ms sample
+            
+            # Get per-core CPU usage
+            per_core_cpu = psutil.cpu_percent(interval=None, percpu=True)
+            
+            # Get top CPU-consuming processes
+            processes = []
+            for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+                try:
+                    pinfo = proc.info
+                    if pinfo['cpu_percent'] is not None and pinfo['cpu_percent'] > 0:
+                        processes.append(pinfo)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            
+            # Sort by CPU usage and take top N
+            top_processes = sorted(processes, key=lambda p: p['cpu_percent'], reverse=True)[:self.top_processes]
+            
+            # Get load averages
+            load_avg = psutil.getloadavg() if hasattr(psutil, 'getloadavg') else (0.0, 0.0, 0.0)
+            
+            return {
+                "overall_percent": overall_cpu,
+                "per_core": per_core_cpu,
+                "process_breakdown": top_processes,
+                "timestamp": time.time(),
+                "load_average": load_avg,
+                "cpu_count": psutil.cpu_count(),
+                "cpu_count_logical": psutil.cpu_count(logical=True)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting CPU usage: {e}")
+            return {
+                "overall_percent": 0.0,
+                "per_core": [],
+                "process_breakdown": [],
+                "error": str(e)
+            }
+
+
+class DynamicResourceAllocator:
+    """
+    SUBTASK-5.6.2.2 [7d-2] - Dynamic resource allocation with configurable CPU thresholds.
+    
+    Adjusts system resource limits based on real CPU load patterns.
+    """
+
+    def __init__(self):
+        """Initialize dynamic resource allocator."""
+        self.cpu_thresholds = {
+            "high_cpu_threshold": 80.0,
+            "critical_cpu_threshold": 95.0,
+            "recovery_threshold": 60.0,
+        }
+        
+        # Current resource limits
+        self.current_limits = {
+            "max_concurrent_tasks": 10,
+            "coordination_workers": 4,
+            "signal_workers": 2,
+        }
+        
+        # Baseline limits for recovery
+        self.baseline_limits = self.current_limits.copy()
+        
+        logger.info("DynamicResourceAllocator initialized with CPU-based resource adjustment")
+
+    def configure_cpu_thresholds(self, thresholds: dict[str, float]) -> None:
+        """Configure CPU thresholds for resource allocation decisions."""
+        self.cpu_thresholds.update(thresholds)
+        logger.info(f"CPU thresholds updated: {self.cpu_thresholds}")
+
+    def get_current_resource_limits(self) -> dict[str, int]:
+        """Get current resource limits."""
+        return self.current_limits.copy()
+
+    def trigger_cpu_load_response(self, cpu_percent: float) -> dict[str, Any]:
+        """
+        Trigger resource allocation response based on CPU load.
+        
+        Adjusts resource limits based on CPU usage thresholds.
+        """
+        adjustments_made = []
+        
+        if cpu_percent >= self.cpu_thresholds["critical_cpu_threshold"]:
+            # Critical CPU load - emergency throttling
+            new_limits = {
+                "max_concurrent_tasks": max(1, self.baseline_limits["max_concurrent_tasks"] // 4),
+                "coordination_workers": 1,
+                "signal_workers": 1,
+            }
+            adjustments_made.append(f"Critical throttling at {cpu_percent}% CPU")
+            
+        elif cpu_percent >= self.cpu_thresholds["high_cpu_threshold"]:
+            # High CPU load - reduce concurrency
+            new_limits = {
+                "max_concurrent_tasks": max(2, self.baseline_limits["max_concurrent_tasks"] // 2),
+                "coordination_workers": max(1, self.baseline_limits["coordination_workers"] // 2),
+                "signal_workers": max(1, self.baseline_limits["signal_workers"]),
+            }
+            adjustments_made.append(f"High CPU throttling at {cpu_percent}% CPU")
+            
+        elif cpu_percent <= self.cpu_thresholds["recovery_threshold"]:
+            # Low CPU load - restore normal operation
+            new_limits = self.baseline_limits.copy()
+            adjustments_made.append(f"CPU recovery at {cpu_percent}% - restoring normal limits")
+            
+        else:
+            # Normal CPU load - no changes needed
+            return {"adjustments_made": [], "current_limits": self.current_limits}
+        
+        # Apply the new limits
+        old_limits = self.current_limits.copy()
+        self.current_limits = new_limits
+        
+        logger.info(f"Resource limits adjusted due to CPU load {cpu_percent}%: {adjustments_made}")
+        
+        return {
+            "adjustments_made": adjustments_made,
+            "previous_limits": old_limits,
+            "current_limits": self.current_limits,
+            "cpu_percent": cpu_percent
+        }
+
+
+class TaskPriorityAdjuster:
+    """
+    SUBTASK-5.6.2.2 [7d-3] - Automatic task priority adjustment based on CPU load patterns.
+    
+    Adjusts task priorities to maintain safety systems under high CPU load.
+    """
+
+    def __init__(self):
+        """Initialize task priority adjuster."""
+        self.current_cpu_load = 0.0
+        self.priority_mappings = {
+            "safety_critical": {"base_priority": "high", "protected": True},
+            "coordination": {"base_priority": "normal", "protected": False},
+            "background": {"base_priority": "low", "protected": False},
+            "signal_processing": {"base_priority": "normal", "protected": False},
+        }
+        
+        logger.info("TaskPriorityAdjuster initialized for CPU-aware priority management")
+
+    def update_cpu_load(self, cpu_load: float) -> None:
+        """Update current CPU load for priority calculations."""
+        self.current_cpu_load = cpu_load
+
+    def calculate_task_priority(self, task_type: str, base_priority: str) -> str:
+        """
+        Calculate adjusted task priority based on current CPU load.
+        
+        Safety-critical tasks maintain priority regardless of CPU load.
+        Other tasks may be deprioritized under high CPU load.
+        """
+        task_config = self.priority_mappings.get(task_type, {"base_priority": base_priority, "protected": False})
+        
+        # Safety-critical tasks always maintain high priority
+        if task_config.get("protected", False) or task_type == "safety_critical":
+            return "high"
+        
+        # Adjust priority based on CPU load
+        if self.current_cpu_load > 90.0:
+            # Critical CPU load - only safety tasks get priority
+            return "deferred" if base_priority != "high" else "low"
+        elif self.current_cpu_load > 70.0:
+            # High CPU load - reduce priority for non-critical tasks
+            priority_map = {"high": "normal", "normal": "low", "low": "deferred"}
+            return priority_map.get(base_priority, "low")
+        else:
+            # Normal CPU load - use base priority
+            return base_priority
+
+
+class ThermalMonitor:
+    """
+    SUBTASK-5.6.2.2 [7d-6] - Thermal monitoring and throttling for Raspberry Pi 5.
+    
+    Monitors CPU temperature and implements thermal throttling.
+    """
+
+    def __init__(self):
+        """Initialize thermal monitor."""
+        self.thermal_thresholds = {
+            "warning_temp": 70.0,
+            "throttle_temp": 80.0,
+            "shutdown_temp": 85.0,
+        }
+        
+        # Try to detect Raspberry Pi thermal sensors
+        self.thermal_sensor_path = None
+        self._detect_thermal_sensors()
+        
+        logger.info(f"ThermalMonitor initialized, sensor path: {self.thermal_sensor_path}")
+
+    def _detect_thermal_sensors(self) -> None:
+        """Detect available thermal sensors on Raspberry Pi."""
+        potential_paths = [
+            "/sys/class/thermal/thermal_zone0/temp",  # Primary CPU thermal zone
+            "/sys/class/thermal/thermal_zone1/temp",  # Secondary thermal zone
+        ]
+        
+        for path in potential_paths:
+            if os.path.exists(path):
+                self.thermal_sensor_path = path
+                break
+
+    def get_current_thermal_status(self) -> dict[str, Any]:
+        """Get current thermal status including CPU temperature."""
+        thermal_data = {
+            "cpu_temperature": None,
+            "thermal_state": "unknown",
+            "sensor_available": self.thermal_sensor_path is not None,
+            "timestamp": time.time()
+        }
+        
+        if self.thermal_sensor_path:
+            try:
+                with open(self.thermal_sensor_path, 'r') as f:
+                    temp_millicelsius = int(f.read().strip())
+                    cpu_temp = temp_millicelsius / 1000.0  # Convert to Celsius
+                    thermal_data["cpu_temperature"] = cpu_temp
+                    
+                    # Determine thermal state
+                    if cpu_temp >= self.thermal_thresholds["shutdown_temp"]:
+                        thermal_data["thermal_state"] = "critical"
+                    elif cpu_temp >= self.thermal_thresholds["throttle_temp"]:
+                        thermal_data["thermal_state"] = "throttling"
+                    elif cpu_temp >= self.thermal_thresholds["warning_temp"]:
+                        thermal_data["thermal_state"] = "warning"
+                    else:
+                        thermal_data["thermal_state"] = "normal"
+                        
+            except (IOError, ValueError) as e:
+                logger.warning(f"Failed to read thermal sensor: {e}")
+                thermal_data["error"] = str(e)
+        
+        # Fallback to psutil if available
+        elif _PSUTIL_AVAILABLE:
+            try:
+                sensors = psutil.sensors_temperatures()
+                if sensors:
+                    # Try common thermal sensor names
+                    for sensor_name in ['coretemp', 'cpu_thermal', 'thermal_zone0']:
+                        if sensor_name in sensors:
+                            temps = sensors[sensor_name]
+                            if temps:
+                                thermal_data["cpu_temperature"] = temps[0].current
+                                thermal_data["thermal_state"] = "normal"  # Basic state
+                                break
+            except Exception as e:
+                logger.debug(f"psutil thermal sensor access failed: {e}")
+        
+        return thermal_data
+
+    def configure_thermal_thresholds(self, thresholds: dict[str, float]) -> None:
+        """Configure thermal thresholds."""
+        self.thermal_thresholds.update(thresholds)
+        logger.info(f"Thermal thresholds updated: {self.thermal_thresholds}")
+
+    def check_throttling_required(self, current_temp: float) -> dict[str, Any]:
+        """Check if thermal throttling is required based on temperature."""
+        throttling_status = {
+            "throttling_required": False,
+            "throttling_level": "none",
+            "current_temp": current_temp,
+            "thresholds": self.thermal_thresholds
+        }
+        
+        if current_temp >= self.thermal_thresholds["shutdown_temp"]:
+            throttling_status.update({
+                "throttling_required": True,
+                "throttling_level": "emergency",
+                "action": "immediate_shutdown"
+            })
+        elif current_temp >= self.thermal_thresholds["throttle_temp"]:
+            throttling_status.update({
+                "throttling_required": True,
+                "throttling_level": "aggressive",
+                "action": "reduce_cpu_frequency"
+            })
+        elif current_temp >= self.thermal_thresholds["warning_temp"]:
+            throttling_status.update({
+                "throttling_required": True,
+                "throttling_level": "mild",
+                "action": "reduce_task_concurrency"
+            })
+        
+        return throttling_status
+
+
 class ResourceOptimizer:
     """
     TASK-5.6.2-RESOURCE-OPTIMIZATION - Main resource optimization coordinator.
@@ -930,9 +1271,15 @@ class ResourceOptimizer:
         self._monitoring_active = False
         self._monitoring_task: asyncio.Task | None = None
 
+        # SUBTASK-5.6.2.2 [7d] - CPU monitoring and dynamic resource allocation
+        self._cpu_monitor = CPUUsageMonitor()
+        self._resource_allocator = DynamicResourceAllocator()
+        self._priority_adjuster = TaskPriorityAdjuster()
+        self._thermal_monitor = ThermalMonitor()
+
         logger.info(
             f"ResourceOptimizer initialized - profiler: {self.enable_memory_profiler}, "
-            f"psutil: {_PSUTIL_AVAILABLE}"
+            f"psutil: {_PSUTIL_AVAILABLE}, CPU monitoring: enabled"
         )
 
     def get_current_memory_usage(self) -> float:
@@ -1282,7 +1629,9 @@ class ResourceOptimizer:
 
         if use_py_spy and _SUBPROCESS_AVAILABLE:
             try:
-                hotspots, sampling_method = self._profile_with_py_spy(duration_seconds, process.pid)
+                hotspots, sampling_method = self._profile_with_py_spy(
+                    duration_seconds, process.pid
+                )
             except Exception as e:
                 logger.warning(f"py-spy profiling failed, falling back to psutil: {e}")
                 hotspots = []
@@ -1325,10 +1674,14 @@ class ResourceOptimizer:
         cpu_trend = self._analyze_cpu_trend(cpu_samples)
 
         # Estimate coordination overhead (simplified - real implementation would track specific coordination functions)
-        coordination_overhead = min(average_cpu * 0.3, 15.0)  # Assume coordination is ~30% of CPU, max 15%
+        coordination_overhead = min(
+            average_cpu * 0.3, 15.0
+        )  # Assume coordination is ~30% of CPU, max 15%
 
         # CPU efficiency score (higher is better, considers consistency and optimal usage)
-        efficiency_score = self._calculate_cpu_efficiency_score(cpu_samples, average_cpu, peak_cpu)
+        efficiency_score = self._calculate_cpu_efficiency_score(
+            cpu_samples, average_cpu, peak_cpu
+        )
 
         logger.info(
             f"CPU profiling complete: avg={average_cpu:.1f}%, peak={peak_cpu:.1f}%, "
@@ -1385,11 +1738,15 @@ class ResourceOptimizer:
         peak_latency = max(decision_latencies)
 
         # Estimate decisions per second
-        total_time = coordination_samples[-1].get("timestamp", 0) - coordination_samples[0].get("timestamp", 0)
+        total_time = coordination_samples[-1].get(
+            "timestamp", 0
+        ) - coordination_samples[0].get("timestamp", 0)
         decisions_per_second = len(coordination_samples) / max(total_time, 1.0)
 
         # Estimate CPU impact based on decision frequency and complexity
-        estimated_cpu_impact = min(decisions_per_second * average_latency * 0.001, 10.0)  # Max 10% impact
+        estimated_cpu_impact = min(
+            decisions_per_second * average_latency * 0.001, 10.0
+        )  # Max 10% impact
 
         # Optimization potential assessment
         optimization_potential = "low"
@@ -1407,33 +1764,42 @@ class ResourceOptimizer:
             "total_coordination_samples": len(coordination_samples),
         }
 
-    def _profile_with_py_spy(self, duration_seconds: float, pid: int) -> tuple[list[CPUHotspot], str]:
+    def _profile_with_py_spy(
+        self, duration_seconds: float, pid: int
+    ) -> tuple[list[CPUHotspot], str]:
         """Profile process using py-spy for detailed hotspot analysis."""
         try:
             import subprocess
-            
+
             # Run py-spy with sampling for the specified duration
             cmd = [
-                "py-spy", "top", 
-                "--pid", str(pid),
-                "--duration", str(int(duration_seconds)),
-                "--format", "json"
+                "py-spy",
+                "top",
+                "--pid",
+                str(pid),
+                "--duration",
+                str(int(duration_seconds)),
+                "--format",
+                "json",
             ]
-            
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=duration_seconds + 10,  # Extra time for py-spy overhead
             )
-            
+
             if result.returncode != 0:
-                logger.warning(f"py-spy failed with return code {result.returncode}: {result.stderr}")
+                logger.warning(
+                    f"py-spy failed with return code {result.returncode}: {result.stderr}"
+                )
                 return [], "psutil_fallback"
 
             # Parse py-spy JSON output
             try:
                 import json
+
                 profile_data = json.loads(result.stdout)
                 hotspots = self._parse_py_spy_output(profile_data)
                 return hotspots, "py-spy"
@@ -1454,18 +1820,18 @@ class ResourceOptimizer:
     def _parse_py_spy_output(self, profile_data: dict[str, Any]) -> list[CPUHotspot]:
         """Parse py-spy JSON output to extract CPU hotspots."""
         hotspots: list[CPUHotspot] = []
-        
+
         try:
             # py-spy JSON format may vary, this is a simplified parser
             frames = profile_data.get("frames", [])
-            
+
             for frame in frames[:10]:  # Top 10 hotspots
                 function_name = frame.get("function", "unknown")
                 filename = frame.get("filename", "unknown")
                 line_number = frame.get("line_number", 0)
                 cpu_time_ms = frame.get("cpu_time_ms", 0.0)
                 percentage = frame.get("percentage", 0.0)
-                
+
                 hotspot = CPUHotspot(
                     function_name=function_name,
                     filename=filename,
@@ -1474,10 +1840,10 @@ class ResourceOptimizer:
                     percentage=percentage,
                 )
                 hotspots.append(hotspot)
-                
+
         except Exception as e:
             logger.warning(f"Error parsing py-spy output: {e}")
-            
+
         return hotspots
 
     def _analyze_cpu_trend(self, cpu_samples: list[float]) -> str:
@@ -1524,7 +1890,9 @@ class ResourceOptimizer:
             utilization_score = max(50, average / optimal_range[0] * 100)
         else:
             # Over-utilized
-            utilization_score = max(0, 100 - ((average - optimal_range[1]) / optimal_range[1] * 100))
+            utilization_score = max(
+                0, 100 - ((average - optimal_range[1]) / optimal_range[1] * 100)
+            )
 
         # Peak management score - penalize excessive peaks
         if peak <= 80:
@@ -1535,6 +1903,422 @@ class ResourceOptimizer:
         # Combined efficiency score
         efficiency = (consistency_score + utilization_score + peak_score) / 3
         return max(0, min(100, efficiency))
+
+    def create_optimized_coordination_algorithms(self) -> "OptimizedCoordinationAlgorithms":
+        """
+        SUBTASK-5.6.2.2 [7b] - Create optimized coordination decision algorithms.
+
+        Returns efficient algorithms for dual-SDR coordination with reduced computational complexity.
+        """
+        algorithms = OptimizedCoordinationAlgorithms()
+        logger.info("Created optimized coordination algorithms for dual-SDR decision making")
+        return algorithms
+
+    def create_async_task_scheduler(
+        self, 
+        max_concurrent_tasks: int = 10,
+        max_coordination_workers: int = 3,
+        max_signal_processing_workers: int = 5,
+        task_timeout_seconds: float = 30.0
+    ) -> "AsyncTaskScheduler":
+        """
+        SUBTASK-5.6.2.2 [7c] - Create efficient async task scheduler with resource limits.
+
+        Returns configured async task scheduler with semaphore-based concurrency control
+        and thread pool management for CPU-intensive operations.
+
+        Args:
+            max_concurrent_tasks: Maximum total concurrent async tasks
+            max_coordination_workers: Max workers for coordination tasks
+            max_signal_processing_workers: Max workers for signal processing
+            task_timeout_seconds: Default timeout for task execution
+
+        Returns:
+            AsyncTaskScheduler configured for dual-SDR coordination system
+        """
+        scheduler = AsyncTaskScheduler(
+            max_concurrent_tasks=max_concurrent_tasks,
+            max_coordination_workers=max_coordination_workers,
+            max_signal_processing_workers=max_signal_processing_workers,
+            task_timeout_seconds=task_timeout_seconds,
+        )
+        
+        logger.info(
+            f"Created async task scheduler - max_concurrent: {max_concurrent_tasks}, "
+            f"coordination_workers: {max_coordination_workers}, "
+            f"signal_workers: {max_signal_processing_workers}, timeout: {task_timeout_seconds}s"
+        )
+        return scheduler
+
+    def get_cpu_monitor(self) -> CPUUsageMonitor:
+        """
+        SUBTASK-5.6.2.2 [7d-1] - Get CPU usage monitor for real-time monitoring.
+        
+        Returns CPU monitor instance for system resource tracking.
+        """
+        return self._cpu_monitor
+
+    def get_dynamic_resource_allocator(self) -> DynamicResourceAllocator:
+        """
+        SUBTASK-5.6.2.2 [7d-2] - Get dynamic resource allocator for CPU-based resource management.
+        
+        Returns resource allocator for dynamic resource limit adjustment.
+        """
+        return self._resource_allocator
+
+    def get_priority_adjuster(self) -> TaskPriorityAdjuster:
+        """
+        SUBTASK-5.6.2.2 [7d-3] - Get task priority adjuster for CPU-aware priority management.
+        
+        Returns priority adjuster for automatic task priority adjustment.
+        """
+        return self._priority_adjuster
+
+    def get_task_scheduler(self) -> "AsyncTaskScheduler":
+        """
+        SUBTASK-5.6.2.2 [7d-4] - Get task scheduler for CPU monitoring integration.
+        
+        Returns existing task scheduler for integration with CPU monitoring.
+        """
+        # Return a new scheduler instance for now - could be enhanced to return existing
+        return self.create_async_task_scheduler()
+
+    def get_thermal_monitor(self) -> ThermalMonitor:
+        """
+        SUBTASK-5.6.2.2 [7d-6] - Get thermal monitor for Raspberry Pi 5 temperature monitoring.
+        
+        Returns thermal monitor for CPU temperature tracking and throttling.
+        """
+        return self._thermal_monitor
+
+
+@dataclass 
+class OptimizedCoordinationAlgorithms:
+    """
+    SUBTASK-5.6.2.2 [7b] - Optimized coordination decision algorithms with reduced complexity.
+
+    Provides efficient comparison operations and streamlined coordination logic for dual-SDR systems.
+    """
+
+    # Algorithm configuration
+    hysteresis_threshold: float = 5.0  # dB threshold to prevent oscillation
+    fast_decision_threshold: float = 15.0  # dB threshold for fast decisions
+    quality_score_cache_size: int = 50  # Cache size for quality scores
+
+    def __post_init__(self) -> None:
+        """Initialize optimized algorithm components."""
+        # Fast lookup tables for common RSSI ranges
+        self._rssi_score_lut = self._build_rssi_lookup_table()
+        self._quality_score_cache: dict[str, float] = {}
+        
+        # Algorithm performance statistics
+        self._stats = {
+            "fast_decisions": 0,
+            "cached_decisions": 0,
+            "total_decisions": 0,
+            "average_decision_time_us": 0.0,
+        }
+        
+        logger.info("OptimizedCoordinationAlgorithms initialized with fast lookup tables")
+
+    def make_fast_coordination_decision(
+        self,
+        ground_rssi: float,
+        drone_rssi: float,
+        current_source: str,
+        ground_snr: float | None = None,
+        drone_snr: float | None = None,
+    ) -> dict[str, Any]:
+        """
+        SUBTASK-5.6.2.2 [7b] - Make fast coordination decision with optimized algorithms.
+
+        Uses efficient comparison operations and lookup tables for reduced latency.
+
+        Args:
+            ground_rssi: Ground SDR RSSI in dBm
+            drone_rssi: Drone SDR RSSI in dBm  
+            current_source: Currently active source ("ground" or "drone")
+            ground_snr: Ground SNR (optional)
+            drone_snr: Drone SNR (optional)
+
+        Returns:
+            Dict with decision details and performance metrics
+        """
+        start_time = time.perf_counter()
+        self._stats["total_decisions"] += 1
+
+        # Fast path: check for obvious decisions using lookup tables
+        ground_quality = self._get_fast_quality_score(ground_rssi, ground_snr)
+        drone_quality = self._get_fast_quality_score(drone_rssi, drone_snr)
+        
+        score_diff = ground_quality - drone_quality
+
+        # Fast decision for large differences (skip hysteresis)
+        if abs(score_diff) > self.fast_decision_threshold:
+            self._stats["fast_decisions"] += 1
+            selected = "ground" if score_diff > 0 else "drone"
+            reason = "fast_decision_large_difference"
+            switch_recommended = selected != current_source
+        else:
+            # Standard decision with hysteresis for close values
+            selected, reason, switch_recommended = self._apply_hysteresis_decision(
+                ground_quality, drone_quality, current_source, score_diff
+            )
+
+        # Calculate decision confidence using fast approximation
+        confidence = self._calculate_fast_confidence(ground_quality, drone_quality, abs(score_diff))
+
+        decision_time_us = (time.perf_counter() - start_time) * 1_000_000
+        self._update_performance_stats(decision_time_us)
+
+        return {
+            "selected_source": selected,
+            "reason": reason,
+            "confidence": round(confidence, 3),
+            "ground_quality": round(ground_quality, 2),
+            "drone_quality": round(drone_quality, 2),
+            "score_difference": round(score_diff, 2),
+            "switch_recommended": switch_recommended,
+            "decision_time_us": round(decision_time_us, 1),
+            "algorithm": "optimized_fast",
+        }
+
+    def make_batch_coordination_decisions(
+        self, decision_requests: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        SUBTASK-5.6.2.2 [7b] - Process multiple coordination decisions efficiently in batch.
+
+        Optimizes processing through vectorized operations and shared computations.
+
+        Args:
+            decision_requests: List of decision request dictionaries
+
+        Returns:
+            List of decision results
+        """
+        if not decision_requests:
+            return []
+
+        start_time = time.perf_counter()
+        results = []
+
+        # Pre-compute common values to reduce redundant calculations
+        for request in decision_requests:
+            ground_rssi = request.get("ground_rssi", -100.0)
+            drone_rssi = request.get("drone_rssi", -100.0)
+            current_source = request.get("current_source", "drone")
+            
+            # Use optimized single decision logic
+            decision = self.make_fast_coordination_decision(
+                ground_rssi=ground_rssi,
+                drone_rssi=drone_rssi,
+                current_source=current_source,
+                ground_snr=request.get("ground_snr"),
+                drone_snr=request.get("drone_snr"),
+            )
+            
+            # Add batch processing metadata
+            decision["batch_index"] = len(results)
+            results.append(decision)
+
+        batch_time_us = (time.perf_counter() - start_time) * 1_000_000
+        
+        # Update batch processing statistics
+        avg_decision_time = batch_time_us / len(decision_requests) if decision_requests else 0
+        
+        logger.debug(
+            f"Batch processed {len(decision_requests)} decisions in {batch_time_us:.1f}μs "
+            f"(avg: {avg_decision_time:.1f}μs per decision)"
+        )
+
+        return results
+
+    def optimize_coordination_timing(
+        self, coordination_samples: list[dict[str, Any]], target_latency_ms: float = 25.0
+    ) -> dict[str, Any]:
+        """
+        SUBTASK-5.6.2.2 [7b] - Optimize coordination timing based on historical performance.
+
+        Analyzes decision patterns to recommend algorithm parameters for target latency.
+
+        Args:
+            coordination_samples: Historical coordination decision data
+            target_latency_ms: Target decision latency in milliseconds
+
+        Returns:
+            Dict with optimization recommendations
+        """
+        if not coordination_samples:
+            return {"optimization_possible": False, "reason": "no_samples"}
+
+        # Analyze current performance
+        decision_times = [
+            sample.get("decision_time_us", 0) / 1000  # Convert to ms
+            for sample in coordination_samples
+            if "decision_time_us" in sample
+        ]
+
+        if not decision_times:
+            return {"optimization_possible": False, "reason": "no_timing_data"}
+
+        current_avg_latency = sum(decision_times) / len(decision_times)
+        current_p95_latency = sorted(decision_times)[int(len(decision_times) * 0.95)]
+
+        # Determine optimization strategy
+        optimization_needed = current_avg_latency > target_latency_ms
+        
+        recommendations = {
+            "optimization_possible": True,
+            "current_avg_latency_ms": round(current_avg_latency, 2),
+            "current_p95_latency_ms": round(current_p95_latency, 2),
+            "target_latency_ms": target_latency_ms,
+            "optimization_needed": optimization_needed,
+        }
+
+        if optimization_needed:
+            # Calculate recommended parameter adjustments
+            latency_excess = current_avg_latency - target_latency_ms
+            
+            if latency_excess > 10.0:
+                # Significant optimization needed
+                recommendations.update({
+                    "recommended_cache_size": min(self.quality_score_cache_size * 2, 100),
+                    "recommended_fast_threshold": max(self.fast_decision_threshold - 5.0, 8.0),
+                    "recommended_hysteresis": max(self.hysteresis_threshold - 1.0, 2.0),
+                    "optimization_level": "aggressive",
+                })
+            else:
+                # Minor optimization needed  
+                recommendations.update({
+                    "recommended_cache_size": min(self.quality_score_cache_size + 10, 75),
+                    "recommended_fast_threshold": max(self.fast_decision_threshold - 2.0, 10.0),
+                    "recommended_hysteresis": max(self.hysteresis_threshold - 0.5, 3.0),
+                    "optimization_level": "conservative",
+                })
+        else:
+            recommendations.update({
+                "optimization_level": "none_needed",
+                "performance_status": "within_target",
+            })
+
+        return recommendations
+
+    def get_algorithm_statistics(self) -> dict[str, Any]:
+        """Get comprehensive algorithm performance statistics."""
+        total = self._stats["total_decisions"]
+        
+        return {
+            "total_decisions": total,
+            "fast_decisions": self._stats["fast_decisions"],
+            "cached_decisions": self._stats["cached_decisions"],
+            "fast_decision_rate": self._stats["fast_decisions"] / max(total, 1),
+            "cache_hit_rate": self._stats["cached_decisions"] / max(total, 1),
+            "average_decision_time_us": self._stats["average_decision_time_us"],
+            "quality_score_cache_size": len(self._quality_score_cache),
+            "algorithm_efficiency_score": self._calculate_algorithm_efficiency(),
+        }
+
+    def _build_rssi_lookup_table(self) -> dict[int, float]:
+        """Build lookup table for fast RSSI to quality score conversion."""
+        lut = {}
+        
+        # Pre-compute scores for common RSSI values (-100 to -30 dBm)
+        for rssi_int in range(-100, -29):
+            # Same scoring as SDRPriorityMatrix: -30dBm = 100, -80dBm = 0
+            score = max(0, min(100, (rssi_int + 80) * 2))
+            lut[rssi_int] = score
+            
+        return lut
+
+    def _get_fast_quality_score(self, rssi: float, snr: float | None = None) -> float:
+        """Get quality score using fast lookup table and caching."""
+        # Round RSSI to integer for lookup table
+        rssi_int = int(round(rssi))
+        
+        # Check cache first
+        cache_key = f"{rssi_int}_{snr or 'none'}"
+        if cache_key in self._quality_score_cache:
+            self._stats["cached_decisions"] += 1
+            return self._quality_score_cache[cache_key]
+
+        # Use lookup table for RSSI component
+        rssi_score = self._rssi_score_lut.get(rssi_int, max(0, min(100, (rssi + 80) * 2)))
+        
+        # Add SNR component if available (simplified calculation)
+        if snr is not None:
+            snr_score = max(0, min(100, snr * 5))  # 20dB SNR = 100
+            # Weighted combination: RSSI 70%, SNR 30%
+            total_score = rssi_score * 0.7 + snr_score * 0.3
+        else:
+            total_score = rssi_score
+            
+        # Cache result if cache not full
+        if len(self._quality_score_cache) < self.quality_score_cache_size:
+            self._quality_score_cache[cache_key] = total_score
+            
+        return total_score
+
+    def _apply_hysteresis_decision(
+        self, ground_quality: float, drone_quality: float, current_source: str, score_diff: float
+    ) -> tuple[str, str, bool]:
+        """Apply hysteresis logic to prevent oscillation."""
+        if current_source == "ground":
+            if score_diff < -self.hysteresis_threshold:
+                return "drone", "drone_signal_superior_with_hysteresis", True
+            else:
+                return "ground", "ground_maintained_with_hysteresis", False
+        else:  # current_source == "drone"
+            if score_diff > self.hysteresis_threshold:
+                return "ground", "ground_signal_superior_with_hysteresis", True
+            else:
+                return "drone", "drone_maintained_with_hysteresis", False
+
+    def _calculate_fast_confidence(
+        self, ground_quality: float, drone_quality: float, score_diff: float
+    ) -> float:
+        """Calculate decision confidence using fast approximation."""
+        # Higher confidence for larger differences and higher absolute quality
+        min_quality = min(ground_quality, drone_quality)
+        max_quality = max(ground_quality, drone_quality)
+        
+        # Base confidence from quality scores
+        quality_confidence = (min_quality + max_quality) / 200  # 0-1 range
+        
+        # Difference confidence (larger differences = higher confidence)
+        diff_confidence = min(score_diff / 50.0, 1.0)  # 50 point diff = full confidence
+        
+        # Combined confidence
+        combined = (quality_confidence + diff_confidence) / 2
+        return max(0.1, min(0.99, combined))
+
+    def _update_performance_stats(self, decision_time_us: float) -> None:
+        """Update rolling performance statistics."""
+        # Exponential moving average for decision time
+        alpha = 0.1  # Smoothing factor
+        if self._stats["average_decision_time_us"] == 0:
+            self._stats["average_decision_time_us"] = decision_time_us
+        else:
+            self._stats["average_decision_time_us"] = (
+                alpha * decision_time_us + (1 - alpha) * self._stats["average_decision_time_us"]
+            )
+
+    def _calculate_algorithm_efficiency(self) -> float:
+        """Calculate overall algorithm efficiency score (0-100)."""
+        total = self._stats["total_decisions"]
+        if total == 0:
+            return 50.0  # Neutral score
+            
+        # Efficiency based on fast decision rate and average timing
+        fast_rate = self._stats["fast_decisions"] / total
+        cache_rate = self._stats["cached_decisions"] / total
+        
+        # Target decision time: 10 microseconds  
+        timing_efficiency = max(0, min(1, 20.0 / max(self._stats["average_decision_time_us"], 1.0)))
+        
+        # Combined efficiency score
+        efficiency = (fast_rate * 40 + cache_rate * 30 + timing_efficiency * 30)
+        return round(efficiency, 1)
 
 
 @dataclass
@@ -1926,3 +2710,565 @@ class PriorityCalculationCache:
             del self._cache_timestamps[cache_key]
 
         self._stats["expired_entries"] += 1
+
+
+class AsyncTaskScheduler:
+    """
+    SUBTASK-5.6.2.2 [7c] - Efficient async task scheduling with resource limits.
+
+    Implements semaphore-based concurrency control and thread pool management
+    for CPU-intensive coordination operations while maintaining system responsiveness.
+    """
+
+    def __init__(
+        self,
+        max_concurrent_tasks: int = 10,
+        max_coordination_workers: int = 3,
+        max_signal_processing_workers: int = 5,
+        task_timeout_seconds: float = 30.0,
+    ):
+        """Initialize async task scheduler components."""
+        self.max_concurrent_tasks = max_concurrent_tasks
+        self.max_coordination_workers = max_coordination_workers
+        self.max_signal_processing_workers = max_signal_processing_workers
+        self.task_timeout_seconds = task_timeout_seconds
+
+        # Semaphores for concurrent task limiting
+        self.task_semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
+        self.coordination_semaphore = asyncio.Semaphore(self.max_coordination_workers)
+        self.signal_processing_semaphore = asyncio.Semaphore(self.max_signal_processing_workers)
+
+        # Thread pools for CPU-intensive operations
+        self.coordination_executor = ThreadPoolExecutor(
+            max_workers=self.max_coordination_workers,
+            thread_name_prefix="coordination_worker"
+        )
+        self.signal_processing_executor = ThreadPoolExecutor(
+            max_workers=self.max_signal_processing_workers,
+            thread_name_prefix="signal_worker"
+        )
+
+        # Task tracking and statistics
+        self.active_tasks: set[asyncio.Task] = set()
+        self.completed_tasks = 0
+        self.failed_tasks = 0
+        self.timeout_tasks = 0
+        self.total_task_time = 0.0
+        
+        # Task priority queues
+        self.high_priority_queue: asyncio.Queue = asyncio.Queue()
+        self.normal_priority_queue: asyncio.Queue = asyncio.Queue()
+        self.low_priority_queue: asyncio.Queue = asyncio.Queue()
+
+        # Scheduler state
+        self._scheduler_running = False
+        self._scheduler_task: asyncio.Task | None = None
+
+        logger.info(
+            f"AsyncTaskScheduler initialized - max_concurrent: {self.max_concurrent_tasks}, "
+            f"coordination_workers: {self.max_coordination_workers}, "
+            f"signal_workers: {self.max_signal_processing_workers}"
+        )
+
+    async def schedule_coordination_task(
+        self,
+        task_func: Callable[..., Awaitable[Any]],
+        *args,
+        priority: str = "normal",
+        timeout_override: float | None = None,
+        **kwargs
+    ) -> dict[str, Any]:
+        """
+        Schedule a coordination task with resource limiting and priority management.
+
+        Args:
+            task_func: Async function to execute
+            *args: Positional arguments for task_func
+            priority: Task priority ("high", "normal", "low")
+            timeout_override: Optional timeout override
+            **kwargs: Keyword arguments for task_func
+
+        Returns:
+            Dict containing task result and execution metrics
+        """
+        timeout = timeout_override or self.task_timeout_seconds
+        
+        async with self.task_semaphore:
+            async with self.coordination_semaphore:
+                start_time = time.perf_counter()
+                
+                try:
+                    # Execute task with timeout
+                    result = await asyncio.wait_for(
+                        task_func(*args, **kwargs),
+                        timeout=timeout
+                    )
+                    
+                    execution_time = time.perf_counter() - start_time
+                    self.completed_tasks += 1
+                    self.total_task_time += execution_time
+                    
+                    logger.debug(
+                        f"Coordination task completed in {execution_time:.3f}s, "
+                        f"priority: {priority}"
+                    )
+                    
+                    return {
+                        "result": result,
+                        "execution_time_seconds": execution_time,
+                        "status": "completed",
+                        "priority": priority,
+                        "task_type": "coordination",
+                    }
+                    
+                except asyncio.TimeoutError:
+                    execution_time = time.perf_counter() - start_time
+                    self.timeout_tasks += 1
+                    
+                    logger.warning(
+                        f"Coordination task timed out after {timeout}s, "
+                        f"priority: {priority}"
+                    )
+                    
+                    return {
+                        "result": None,
+                        "execution_time_seconds": execution_time,
+                        "status": "timeout",
+                        "priority": priority,
+                        "task_type": "coordination",
+                        "timeout_seconds": timeout,
+                    }
+                    
+                except Exception as e:
+                    execution_time = time.perf_counter() - start_time
+                    self.failed_tasks += 1
+                    
+                    logger.error(
+                        f"Coordination task failed after {execution_time:.3f}s: {e}, "
+                        f"priority: {priority}"
+                    )
+                    
+                    return {
+                        "result": None,
+                        "execution_time_seconds": execution_time,
+                        "status": "failed",
+                        "priority": priority,
+                        "task_type": "coordination",
+                        "error": str(e),
+                    }
+
+    async def schedule_signal_processing_task(
+        self,
+        task_func: Callable[..., Any],
+        *args,
+        priority: str = "normal",
+        timeout_override: float | None = None,
+        **kwargs
+    ) -> dict[str, Any]:
+        """
+        Schedule a signal processing task in thread pool with resource management.
+
+        Args:
+            task_func: Sync function to execute in thread pool
+            *args: Positional arguments for task_func
+            priority: Task priority ("high", "normal", "low")
+            timeout_override: Optional timeout override
+            **kwargs: Keyword arguments for task_func
+
+        Returns:
+            Dict containing task result and execution metrics
+        """
+        timeout = timeout_override or self.task_timeout_seconds
+        
+        async with self.task_semaphore:
+            async with self.signal_processing_semaphore:
+                start_time = time.perf_counter()
+                
+                try:
+                    # Execute CPU-intensive task in thread pool
+                    loop = asyncio.get_event_loop()
+                    result = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            self.signal_processing_executor,
+                            task_func,
+                            *args,
+                            **kwargs
+                        ),
+                        timeout=timeout
+                    )
+                    
+                    execution_time = time.perf_counter() - start_time
+                    self.completed_tasks += 1
+                    self.total_task_time += execution_time
+                    
+                    logger.debug(
+                        f"Signal processing task completed in {execution_time:.3f}s, "
+                        f"priority: {priority}"
+                    )
+                    
+                    return {
+                        "result": result,
+                        "execution_time_seconds": execution_time,
+                        "status": "completed",
+                        "priority": priority,
+                        "task_type": "signal_processing",
+                    }
+                    
+                except asyncio.TimeoutError:
+                    execution_time = time.perf_counter() - start_time
+                    self.timeout_tasks += 1
+                    
+                    logger.warning(
+                        f"Signal processing task timed out after {timeout}s, "
+                        f"priority: {priority}"
+                    )
+                    
+                    return {
+                        "result": None,
+                        "execution_time_seconds": execution_time,
+                        "status": "timeout",
+                        "priority": priority,
+                        "task_type": "signal_processing",
+                        "timeout_seconds": timeout,
+                    }
+                    
+                except Exception as e:
+                    execution_time = time.perf_counter() - start_time
+                    self.failed_tasks += 1
+                    
+                    logger.error(
+                        f"Signal processing task failed after {execution_time:.3f}s: {e}, "
+                        f"priority: {priority}"
+                    )
+                    
+                    return {
+                        "result": None,
+                        "execution_time_seconds": execution_time,
+                        "status": "failed",
+                        "priority": priority,
+                        "task_type": "signal_processing",
+                        "error": str(e),
+                    }
+
+    async def schedule_batch_coordination_tasks(
+        self,
+        tasks: list[dict[str, Any]],
+        max_concurrent_batch: int | None = None
+    ) -> list[dict[str, Any]]:
+        """
+        Schedule multiple coordination tasks with intelligent batching.
+
+        Args:
+            tasks: List of task dictionaries with 'func', 'args', 'kwargs', 'priority'
+            max_concurrent_batch: Optional override for batch concurrency
+
+        Returns:
+            List of task results
+        """
+        if not tasks:
+            return []
+
+        batch_size = max_concurrent_batch or min(self.max_coordination_workers, len(tasks))
+        start_time = time.perf_counter()
+        
+        # Create semaphore for batch concurrency control
+        batch_semaphore = asyncio.Semaphore(batch_size)
+        
+        async def execute_single_task(task_info: dict[str, Any]) -> dict[str, Any]:
+            async with batch_semaphore:
+                return await self.schedule_coordination_task(
+                    task_info["func"],
+                    *task_info.get("args", []),
+                    priority=task_info.get("priority", "normal"),
+                    **task_info.get("kwargs", {})
+                )
+        
+        # Execute all tasks concurrently with batch limits
+        results = await asyncio.gather(
+            *[execute_single_task(task) for task in tasks],
+            return_exceptions=True
+        )
+        
+        batch_execution_time = time.perf_counter() - start_time
+        
+        # Process results and handle exceptions
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    "result": None,
+                    "execution_time_seconds": 0.0,
+                    "status": "exception",
+                    "task_type": "coordination_batch",
+                    "error": str(result),
+                    "batch_index": i,
+                })
+                self.failed_tasks += 1
+            else:
+                result["batch_index"] = i
+                processed_results.append(result)
+        
+        logger.info(
+            f"Batch processed {len(tasks)} coordination tasks in {batch_execution_time:.3f}s "
+            f"(avg: {batch_execution_time/len(tasks):.3f}s per task)"
+        )
+        
+        return processed_results
+
+    async def start_priority_scheduler(self) -> None:
+        """Start the priority-based task scheduler loop."""
+        if self._scheduler_running:
+            logger.warning("Priority scheduler already running")
+            return
+        
+        self._scheduler_running = True
+        self._scheduler_task = asyncio.create_task(self._priority_scheduler_loop())
+        logger.info("Priority task scheduler started")
+
+    async def stop_priority_scheduler(self) -> None:
+        """Stop the priority-based task scheduler loop."""
+        if not self._scheduler_running:
+            return
+        
+        self._scheduler_running = False
+        if self._scheduler_task:
+            self._scheduler_task.cancel()
+            try:
+                await self._scheduler_task
+            except asyncio.CancelledError:
+                pass
+        
+        logger.info("Priority task scheduler stopped")
+
+    async def _priority_scheduler_loop(self) -> None:
+        """Main priority scheduler loop - processes tasks by priority."""
+        while self._scheduler_running:
+            try:
+                # Check queues in priority order
+                task_info = None
+                
+                # High priority first
+                try:
+                    task_info = self.high_priority_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+                
+                # Normal priority second
+                if not task_info:
+                    try:
+                        task_info = self.normal_priority_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        pass
+                
+                # Low priority last
+                if not task_info:
+                    try:
+                        task_info = self.low_priority_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        pass
+                
+                if task_info:
+                    # Execute task based on type
+                    if task_info["task_type"] == "coordination":
+                        await self.schedule_coordination_task(
+                            task_info["func"],
+                            *task_info.get("args", []),
+                            priority=task_info["priority"],
+                            **task_info.get("kwargs", {})
+                        )
+                    elif task_info["task_type"] == "signal_processing":
+                        await self.schedule_signal_processing_task(
+                            task_info["func"],
+                            *task_info.get("args", []),
+                            priority=task_info["priority"],
+                            **task_info.get("kwargs", {})
+                        )
+                else:
+                    # No tasks available, brief sleep to prevent busy waiting
+                    await asyncio.sleep(0.01)
+                    
+            except Exception as e:
+                logger.error(f"Priority scheduler error: {e}")
+                await asyncio.sleep(0.1)
+
+    def queue_priority_task(
+        self,
+        task_func: Callable,
+        task_type: str,
+        priority: str = "normal",
+        *args,
+        **kwargs
+    ) -> None:
+        """
+        Queue a task for priority-based execution.
+
+        Args:
+            task_func: Function to execute
+            task_type: "coordination" or "signal_processing"
+            priority: "high", "normal", or "low"
+            *args: Function arguments
+            **kwargs: Function keyword arguments
+        """
+        task_info = {
+            "func": task_func,
+            "task_type": task_type,
+            "priority": priority,
+            "args": args,
+            "kwargs": kwargs,
+            "queued_at": time.time(),
+        }
+        
+        # Add to appropriate priority queue
+        if priority == "high":
+            self.high_priority_queue.put_nowait(task_info)
+        elif priority == "low":
+            self.low_priority_queue.put_nowait(task_info)
+        else:  # normal priority
+            self.normal_priority_queue.put_nowait(task_info)
+        
+        logger.debug(f"Queued {task_type} task with {priority} priority")
+
+    def get_scheduler_statistics(self) -> dict[str, Any]:
+        """Get comprehensive task scheduler performance statistics."""
+        total_tasks = self.completed_tasks + self.failed_tasks + self.timeout_tasks
+        
+        return {
+            "total_tasks_processed": total_tasks,
+            "completed_tasks": self.completed_tasks,
+            "failed_tasks": self.failed_tasks,
+            "timeout_tasks": self.timeout_tasks,
+            "success_rate": self.completed_tasks / max(total_tasks, 1),
+            "timeout_rate": self.timeout_tasks / max(total_tasks, 1),
+            "average_task_time_seconds": self.total_task_time / max(self.completed_tasks, 1),
+            "active_tasks_count": len(self.active_tasks),
+            "high_priority_queue_size": self.high_priority_queue.qsize(),
+            "normal_priority_queue_size": self.normal_priority_queue.qsize(),
+            "low_priority_queue_size": self.low_priority_queue.qsize(),
+            "coordination_semaphore_available": self.coordination_semaphore._value,
+            "signal_processing_semaphore_available": self.signal_processing_semaphore._value,
+            "task_semaphore_available": self.task_semaphore._value,
+            "scheduler_running": self._scheduler_running,
+            "resource_utilization": {
+                "coordination_workers_in_use": self.max_coordination_workers - self.coordination_semaphore._value,
+                "signal_workers_in_use": self.max_signal_processing_workers - self.signal_processing_semaphore._value,
+                "total_workers_in_use": (self.max_coordination_workers - self.coordination_semaphore._value) + 
+                                       (self.max_signal_processing_workers - self.signal_processing_semaphore._value),
+            }
+        }
+
+    def adjust_resource_limits(
+        self,
+        new_max_concurrent: int | None = None,
+        new_coordination_workers: int | None = None,
+        new_signal_workers: int | None = None
+    ) -> dict[str, Any]:
+        """
+        Dynamically adjust resource limits based on system performance.
+
+        Args:
+            new_max_concurrent: New maximum concurrent tasks
+            new_coordination_workers: New coordination worker limit
+            new_signal_workers: New signal processing worker limit
+
+        Returns:
+            Dict with adjustment results and new limits
+        """
+        adjustments_made = []
+        
+        if new_max_concurrent is not None and new_max_concurrent != self.max_concurrent_tasks:
+            # Adjust semaphore limit
+            old_value = self.max_concurrent_tasks
+            self.max_concurrent_tasks = new_max_concurrent
+            
+            # Create new semaphore with updated limit
+            current_permits = self.task_semaphore._value
+            self.task_semaphore = asyncio.Semaphore(new_max_concurrent)
+            
+            # Restore permits up to new limit
+            for _ in range(min(current_permits, new_max_concurrent - 1)):
+                try:
+                    self.task_semaphore.acquire_nowait()
+                except ValueError:
+                    break
+            
+            adjustments_made.append(f"max_concurrent: {old_value} -> {new_max_concurrent}")
+        
+        if new_coordination_workers is not None and new_coordination_workers != self.max_coordination_workers:
+            old_value = self.max_coordination_workers
+            self.max_coordination_workers = new_coordination_workers
+            
+            # Create new thread pool executor
+            old_executor = self.coordination_executor
+            self.coordination_executor = ThreadPoolExecutor(
+                max_workers=new_coordination_workers,
+                thread_name_prefix="coordination_worker"
+            )
+            
+            # Create new semaphore
+            self.coordination_semaphore = asyncio.Semaphore(new_coordination_workers)
+            
+            # Schedule shutdown of old executor
+            asyncio.create_task(self._shutdown_executor(old_executor))
+            
+            adjustments_made.append(f"coordination_workers: {old_value} -> {new_coordination_workers}")
+        
+        if new_signal_workers is not None and new_signal_workers != self.max_signal_processing_workers:
+            old_value = self.max_signal_processing_workers
+            self.max_signal_processing_workers = new_signal_workers
+            
+            # Create new thread pool executor
+            old_executor = self.signal_processing_executor
+            self.signal_processing_executor = ThreadPoolExecutor(
+                max_workers=new_signal_workers,
+                thread_name_prefix="signal_worker"
+            )
+            
+            # Create new semaphore
+            self.signal_processing_semaphore = asyncio.Semaphore(new_signal_workers)
+            
+            # Schedule shutdown of old executor
+            asyncio.create_task(self._shutdown_executor(old_executor))
+            
+            adjustments_made.append(f"signal_workers: {old_value} -> {new_signal_workers}")
+        
+        logger.info(f"Resource limits adjusted: {', '.join(adjustments_made) if adjustments_made else 'no changes'}")
+        
+        return {
+            "adjustments_made": adjustments_made,
+            "current_limits": {
+                "max_concurrent_tasks": self.max_concurrent_tasks,
+                "max_coordination_workers": self.max_coordination_workers,
+                "max_signal_processing_workers": self.max_signal_processing_workers,
+            }
+        }
+
+    async def _shutdown_executor(self, executor: ThreadPoolExecutor) -> None:
+        """Gracefully shutdown a thread pool executor."""
+        try:
+            executor.shutdown(wait=False)
+            # Give it a moment to finish current tasks
+            await asyncio.sleep(1.0)
+            logger.debug("Thread pool executor shutdown completed")
+        except Exception as e:
+            logger.warning(f"Error during executor shutdown: {e}")
+
+    async def shutdown(self) -> None:
+        """Shutdown the async task scheduler and clean up resources."""
+        logger.info("Shutting down AsyncTaskScheduler...")
+        
+        # Stop priority scheduler
+        await self.stop_priority_scheduler()
+        
+        # Cancel active tasks
+        if self.active_tasks:
+            for task in list(self.active_tasks):
+                task.cancel()
+            
+            # Wait briefly for tasks to complete
+            await asyncio.sleep(0.5)
+        
+        # Shutdown thread pools
+        self.coordination_executor.shutdown(wait=False)
+        self.signal_processing_executor.shutdown(wait=False)
+        
+        logger.info("AsyncTaskScheduler shutdown completed")

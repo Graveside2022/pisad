@@ -212,9 +212,9 @@ class ASVInteropService:
             # This would normally discover types from the loaded ASV assembly
             # Based on actual ASV project structure, these are the available analyzers
             self._analyzer_types = [
-                "Asv.Drones.Sdr.Core.IAnalyzerGp",      # GPS/GNSS emergency beacons (406 MHz)
-                "Asv.Drones.Sdr.Core.IAnalyzerVor",     # VOR aviation navigation signals
-                "Asv.Drones.Sdr.Core.IAnalyzerLlz",     # LLZ (Localizer) aviation landing systems
+                "Asv.Drones.Sdr.Core.IAnalyzerGp",  # GPS/GNSS emergency beacons (406 MHz)
+                "Asv.Drones.Sdr.Core.IAnalyzerVor",  # VOR aviation navigation signals
+                "Asv.Drones.Sdr.Core.IAnalyzerLlz",  # LLZ (Localizer) aviation landing systems
             ]
 
             logger.info(f"Discovered {len(self._analyzer_types)} analyzer types")
