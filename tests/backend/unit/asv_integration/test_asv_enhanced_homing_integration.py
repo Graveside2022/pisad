@@ -10,23 +10,21 @@ and PISAD's existing homing algorithm, including:
 - Compatibility with existing GradientVector interface
 """
 
-import asyncio
-import math
-import pytest
 import time
-import numpy as np
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
-from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
-    ASVEnhancedHomingIntegration,
-    ASVEnhancedGradient,
-)
-from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
-    ASVEnhancedSignalProcessor,
-    ASVBearingCalculation,
-)
+import pytest
+
 from src.backend.services.asv_integration.asv_analyzer_factory import ASVAnalyzerFactory
 from src.backend.services.asv_integration.asv_analyzer_wrapper import ASVAnalyzerBase
+from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
+    ASVEnhancedGradient,
+    ASVEnhancedHomingIntegration,
+)
+from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
+    ASVBearingCalculation,
+    ASVEnhancedSignalProcessor,
+)
 from src.backend.services.homing_algorithm import GradientVector
 
 
@@ -223,7 +221,11 @@ class TestASVEnhancedHomingIntegration:
             b"\x01\x02\x03\x04" * 100, 0.0, 0.0, 90.0, -95.0
         )
         result2 = await homing_integration.calculate_enhanced_gradient(
-            b"\x01\x02\x03\x04" * 100, 0.1, 0.1, 90.0, -94.0  # Insufficient spatial diversity
+            b"\x01\x02\x03\x04" * 100,
+            0.1,
+            0.1,
+            90.0,
+            -94.0,  # Insufficient spatial diversity
         )
 
         # Assert - Should return None due to insufficient samples/diversity

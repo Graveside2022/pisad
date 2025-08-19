@@ -7,15 +7,14 @@ including analyzer interfaces and work mode functionality.
 """
 
 import asyncio
-import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch
+
+import pytest
 
 from src.backend.services.asv_integration.asv_interop_service import ASVInteropService
 from src.backend.services.asv_integration.exceptions import (
     ASVAnalyzerError,
     ASVAssemblyLoadError,
-    ASVInteropError,
 )
 
 

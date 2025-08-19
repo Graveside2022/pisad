@@ -7,7 +7,7 @@ between .NET and Python exception systems.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,9 @@ class ASVInteropError(Exception):
             "message": str(self),
             "error_code": self.error_code,
             "context": self.context,
-            "dotnet_exception": str(self.dotnet_exception) if self.dotnet_exception else None,
+            "dotnet_exception": (
+                str(self.dotnet_exception) if self.dotnet_exception else None
+            ),
         }
 
 
@@ -117,7 +119,9 @@ class ASVAnalyzerError(ASVInteropError):
 class ASVConfigurationError(ASVInteropError):
     """Raised when ASV configuration is invalid."""
 
-    def __init__(self, message: str, config_key: str | None = None, config_value: Any = None):
+    def __init__(
+        self, message: str, config_key: str | None = None, config_value: Any = None
+    ):
         """Initialize configuration error.
 
         Args:
@@ -263,7 +267,9 @@ def translate_dotnet_exception(
     translated_message = f".NET {exception_type}: {message}"
 
     if exception_class == ASVAssemblyLoadError:
-        return exception_class(translated_message, dotnet_exception, context.get("assembly_path"))
+        return exception_class(
+            translated_message, dotnet_exception, context.get("assembly_path")
+        )
     elif exception_class == ASVFrequencyError:
         return exception_class(
             translated_message, context.get("frequency_hz"), context.get("valid_range")
@@ -273,7 +279,9 @@ def translate_dotnet_exception(
             translated_message, context.get("config_key"), context.get("config_value")
         )
     elif exception_class == ASVRuntimeError:
-        return exception_class(translated_message, dotnet_exception, context.get("runtime_state"))
+        return exception_class(
+            translated_message, dotnet_exception, context.get("runtime_state")
+        )
     elif exception_class == ASVSignalProcessingError:
         return exception_class(
             translated_message,
@@ -299,7 +307,10 @@ class ASVExceptionHandler:
         self._last_errors = {}
 
     def handle_exception(
-        self, operation: str, exception: Exception, context: Dict[str, Any] | None = None
+        self,
+        operation: str,
+        exception: Exception,
+        context: Dict[str, Any] | None = None,
     ) -> ASVInteropError:
         """Handle and translate exception with context.
 
@@ -334,7 +345,9 @@ class ASVExceptionHandler:
         # Store for analysis
         self._last_errors[operation] = {
             "timestamp": (
-                logger._getCurrentTime() if hasattr(logger, "_getCurrentTime") else "unknown"
+                logger._getCurrentTime()
+                if hasattr(logger, "_getCurrentTime")
+                else "unknown"
             ),
             "exception": translated,
             "count": self._error_counts[error_key],

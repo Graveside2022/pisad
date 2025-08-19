@@ -24,8 +24,8 @@ import asyncio
 import contextlib
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from src.backend.core.base_service import BaseService
 from src.backend.hal.hackrf_interface import HackRFConfig, HackRFInterface
@@ -48,6 +48,7 @@ from src.backend.services.asv_integration.exceptions import (
     ASVInteropError,
 )
 from src.backend.services.safety_authority_manager import (
+    SafetyAuthorityLevel,
     SafetyAuthorityManager,
 )
 from src.backend.utils.logging import get_logger
@@ -77,14 +78,14 @@ class ASVCoordinationMetrics:
     average_switching_latency_ms: float = 0.0
     signal_fusion_latency_ms: float = 0.0
     concurrent_detections: int = 0
-    analyzer_health_status: Optional[Dict[str, bool]] = None
-    last_update_timestamp: Optional[datetime] = None
+    analyzer_health_status: dict[str, bool] | None = None
+    last_update_timestamp: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.analyzer_health_status is None:
             self.analyzer_health_status = {}
         if self.last_update_timestamp is None:
-            self.last_update_timestamp = datetime.now(timezone.utc)
+            self.last_update_timestamp = datetime.now(UTC)
 
 
 class ASVHackRFCoordinator(BaseService):
@@ -108,9 +109,9 @@ class ASVHackRFCoordinator(BaseService):
 
     def __init__(
         self,
-        config_manager: Optional[ASVConfigurationManager] = None,
-        safety_authority: Optional[SafetyAuthorityManager] = None,
-        hackrf_config: Optional[HackRFConfig] = None,
+        config_manager: ASVConfigurationManager | None = None,
+        safety_authority: SafetyAuthorityManager | None = None,
+        hackrf_config: HackRFConfig | None = None,
     ):
         """Initialize ASV HackRF coordinator with multi-analyzer capabilities."""
         super().__init__(service_name="asv_hackrf_coordinator")
@@ -123,13 +124,13 @@ class ASVHackRFCoordinator(BaseService):
         self._safety_authority = safety_authority
 
         # Hardware interface (preserve proven HackRF implementation)
-        self._hackrf_interface: Optional[HackRFInterface] = None
+        self._hackrf_interface: HackRFInterface | None = None
 
         # Multi-analyzer management
-        self._analyzer_factory: Optional[ASVAnalyzerFactory] = None
-        self._multi_analyzer_coordinator: Optional[ASVMultiAnalyzerCoordinator] = None
-        self._active_analyzers: Dict[str, ASVAnalyzerBase] = {}
-        self._frequency_channels: Dict[str, ASVFrequencyChannelConfig] = {}
+        self._analyzer_factory: ASVAnalyzerFactory | None = None
+        self._multi_analyzer_coordinator: ASVMultiAnalyzerCoordinator | None = None
+        self._active_analyzers: dict[str, ASVAnalyzerBase] = {}
+        self._frequency_channels: dict[str, ASVFrequencyChannelConfig] = {}
 
         # Coordination state
         self._current_frequency_hz: int = 406_000_000  # Default emergency beacon
@@ -138,12 +139,12 @@ class ASVHackRFCoordinator(BaseService):
 
         # Performance tracking
         self._coordination_metrics = ASVCoordinationMetrics()
-        self._frequency_switch_times: List[float] = []
-        self._signal_fusion_times: List[float] = []
+        self._frequency_switch_times: list[float] = []
+        self._signal_fusion_times: list[float] = []
 
         # Async coordination tasks
-        self._coordination_task: Optional[asyncio.Task[None]] = None
-        self._health_monitor_task: Optional[asyncio.Task[None]] = None
+        self._coordination_task: asyncio.Task[None] | None = None
+        self._health_monitor_task: asyncio.Task[None] | None = None
 
         # Timing configuration for Epic 6 requirements
         self.coordination_interval = 0.025  # 25ms for sub-100ms total latency
@@ -256,6 +257,47 @@ class ASVHackRFCoordinator(BaseService):
 
         except Exception as e:
             logger.error(f"Error during ASVHackRFCoordinator shutdown: {e}")
+
+    async def emergency_stop(self) -> None:
+        """Emergency stop all coordination and analyzer operations with <500ms response time.
+
+        SUBTASK-6.1.2.4 [17b-2]: Emergency stop propagation in ASVHackRFCoordinator.
+
+        This method provides immediate shutdown of all coordination activities and
+        propagates emergency stop to the analyzer factory within <500ms requirement.
+        """
+        try:
+            # Immediately stop coordination loop
+            self._coordination_active = False
+            self._coordination_running = False if hasattr(self, "_coordination_running") else None
+
+            # Cancel coordination tasks immediately without waiting
+            if self._coordination_task:
+                self._coordination_task.cancel()
+                # Don't wait for cancellation - proceed immediately
+
+            if self._health_monitor_task:
+                self._health_monitor_task.cancel()
+                # Don't wait for cancellation - proceed immediately
+
+            # Emergency stop analyzer factory if available
+            if self._analyzer_factory and hasattr(self._analyzer_factory, "emergency_stop"):
+                await self._analyzer_factory.emergency_stop()
+
+            # Clear active analyzers immediately
+            self._active_analyzers.clear()
+
+            # Clear multi-analyzer coordinator immediately
+            self._multi_analyzer_coordinator = None
+
+            logger.critical("ASVHackRFCoordinator emergency stop completed")
+
+        except Exception as e:
+            logger.error(f"Error during ASVHackRFCoordinator emergency stop: {e}")
+            # Even if there's an error, ensure coordination is stopped
+            self._coordination_active = False
+            self._coordination_running = False if hasattr(self, "_coordination_running") else None
+            # Emergency stop must always succeed
 
     async def _load_frequency_channels(self) -> None:
         """Load frequency channel configurations from ASV configuration manager."""
@@ -438,20 +480,72 @@ class ASVHackRFCoordinator(BaseService):
             raise
 
     async def _validate_coordination_safety(self) -> bool:
-        """Validate that coordination is safe to continue per Epic 5 safety requirements."""
+        """
+        Validate that coordination is safe to continue per Epic 5 safety requirements.
+
+        SUBTASK-6.1.2.4 [17a] - Complete safety authority integration
+
+        Checks all safety authority levels and emergency override states to ensure
+        ASV coordination operations are permitted under current safety conditions.
+
+        Returns:
+            True if coordination is safe to continue, False if blocked by safety
+        """
         try:
             if self._safety_authority is None:
-                # No safety authority configured - allow coordination
+                # No safety authority configured - allow coordination but log warning
+                logger.warning(
+                    "ASV coordination proceeding without safety authority - not recommended for production"
+                )
                 return True
 
-            # For now, use basic safety check. Full implementation would use
-            # proper safety authority integration when the interface is complete
-            logger.debug("ASV coordination safety check - allowing operation")
-            return True
+            # Check emergency override state - highest priority safety check
+            if hasattr(self._safety_authority, "emergency_override_active") and self._safety_authority.emergency_override_active:
+                logger.warning("ASV coordination blocked by emergency override")
+                return False
+
+            # Validate coordination command with safety authority
+            try:
+                authorized, reason = self._safety_authority.validate_coordination_command(
+                    command_type="asv_coordination",
+                    authority_level=SafetyAuthorityLevel.SIGNAL,  # ASV coordination requires signal authority
+                    details={
+                        "component": "ASVHackRFCoordinator",
+                        "operation": "frequency_coordination",
+                        "current_frequency": self._current_frequency_hz,
+                        "active_analyzers": len(self._active_analyzers),
+                    },
+                )
+
+                if not authorized:
+                    logger.info(f"ASV coordination blocked by safety authority: {reason}")
+                    return False
+
+                # Log successful coordination validation for audit trail
+                if hasattr(self._safety_authority, "log_coordination_decision"):
+                    self._safety_authority.log_coordination_decision(
+                        component="ASVHackRFCoordinator",
+                        decision_type="coordination_validation",
+                        decision_details={
+                            "frequency_hz": self._current_frequency_hz,
+                            "active_analyzers": len(self._active_analyzers),
+                            "validation_timestamp": datetime.now(UTC).isoformat(),
+                        },
+                        authority_level=SafetyAuthorityLevel.SIGNAL,
+                        outcome="coordination_authorized",
+                    )
+
+                logger.debug("ASV coordination authorized by safety authority")
+                return True
+
+            except Exception as validation_error:
+                logger.error(f"Safety authority validation failed: {validation_error}")
+                # Fail-safe: block coordination if safety validation fails
+                return False
 
         except Exception as e:
-            logger.error(f"Safety validation error: {e}")
-            # Fail-safe: deny coordination on safety validation error
+            logger.error(f"Critical error in safety validation: {e}")
+            # Fail-safe: deny coordination on any safety validation error
             return False
 
     async def _select_optimal_frequency(self) -> tuple[int, str]:
@@ -500,7 +594,7 @@ class ASVHackRFCoordinator(BaseService):
         """Get current coordination performance metrics."""
         return self._coordination_metrics
 
-    def get_active_analyzers(self) -> Dict[str, str]:
+    def get_active_analyzers(self) -> dict[str, str]:
         """Get currently active analyzers with their types."""
         return {
             analyzer_id: (
@@ -629,7 +723,7 @@ class ASVHackRFCoordinator(BaseService):
             logger.error(f"Error collecting IQ samples: {e}")
             return b""
 
-    async def _process_concurrent_analysis(self, iq_samples: bytes) -> Dict[str, Any]:
+    async def _process_concurrent_analysis(self, iq_samples: bytes) -> dict[str, Any]:
         """
         Process IQ samples through active ASV analyzers.
 
@@ -671,7 +765,7 @@ class ASVHackRFCoordinator(BaseService):
         """Update coordination performance metrics."""
         try:
             # Update metrics timestamp
-            self._coordination_metrics.last_update_timestamp = datetime.now(timezone.utc)
+            self._coordination_metrics.last_update_timestamp = datetime.now(UTC)
 
             # Update analyzer count
             self._coordination_metrics.total_analyzers_active = len(self._active_analyzers)
@@ -693,7 +787,7 @@ class ASVHackRFCoordinator(BaseService):
         except Exception as e:
             logger.error(f"Error updating coordination metrics: {e}")
 
-    async def _fuse_signal_results(self, signal_results: Dict[str, Any]) -> Dict[str, Any]:
+    async def _fuse_signal_results(self, signal_results: dict[str, Any]) -> dict[str, Any]:
         """
         Fuse signal results from analyzers into unified output.
 
@@ -711,10 +805,10 @@ class ASVHackRFCoordinator(BaseService):
                 return {"status": "no_signals", "analyzers": 0}
 
             # For single-frequency mode, take the primary result
-            fused_result: Dict[str, Any] = {
+            fused_result: dict[str, Any] = {
                 "status": "success",
                 "analyzers_processed": len(signal_results),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "signals": [],
             }
 
@@ -738,7 +832,7 @@ class ASVHackRFCoordinator(BaseService):
             logger.error(f"Error fusing signal results: {e}")
             return {"status": "error", "error": str(e), "analyzers": 0}
 
-    async def _publish_signal_results(self, fused_result: Dict[str, Any]) -> None:
+    async def _publish_signal_results(self, fused_result: dict[str, Any]) -> None:
         """
         Publish fused signal results to PISAD signal processing chain.
 
@@ -766,3 +860,52 @@ class ASVHackRFCoordinator(BaseService):
 
         except Exception as e:
             logger.error(f"Error publishing signal results: {e}")
+
+    # ========================================================================
+    # PUBLIC API METHODS (SUBTASK-6.1.2.2 [15d-1] - API Integration)
+    # ========================================================================
+
+    async def switch_frequency(self, frequency_hz: int, analyzer_type: str = "GP") -> bool:
+        """Switch to specific frequency for API integration.
+
+        Args:
+            frequency_hz: Target frequency in Hz
+            analyzer_type: Analyzer type (GP, VOR, LLZ)
+
+        Returns:
+            True if frequency switch successful, False otherwise
+        """
+        try:
+            logger.info(
+                f"API frequency switch request: {frequency_hz/1e6:.3f} MHz ({analyzer_type})"
+            )
+
+            # Switch HackRF hardware frequency
+            success = await self._switch_hackrf_frequency(frequency_hz)
+
+            if success:
+                # Update current frequency tracking
+                self._current_frequency_hz = frequency_hz
+                logger.info(f"API frequency switch successful: {frequency_hz/1e6:.3f} MHz")
+            else:
+                logger.error(f"API frequency switch failed: {frequency_hz/1e6:.3f} MHz")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error in API frequency switch: {e}")
+            return False
+
+    async def get_current_frequency(self) -> int:
+        """Get current active frequency for API integration.
+
+        Returns:
+            Current frequency in Hz
+        """
+        try:
+            # Return current tracked frequency
+            return self._current_frequency_hz
+
+        except Exception as e:
+            logger.error(f"Error getting current frequency: {e}")
+            return 406_000_000  # Safe default

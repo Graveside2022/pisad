@@ -7,12 +7,10 @@ Tests AUTHENTIC .NET assembly loading and interop - NO mocks allowed per TDD req
 This follows the brutal honesty protocol: tests fail until real .NET integration works.
 """
 
-import pytest
-import sys
-from pathlib import Path
-from unittest.mock import patch
-import asyncio
 import time
+from pathlib import Path
+
+import pytest
 
 
 class TestASVInteropService:
@@ -31,6 +29,7 @@ class TestASVInteropService:
         NO mocks - must test actual pythonnet import capability.
         """
         import os
+
         import pythonnet
         from clr_loader import get_coreclr
 

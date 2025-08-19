@@ -106,6 +106,42 @@ class ASVAnalyzerFactory:
             logger.error(f"Error stopping analyzer factory: {e}")
             raise ASVInteropError(f"Factory shutdown failed: {e}", e)
 
+    async def emergency_stop(self) -> None:
+        """Emergency stop all active analyzers with <500ms response time.
+
+        SUBTASK-6.1.2.4 [17b-1]: Emergency stop signal propagation to ASV analyzer instances.
+
+        This method provides immediate shutdown capability for all active analyzers
+        during emergency situations, meeting the <500ms response requirement.
+        """
+        try:
+            # Get active analyzer for immediate shutdown
+            if self._active_analyzer_id and self._active_analyzer_id in self._analyzers:
+                analyzer = self._analyzers[self._active_analyzer_id]
+
+                # Call analyzer shutdown immediately
+                await analyzer.shutdown()
+
+                # Clear active analyzer state immediately
+                del self._analyzers[self._active_analyzer_id]
+                self._active_analyzer_id = None
+                self._current_frequency_hz = None
+
+                logger.warning(f"Emergency stop completed for analyzer {self._active_analyzer_id}")
+
+            # Mark factory as stopped
+            self._is_running = False
+
+            logger.critical("ASV analyzer factory emergency stop completed")
+
+        except Exception as e:
+            logger.error(f"Error during emergency stop: {e}")
+            # Even if there's an error, clear the state for safety
+            self._active_analyzer_id = None
+            self._current_frequency_hz = None
+            self._is_running = False
+            # Don't raise exception - emergency stop must always succeed
+
     def create_analyzer_config(
         self,
         analyzer_type: str,

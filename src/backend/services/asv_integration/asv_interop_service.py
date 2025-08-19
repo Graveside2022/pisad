@@ -2,7 +2,7 @@
 
 SUBTASK-6.1.1.1: Setup pythonnet for Python-to-.NET bridge integration
 
-This service provides Python-to-.NET bridge functionality for integrating 
+This service provides Python-to-.NET bridge functionality for integrating
 ASV Drones SDR analyzers with PISAD's existing RF processing system.
 """
 
@@ -103,7 +103,9 @@ class ASVInteropService:
                 import clr  # noqa: F401
 
                 self._dotnet_runtime_initialized = True
-                logger.info(f"Successfully initialized .NET Core runtime from {dotnet_root}")
+                logger.info(
+                    f"Successfully initialized .NET Core runtime from {dotnet_root}"
+                )
 
         except RuntimeError as e:
             if "already been loaded" in str(e):
@@ -178,7 +180,9 @@ class ASVInteropService:
 
     async def _load_asv_assembly_async(self) -> bool:
         """Load ASV assembly asynchronously."""
-        return await asyncio.get_event_loop().run_in_executor(None, self.load_asv_assembly)
+        return await asyncio.get_event_loop().run_in_executor(
+            None, self.load_asv_assembly
+        )
 
     def load_assembly_from_path(self, assembly_path: str) -> bool:
         """Load .NET assembly from specific path."""
@@ -202,7 +206,9 @@ class ASVInteropService:
             return True
 
         except Exception as e:
-            raise ASVAssemblyLoadError(f"Failed to load assembly {assembly_path}: {e}", e)
+            raise ASVAssemblyLoadError(
+                f"Failed to load assembly {assembly_path}: {e}", e
+            )
 
     def _discover_analyzer_types(self) -> None:
         """Discover available analyzer types from loaded assemblies."""

@@ -5,10 +5,12 @@ SUBTASK-6.1.2.1: Tests for ASV HackRF coordinator service with multi-analyzer ma
 """
 
 import asyncio
-import pytest
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from src.backend.hal.hackrf_interface import HackRFConfig
 from src.backend.services.asv_integration.asv_analyzer_wrapper import ASVAnalyzerConfig
 from src.backend.services.asv_integration.asv_configuration_manager import ASVConfigurationManager
 from src.backend.services.asv_integration.asv_hackrf_coordinator import (
@@ -17,7 +19,6 @@ from src.backend.services.asv_integration.asv_hackrf_coordinator import (
     ASVHackRFCoordinator,
 )
 from src.backend.services.safety_authority_manager import SafetyAuthorityManager
-from src.backend.hal.hackrf_interface import HackRFConfig
 
 
 @pytest.fixture

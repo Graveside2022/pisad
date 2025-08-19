@@ -56,6 +56,7 @@ def create_app() -> FastAPI:
     # Register API routes FIRST (before static files)
     from src.backend.api.routes import (
         analytics,
+        asv_integration,
         detections,
         health,
         search,
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(
         config_routes.router, prefix="/api", tags=["config"]
     )  # Has /config prefix, needs /api
+    app.include_router(asv_integration.router, prefix="/api", tags=["asv"])  # ASV integration endpoints
     app.include_router(state.router, tags=["state"])  # Already has /api/state prefix
     app.include_router(telemetry.router, tags=["telemetry"])  # Already has /api/telemetry prefix
     app.include_router(search.router, tags=["search"])  # Already has /api/search prefix

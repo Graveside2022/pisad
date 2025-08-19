@@ -10,6 +10,7 @@ from typing import Any
 from pymavlink import mavutil
 
 from backend.core.exceptions import CallbackError, MAVLinkError, SafetyInterlockError
+from src.backend.utils.doppler_compensation import PlatformVelocity
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ class MAVLinkService:
         # Telemetry data storage
         self.telemetry: dict[str, Any] = {
             "position": {"lat": 0.0, "lon": 0.0, "alt": 0.0},
+            "velocity": {"vx": 0.0, "vy": 0.0, "vz": 0.0, "ground_speed": 0.0},
             "attitude": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
             "battery": {"voltage": 0.0, "current": 0.0, "percentage": 0.0},
             "gps": {"fix_type": 0, "satellites": 0, "hdop": 0.0},
@@ -568,6 +570,19 @@ class MAVLinkService:
         self.telemetry["position"]["lat"] = lat
         self.telemetry["position"]["lon"] = lon
         self.telemetry["position"]["alt"] = msg.alt / 1000.0  # mm to meters
+        
+        # Extract velocity data (convert from cm/s to m/s)
+        vx_ms = msg.vx / 100.0 if hasattr(msg, 'vx') else 0.0  # North velocity
+        vy_ms = msg.vy / 100.0 if hasattr(msg, 'vy') else 0.0  # East velocity  
+        vz_ms = msg.vz / 100.0 if hasattr(msg, 'vz') else 0.0  # Down velocity
+        
+        # Calculate ground speed
+        ground_speed_ms = (vx_ms**2 + vy_ms**2)**0.5
+        
+        self.telemetry["velocity"]["vx"] = vx_ms
+        self.telemetry["velocity"]["vy"] = vy_ms
+        self.telemetry["velocity"]["vz"] = vz_ms
+        self.telemetry["velocity"]["ground_speed"] = ground_speed_ms
 
         # Notify position callbacks
         for callback in self._position_callbacks:
@@ -672,6 +687,23 @@ class MAVLinkService:
             "connected": self.state == ConnectionState.CONNECTED,
             "connection_state": self.state.value,
         }
+
+    def get_platform_velocity(self) -> PlatformVelocity | None:
+        """Get current platform velocity for Doppler compensation.
+        
+        Returns:
+            PlatformVelocity object with velocity components or None if unavailable
+        """
+        velocity = self.telemetry.get("velocity")
+        if not velocity:
+            return None
+            
+        return PlatformVelocity(
+            vx_ms=velocity["vx"],
+            vy_ms=velocity["vy"], 
+            vz_ms=velocity["vz"],
+            ground_speed_ms=velocity["ground_speed"]
+        )
 
     def is_connected(self) -> bool:
         """Check if MAVLink is connected."""

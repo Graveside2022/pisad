@@ -7,7 +7,6 @@ PISAD's existing homing algorithm, replacing basic RSSI gradient computation wit
 enhanced precision and reliability.
 """
 
-import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -15,14 +14,12 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
-    ASVEnhancedSignalProcessor,
-    ASVBearingCalculation,
-    ASVSignalProcessingMetrics,
-)
 from src.backend.services.asv_integration.asv_analyzer_factory import ASVAnalyzerFactory
-from src.backend.services.homing_algorithm import GradientVector
-from src.backend.services.asv_integration.exceptions import ASVSignalProcessingError
+from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
+    ASVBearingCalculation,
+    ASVEnhancedSignalProcessor,
+)
+# Import GradientVector locally to avoid circular import
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +42,13 @@ class ASVEnhancedGradient:
     processing_method: str  # "asv_professional" or "fallback_rssi"
     calculation_time_ms: float
 
-    def to_gradient_vector(self) -> GradientVector:
+    def to_gradient_vector(self):
         """Convert to standard GradientVector for compatibility."""
+        from src.backend.services.homing_algorithm import GradientVector
         return GradientVector(
-            magnitude=self.magnitude, direction=self.direction, confidence=self.confidence
+            magnitude=self.magnitude,
+            direction=self.direction,
+            confidence=self.confidence,
         )
 
 
@@ -137,8 +137,10 @@ class ASVEnhancedHomingIntegration:
         # Try ASV professional calculation first
         if self._signal_processor:
             try:
-                asv_bearing = await self._signal_processor.calculate_professional_bearing(
-                    iq_samples, position_x, position_y, current_heading_deg
+                asv_bearing = (
+                    await self._signal_processor.calculate_professional_bearing(
+                        iq_samples, position_x, position_y, current_heading_deg
+                    )
                 )
 
                 if asv_bearing:
@@ -159,7 +161,9 @@ class ASVEnhancedHomingIntegration:
                     return enhanced_gradient
 
             except Exception as e:
-                logger.warning(f"ASV professional calculation failed, using fallback: {e}")
+                logger.warning(
+                    f"ASV professional calculation failed, using fallback: {e}"
+                )
 
         # Fallback to RSSI gradient calculation
         if self._rssi_fallback_enabled:
@@ -176,7 +180,9 @@ class ASVEnhancedHomingIntegration:
                 self._fallback_calculations += 1
                 return fallback_gradient
 
-        logger.warning("Unable to calculate gradient - no ASV or RSSI fallback available")
+        logger.warning(
+            "Unable to calculate gradient - no ASV or RSSI fallback available"
+        )
         return None
 
     def _convert_asv_to_gradient(
@@ -237,7 +243,9 @@ class ASVEnhancedHomingIntegration:
 
         try:
             # Calculate RSSI gradient using least squares fitting
-            positions = np.array([[s["position_x"], s["position_y"]] for s in self._rssi_samples])
+            positions = np.array(
+                [[s["position_x"], s["position_y"]] for s in self._rssi_samples]
+            )
             rssi_values = np.array([s["rssi_dbm"] for s in self._rssi_samples])
 
             # Check spatial diversity
@@ -303,7 +311,8 @@ class ASVEnhancedHomingIntegration:
             self._average_precision_improvement = improvement_factor
         else:
             self._average_precision_improvement = (
-                alpha * improvement_factor + (1 - alpha) * self._average_precision_improvement
+                alpha * improvement_factor
+                + (1 - alpha) * self._average_precision_improvement
             )
 
     def get_integration_metrics(self) -> Dict[str, Any]:
@@ -316,7 +325,8 @@ class ASVEnhancedHomingIntegration:
             "fallback_calculations": self._fallback_calculations,
             "asv_usage_rate": self._asv_calculations / max(1, total_calculations),
             "average_precision_improvement_factor": self._average_precision_improvement,
-            "estimated_precision_deg": 12.0 / max(1.0, self._average_precision_improvement),
+            "estimated_precision_deg": 12.0
+            / max(1.0, self._average_precision_improvement),
         }
 
         # Add ASV signal processor metrics if available
@@ -325,7 +335,8 @@ class ASVEnhancedHomingIntegration:
             metrics.update(
                 {
                     "asv_successful_rate": (
-                        asv_metrics.successful_calculations / max(1, asv_metrics.total_calculations)
+                        asv_metrics.successful_calculations
+                        / max(1, asv_metrics.total_calculations)
                     ),
                     "asv_average_confidence": asv_metrics.average_confidence,
                     "asv_average_precision_deg": asv_metrics.average_precision_deg,
@@ -351,7 +362,9 @@ class ASVEnhancedHomingIntegration:
 
         # Configure ASV processor if available
         if asv_processor_config and self._signal_processor:
-            self._signal_processor.configure_processing_parameters(**asv_processor_config)
+            self._signal_processor.configure_processing_parameters(
+                **asv_processor_config
+            )
 
         logger.info(
             f"Integration parameters updated: fallback_enabled={self._rssi_fallback_enabled}, "
@@ -373,7 +386,9 @@ class ASVEnhancedHomingIntegration:
             # Update signal processor
             if self._signal_processor:
                 self._signal_processor.set_asv_analyzer(updated_analyzer)
-                logger.info(f"ASV analyzer updated for frequency {new_frequency_hz:,} Hz")
+                logger.info(
+                    f"ASV analyzer updated for frequency {new_frequency_hz:,} Hz"
+                )
                 return True
             else:
                 # Initialize signal processor if not already done
@@ -418,6 +433,8 @@ class ASVEnhancedHomingIntegration:
             current_analyzer = self._asv_factory.get_current_analyzer()
             if current_analyzer:
                 status["current_analyzer_type"] = current_analyzer.analyzer_type
-                status["current_frequency_hz"] = getattr(current_analyzer, "frequency_hz", 0)
+                status["current_frequency_hz"] = getattr(
+                    current_analyzer, "frequency_hz", 0
+                )
 
         return status

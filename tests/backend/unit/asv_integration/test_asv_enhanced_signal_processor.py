@@ -10,21 +10,21 @@ This test suite validates the ASV-enhanced signal processing functionality inclu
 """
 
 import asyncio
-import math
-import pytest
 import time
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
-from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
-    ASVEnhancedSignalProcessor,
-    ASVBearingCalculation,
-    ASVSignalProcessingMetrics,
-)
+import pytest
+
 from src.backend.services.asv_integration.asv_analyzer_wrapper import (
     ASVAnalyzerBase,
-    ASVSignalData,
-    ASVGpAnalyzer,
     ASVAnalyzerConfig,
+    ASVGpAnalyzer,
+    ASVSignalData,
+)
+from src.backend.services.asv_integration.asv_enhanced_signal_processor import (
+    ASVBearingCalculation,
+    ASVEnhancedSignalProcessor,
+    ASVSignalProcessingMetrics,
 )
 from src.backend.services.asv_integration.exceptions import ASVSignalProcessingError
 
@@ -200,7 +200,10 @@ class TestASVEnhancedSignalProcessor:
         # Create several bearings in same direction
         for i in range(4):
             await signal_processor.calculate_professional_bearing(
-                iq_samples, float(i), 0.0, 90.0  # Consistent heading
+                iq_samples,
+                float(i),
+                0.0,
+                90.0,  # Consistent heading
             )
 
         # Act - Get current bearing
@@ -315,11 +318,13 @@ class TestASVEnhancedSignalProcessor:
         assert signal_processor._asv_analyzer == new_analyzer
 
     # ========================================================================================
-    # SUBTASK-6.1.2.2 [15b] - FM Chirp Detection and Signal Classification Tests  
+    # SUBTASK-6.1.2.2 [15b] - FM Chirp Detection and Signal Classification Tests
     # ========================================================================================
 
     @pytest.mark.asyncio
-    async def test_fm_chirp_detection_via_overflow_indicator(self, signal_processor, mock_asv_analyzer):
+    async def test_fm_chirp_detection_via_overflow_indicator(
+        self, signal_processor, mock_asv_analyzer
+    ):
         """Test [15b-1] - FM chirp detection using ASV SignalOverflowIndicator."""
         # Arrange - Create FM chirp signal with characteristic overflow pattern
         fm_chirp_signal = ASVSignalData(
@@ -332,7 +337,7 @@ class TestASVEnhancedSignalProcessor:
             raw_data={
                 "processing_time_ns": 1500000,
                 "chirp_detected": True,  # This will be added to ASV integration
-                "chirp_pattern_strength": 0.75
+                "chirp_pattern_strength": 0.75,
             },
         )
         mock_asv_analyzer.process_signal = AsyncMock(return_value=fm_chirp_signal)
@@ -344,7 +349,7 @@ class TestASVEnhancedSignalProcessor:
 
         # Assert - Should detect FM chirp pattern and classify signal type
         assert result is not None
-        assert hasattr(result, 'signal_classification')  # New field to be added
+        assert hasattr(result, "signal_classification")  # New field to be added
         assert result.signal_classification == "FM_CHIRP_WEAK"  # Updated for enhanced algorithm
         assert result.raw_asv_data["chirp_detected"] is True
         assert result.confidence > 0.7  # High confidence for clear chirp
@@ -363,11 +368,11 @@ class TestASVEnhancedSignalProcessor:
             raw_data={
                 "chirp_detected": True,
                 "chirp_pattern_strength": 0.95,  # Very strong chirp
-                "chirp_frequency_drift": 3.2,   # Hz/ms - typical emergency beacon
-                "chirp_duration_ms": 440.0,     # Emergency beacon chirp duration
-                "chirp_repeat_interval_ms": 2000, # 2-second repeat interval
+                "chirp_frequency_drift": 3.2,  # Hz/ms - typical emergency beacon
+                "chirp_duration_ms": 440.0,  # Emergency beacon chirp duration
+                "chirp_repeat_interval_ms": 2000,  # 2-second repeat interval
                 "signal_modulation": "FM",
-                "bandwidth_hz": 25000
+                "bandwidth_hz": 25000,
             },
         )
         mock_asv_analyzer.process_signal = AsyncMock(return_value=strong_chirp_signal)
@@ -380,7 +385,7 @@ class TestASVEnhancedSignalProcessor:
         # Assert - Should recognize strong chirp pattern with detailed characteristics
         assert result is not None
         assert result.signal_classification == "FM_CHIRP"
-        assert hasattr(result, 'chirp_characteristics')  # New detailed chirp analysis
+        assert hasattr(result, "chirp_characteristics")  # New detailed chirp analysis
         chirp_chars = result.chirp_characteristics
         assert chirp_chars["pattern_strength"] > 0.9
         assert chirp_chars["frequency_drift_hz_ms"] == 3.2
@@ -403,11 +408,11 @@ class TestASVEnhancedSignalProcessor:
                 "chirp_detected": True,
                 "chirp_pattern_strength": 0.6,  # Moderate chirp strength
                 "chirp_frequency_drift": 2.8,
-                "chirp_duration_ms": 420.0,     # Slightly off typical
-                "chirp_repeat_interval_ms": 2100, # Slightly irregular
+                "chirp_duration_ms": 420.0,  # Slightly off typical
+                "chirp_repeat_interval_ms": 2100,  # Slightly irregular
                 "signal_modulation": "FM",
                 "bandwidth_hz": 28000,  # Wider than typical
-                "noise_floor_dbm": -110.0
+                "noise_floor_dbm": -110.0,
             },
         )
         mock_asv_analyzer.process_signal = AsyncMock(return_value=weak_chirp_signal)
@@ -426,7 +431,9 @@ class TestASVEnhancedSignalProcessor:
         assert result.confidence < 0.8  # Lower overall confidence
 
     @pytest.mark.asyncio
-    async def test_enhanced_interference_rejection_algorithms(self, signal_processor, mock_asv_analyzer):
+    async def test_enhanced_interference_rejection_algorithms(
+        self, signal_processor, mock_asv_analyzer
+    ):
         """Test [15b-3] - Enhanced interference rejection using ASV signal quality metrics."""
         # Arrange - Create signal with multiple interference types
         interfered_signal = ASVSignalData(
@@ -445,7 +452,7 @@ class TestASVEnhancedSignalProcessor:
                 "snr_db": -2.5,  # Poor SNR
                 "noise_floor_dbm": -108.0,
                 "signal_bandwidth_hz": 35000,  # Wider than typical (interference spreading)
-                "signal_stability": 0.2  # Low stability
+                "signal_stability": 0.2,  # Low stability
             },
         )
         mock_asv_analyzer.process_signal = AsyncMock(return_value=interfered_signal)
@@ -459,7 +466,7 @@ class TestASVEnhancedSignalProcessor:
         if result is not None:
             # If signal processed, should have enhanced interference detection
             assert result.interference_detected is True
-            assert hasattr(result, 'interference_analysis')  # New detailed interference analysis
+            assert hasattr(result, "interference_analysis")  # New detailed interference analysis
             interference_analysis = result.interference_analysis
             assert interference_analysis["classification"] == "MULTIPATH_FADING"
             assert interference_analysis["strength"] > 0.8
@@ -472,7 +479,9 @@ class TestASVEnhancedSignalProcessor:
             assert True  # Rejection is valid behavior
 
     @pytest.mark.asyncio
-    async def test_interference_rejection_threshold_adaptation(self, signal_processor, mock_asv_analyzer):
+    async def test_interference_rejection_threshold_adaptation(
+        self, signal_processor, mock_asv_analyzer
+    ):
         """Test [15b-3] - Adaptive interference rejection thresholds."""
         # Arrange - Signal at interference threshold boundary
         marginal_signal = ASVSignalData(
@@ -489,7 +498,7 @@ class TestASVEnhancedSignalProcessor:
                 "interference_strength": 0.61,
                 "snr_db": 1.2,  # Marginal SNR
                 "adaptive_threshold": 0.7,  # System should adapt threshold
-                "interference_variability": 0.3  # Moderate variability
+                "interference_variability": 0.3,  # Moderate variability
             },
         )
         mock_asv_analyzer.process_signal = AsyncMock(return_value=marginal_signal)
@@ -509,7 +518,9 @@ class TestASVEnhancedSignalProcessor:
         assert 0.3 < result.confidence < 0.7  # Moderate confidence
 
     @pytest.mark.asyncio
-    async def test_signal_classification_operator_reporting(self, signal_processor, mock_asv_analyzer):
+    async def test_signal_classification_operator_reporting(
+        self, signal_processor, mock_asv_analyzer
+    ):
         """Test [15b-4] - Signal classification reporting for operator situational awareness."""
         # Arrange - Create signal with rich operator reporting data
         reporting_signal = ASVSignalData(
@@ -530,7 +541,7 @@ class TestASVEnhancedSignalProcessor:
                 "doppler_shift_hz": -120.0,
                 "estimated_distance_km": 2.5,
                 "signal_origin": "EMERGENCY_BEACON",
-                "confidence_factors": ["STRONG_CHIRP", "CORRECT_TIMING", "PROPER_BANDWIDTH"]
+                "confidence_factors": ["STRONG_CHIRP", "CORRECT_TIMING", "PROPER_BANDWIDTH"],
             },
         )
         mock_asv_analyzer.process_signal = AsyncMock(return_value=reporting_signal)
@@ -543,19 +554,19 @@ class TestASVEnhancedSignalProcessor:
         # Assert - Should provide comprehensive operator awareness reporting
         assert result is not None
         assert result.signal_classification == "FM_CHIRP"
-        
+
         # Check operator reporting features
-        assert hasattr(result, 'operator_report')  # New operator reporting field
+        assert hasattr(result, "operator_report")  # New operator reporting field
         operator_report = result.operator_report
         assert operator_report is not None
-        
+
         # Verify report structure and content
         assert "signal_type" in operator_report
         assert "confidence_level" in operator_report
         assert "summary" in operator_report
         assert "technical_details" in operator_report
         assert "recommendations" in operator_report
-        
+
         # Verify report content quality
         assert operator_report["signal_type"] == "EMERGENCY_BEACON"
         assert operator_report["confidence_level"] == "HIGH"
@@ -628,7 +639,10 @@ class TestASVEnhancedSignalProcessorIntegration:
 
         # Act
         result = await signal_processor.calculate_professional_bearing(
-            b"\x01\x02\x03\x04" * 200, 0.0, 0.0, 0.0  # Larger sample for better processing
+            b"\x01\x02\x03\x04" * 200,
+            0.0,
+            0.0,
+            0.0,  # Larger sample for better processing
         )
 
         # Assert

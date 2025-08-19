@@ -358,7 +358,8 @@ class SignalProcessor:
             except Exception as e:
                 # Callback failed but circuit breaker is handling it
                 logger.error(
-                    f"Error in SNR callback {callback.__name__}: {e}", extra={"snr_value": snr}
+                    f"Error in SNR callback {callback.__name__}: {e}",
+                    extra={"snr_value": snr},
                 )
                 # Don't propagate callback errors - continue processing
 
@@ -425,7 +426,11 @@ class SignalProcessor:
         magnitude = float(np.abs(gradient[-1]))
         direction = float(np.sign(gradient[-1]))
 
-        return {"magnitude": magnitude, "direction": direction, "timestamp": datetime.now(UTC)}
+        return {
+            "magnitude": magnitude,
+            "direction": direction,
+            "timestamp": datetime.now(UTC),
+        }
 
     async def start(self) -> None:
         """Start the signal processing service."""
@@ -498,11 +503,15 @@ class SignalProcessor:
             except TimeoutError:
                 continue
             except (ValueError, TypeError, SignalProcessingError) as e:
-                logger.error(f"Error in RSSI stream: {e}", extra={"error_type": type(e).__name__})
+                logger.error(
+                    f"Error in RSSI stream: {e}", extra={"error_type": type(e).__name__}
+                )
                 # Continue processing after logging error
                 await asyncio.sleep(0.1)
 
-    def add_detection_callback(self, callback: Callable[[DetectionEvent], None]) -> None:
+    def add_detection_callback(
+        self, callback: Callable[[DetectionEvent], None]
+    ) -> None:
         """Add callback for detection events.
 
         Args:
@@ -510,7 +519,9 @@ class SignalProcessor:
         """
         self._detection_callbacks.append(callback)
 
-    def remove_detection_callback(self, callback: Callable[[DetectionEvent], None]) -> None:
+    def remove_detection_callback(
+        self, callback: Callable[[DetectionEvent], None]
+    ) -> None:
         """Remove detection callback.
 
         Args:
@@ -631,7 +642,9 @@ class SignalProcessor:
         # Ensure we have enough samples
         if len(samples) < self.fft_size:
             # Pad with zeros if needed
-            samples = np.pad(samples, (0, self.fft_size - len(samples)), mode="constant")
+            samples = np.pad(
+                samples, (0, self.fft_size - len(samples)), mode="constant"
+            )
         elif len(samples) > self.fft_size:
             # Take first FFT_size samples
             samples = samples[: self.fft_size]
@@ -663,7 +676,9 @@ class SignalProcessor:
 
         return float(rssi_dbm), fft_magnitude
 
-    def compute_snr(self, samples: np.ndarray, noise_floor: float | None = None) -> float:
+    def compute_snr(
+        self, samples: np.ndarray, noise_floor: float | None = None
+    ) -> float:
         """Calculate Signal-to-Noise Ratio.
 
         SAFETY: Accurate SNR calculation critical for reliable beacon detection
@@ -780,7 +795,11 @@ class SignalProcessor:
         return max(0.0, min(1.0, confidence))
 
     def process_detection_with_debounce(
-        self, rssi: float, noise_floor: float, threshold: float = 12.0, drop_threshold: float = 6.0
+        self,
+        rssi: float,
+        noise_floor: float,
+        threshold: float = 12.0,
+        drop_threshold: float = 6.0,
     ) -> bool:
         """Process detection with debouncing logic and hysteresis.
 
@@ -849,7 +868,9 @@ class SignalProcessor:
 
                 if self.loss_count >= self.loss_count_threshold:
                     self.is_detecting = False
-                    logger.info(f"Signal lost after {self.loss_count} consecutive losses")
+                    logger.info(
+                        f"Signal lost after {self.loss_count} consecutive losses"
+                    )
                     return False
                 else:
                     # Still detecting despite temporary loss
@@ -857,7 +878,9 @@ class SignalProcessor:
 
         return False
 
-    def calculate_adaptive_threshold(self, noise_history: list[float] | None = None) -> float:
+    def calculate_adaptive_threshold(
+        self, noise_history: list[float] | None = None
+    ) -> float:
         """Calculate adaptive threshold based on noise floor variations.
 
         Args:
@@ -903,72 +926,78 @@ class SignalProcessor:
     def compute_rssi_vectorized(self, samples_batch: np.ndarray) -> list[RSSIReading]:
         """
         SUBTASK-5.6.2.2 [7e-1] - Vectorized RSSI computation for batch processing.
-        
+
         Computes RSSI for multiple sample batches using vectorized NumPy operations.
         Significantly faster than individual compute_rssi calls.
-        
+
         Args:
             samples_batch: Array of shape (batch_size, samples_per_batch) with IQ samples
-            
+
         Returns:
             List of RSSIReading objects for each batch
         """
         start_time = time.perf_counter()
-        
+
         if samples_batch.ndim != 2:
-            raise SignalProcessingError("samples_batch must be 2D array (batch_size, samples_per_batch)")
-        
+            raise SignalProcessingError(
+                "samples_batch must be 2D array (batch_size, samples_per_batch)"
+            )
+
         batch_size, samples_per_batch = samples_batch.shape
         results = []
-        
+
         # Vectorized power computation for all batches at once
         if np.isrealobj(samples_batch):
             # For real samples, compute power directly
             powers = np.mean(samples_batch**2, axis=1)
         else:
-            # For complex IQ samples, compute magnitude squared  
+            # For complex IQ samples, compute magnitude squared
             powers = np.mean(np.abs(samples_batch) ** 2, axis=1)
-        
+
         # Vectorized dBm conversion
         # Handle zero power cases
         powers = np.maximum(powers, 1e-20)  # Prevent log(0)
         rssi_dbm_batch = 10 * np.log10(powers) + self.calibration_offset
-        
+
         # Create RSSIReading objects for each result
         current_time = datetime.now(UTC)
         for i, rssi_dbm in enumerate(rssi_dbm_batch):
             # Update noise floor (could be optimized further but maintain compatibility)
             self.update_noise_floor(rssi_dbm)
             snr = rssi_dbm - self.noise_floor
-            
+
             # Create RSSIReading
             reading = RSSIReading(
                 timestamp=current_time,
                 rssi=float(rssi_dbm),
                 snr=float(snr),
-                noise_floor=self.noise_floor
+                noise_floor=self.noise_floor,
             )
             results.append(reading)
             self.samples_processed += 1
-        
+
         # Performance verification
         latency_ms = (time.perf_counter() - start_time) * 1000
         avg_latency_per_batch = latency_ms / batch_size
         if avg_latency_per_batch > 0.5:
-            logger.warning(f"Vectorized RSSI computation exceeded 0.5ms per batch: {avg_latency_per_batch:.3f}ms")
-        
+            logger.warning(
+                f"Vectorized RSSI computation exceeded 0.5ms per batch: {avg_latency_per_batch:.3f}ms"
+            )
+
         return results
 
-    def apply_window_optimized(self, samples: np.ndarray, inplace: bool = False) -> np.ndarray:
+    def apply_window_optimized(
+        self, samples: np.ndarray, inplace: bool = False
+    ) -> np.ndarray:
         """
         SUBTASK-5.6.2.2 [7e-2] - Optimized FFT window application using broadcasting.
-        
+
         Applies window function to samples using memory-efficient operations.
-        
+
         Args:
             samples: Input IQ samples
             inplace: If True, modifies samples in-place for memory efficiency
-            
+
         Returns:
             Windowed samples
         """
@@ -981,18 +1010,18 @@ class SignalProcessor:
     def compute_power_vectorized(self, samples_batch: np.ndarray) -> np.ndarray:
         """
         SUBTASK-5.6.2.2 [7e-3] - Vectorized power computation for multiple sample batches.
-        
+
         Computes signal power for multiple sample sets using vectorized operations.
-        
+
         Args:
             samples_batch: Array of shape (batch_size, samples_per_batch)
-            
+
         Returns:
             Array of power values for each batch
         """
         if samples_batch.ndim != 2:
             raise SignalProcessingError("samples_batch must be 2D array")
-        
+
         if np.isrealobj(samples_batch):
             # Real samples: power = mean(samples^2)
             return np.mean(samples_batch**2, axis=1)
@@ -1000,15 +1029,17 @@ class SignalProcessor:
             # Complex samples: power = mean(|samples|^2)
             return np.mean(np.abs(samples_batch) ** 2, axis=1)
 
-    def process_batch_memory_optimized(self, samples_batch: np.ndarray) -> list[RSSIReading]:
+    def process_batch_memory_optimized(
+        self, samples_batch: np.ndarray
+    ) -> list[RSSIReading]:
         """
         SUBTASK-5.6.2.2 [7e-4] - Memory-efficient batch processing of signal samples.
-        
+
         Processes large batches of samples with minimal memory allocation.
-        
+
         Args:
             samples_batch: Array of IQ samples to process
-            
+
         Returns:
             List of RSSIReading results
         """
@@ -1016,51 +1047,53 @@ class SignalProcessor:
         chunk_size = 20  # Process 20 samples at a time
         batch_size = len(samples_batch)
         results = []
-        
+
         for start_idx in range(0, batch_size, chunk_size):
             end_idx = min(start_idx + chunk_size, batch_size)
             chunk = samples_batch[start_idx:end_idx]
-            
+
             # Process chunk using vectorized operations
             chunk_results = self.compute_rssi_vectorized(chunk)
             results.extend(chunk_results)
-        
+
         return results
 
     def estimate_noise_floor_optimized(self, rssi_history: list[float]) -> float:
         """
         SUBTASK-5.6.2.2 [7e-5] - Optimized noise floor estimation using efficient percentile computation.
-        
+
         Estimates noise floor from RSSI history using vectorized operations.
-        
+
         Args:
             rssi_history: List or array of RSSI values
-            
+
         Returns:
             Estimated noise floor in dBm
         """
         if not rssi_history:
             return self.noise_floor
-        
+
         # Convert to NumPy array for efficient computation
         rssi_array = np.array(rssi_history)
-        
+
         # Use NumPy's optimized percentile function
         # 10th percentile typically represents noise floor
         noise_floor = np.percentile(rssi_array, 10)
-        
+
         return float(noise_floor)
 
-    def compute_snr_vectorized(self, rssi_values: np.ndarray, noise_floor: float) -> np.ndarray:
+    def compute_snr_vectorized(
+        self, rssi_values: np.ndarray, noise_floor: float
+    ) -> np.ndarray:
         """
         SUBTASK-5.6.2.2 [7e-6] - Vectorized SNR computation for multiple RSSI values.
-        
+
         Computes SNR for multiple RSSI values simultaneously using broadcasting.
-        
+
         Args:
             rssi_values: Array of RSSI values in dBm
             noise_floor: Noise floor reference in dBm
-            
+
         Returns:
             Array of SNR values in dB
         """

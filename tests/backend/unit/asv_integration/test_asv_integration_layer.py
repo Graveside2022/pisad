@@ -6,36 +6,33 @@ This test suite validates the complete ASV integration layer including
 wrapper classes, factory, error handling, and configuration management.
 """
 
-import asyncio
-import pytest
 import tempfile
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from src.backend.services.asv_integration.asv_analyzer_wrapper import (
-    ASVAnalyzerConfig,
-    ASVGpAnalyzer,
-    ASVVorAnalyzer,
-    ASVLlzAnalyzer,
-    ASVSignalData,
-    create_analyzer,
-)
+import pytest
+
 from src.backend.services.asv_integration.asv_analyzer_factory import (
     ASVAnalyzerFactory,
     ASVMultiAnalyzerCoordinator,
 )
+from src.backend.services.asv_integration.asv_analyzer_wrapper import (
+    ASVAnalyzerConfig,
+    ASVGpAnalyzer,
+    ASVLlzAnalyzer,
+    ASVSignalData,
+    ASVVorAnalyzer,
+    create_analyzer,
+)
 from src.backend.services.asv_integration.asv_configuration_manager import (
     ASVConfigurationManager,
     ASVFrequencyProfile,
-    ASVAnalyzerProfile,
 )
 from src.backend.services.asv_integration.asv_interop_service import ASVInteropService
 from src.backend.services.asv_integration.exceptions import (
     ASVAnalyzerError,
-    ASVConfigurationError,
     ASVFrequencyError,
-    translate_dotnet_exception,
     exception_handler,
+    translate_dotnet_exception,
 )
 
 

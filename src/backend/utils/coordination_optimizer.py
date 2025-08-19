@@ -19,6 +19,8 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
+import lz4.frame
+
 from src.backend.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -524,6 +526,373 @@ class MessageSerializer:
             "compression_enabled": self.compression_enabled,
             "compression_threshold": self.compression_threshold,
             "compact_json_enabled": self.use_compact_json,
+        }
+
+
+# TASK-5.6.2.3 [8b] - LZ4 Adaptive Compression Implementation
+
+
+@dataclass
+class MessageClassification:
+    """Classification result for message compression decisions."""
+
+    category: str  # safety, control, coordination, data_streaming
+    urgency: str  # critical, medium, low
+    compression_priority: str  # speed, balanced, efficiency
+
+
+@dataclass
+class CompressionStats:
+    """Performance statistics for adaptive compression."""
+
+    total_compressions: int = 0
+    total_compression_time: float = 0.0
+    total_bytes_saved: int = 0
+    total_original_bytes: int = 0
+    total_compressed_bytes: int = 0
+    last_compression_skipped: bool = False
+    last_skip_reason: str = ""
+
+
+class MessageTypeClassifier:
+    """
+    SUBTASK-5.6.2.3 [8b3] - Message type classification for adaptive compression.
+
+    Classifies messages based on type, priority, and content to determine optimal
+    compression strategy balancing speed vs efficiency.
+    """
+
+    def __init__(self) -> None:
+        # Priority thresholds for classification
+        self.critical_priority_threshold = 4  # Priorities 1-4 are critical
+        self.medium_priority_threshold = 15  # Priorities 5-15 are medium
+        # Everything above 15 is low priority
+
+        logger.info("MessageTypeClassifier initialized with priority thresholds")
+
+    def classify_message(self, message: dict[str, Any]) -> MessageClassification:
+        """
+        Classify message for compression optimization.
+
+        Args:
+            message: Message dictionary with type, priority, and data
+
+        Returns:
+            MessageClassification with category, urgency, and compression priority
+        """
+        msg_type = message.get("type", "unknown")
+        priority = message.get("priority", 50)  # Default to low priority
+
+        # Determine category based on message type
+        if msg_type in ["safety_alert", "rc_override", "emergency", "battery_critical"]:
+            category = "safety"
+        elif msg_type in ["freq_control", "command", "control"]:
+            category = "control"
+        elif msg_type in ["coordination", "source_switch", "fallback"]:
+            category = "coordination"
+        elif msg_type in ["rssi_update", "telemetry", "batch", "data_streaming"]:
+            category = "data_streaming"
+        else:
+            category = "unknown"
+
+        # Determine urgency based on priority
+        if priority <= self.critical_priority_threshold:
+            urgency = "critical"
+        elif priority <= self.medium_priority_threshold:
+            urgency = "medium"
+        else:
+            urgency = "low"
+
+        # Determine compression priority based on category and urgency
+        if category == "safety" or urgency == "critical":
+            compression_priority = "speed"  # Minimize latency for safety
+        elif category in ["control", "coordination"] or urgency == "medium":
+            compression_priority = "balanced"  # Balance speed and efficiency
+        else:
+            compression_priority = "efficiency"  # Maximize compression for bulk data
+
+        return MessageClassification(
+            category=category, urgency=urgency, compression_priority=compression_priority
+        )
+
+
+class LZ4AdaptiveCompressor:
+    """
+    SUBTASK-5.6.2.3 [8b1,8b2] - LZ4 adaptive compression with dynamic thresholds.
+
+    Provides LZ4 compression with dynamic threshold adjustment based on message type,
+    priority, and network conditions for optimal performance vs bandwidth trade-offs.
+    """
+
+    def __init__(
+        self,
+        default_threshold: int = 1024,
+        enable_type_classification: bool = True,
+        performance_monitoring: bool = True,
+    ):
+        """
+        Initialize LZ4 adaptive compressor.
+
+        Args:
+            default_threshold: Default compression threshold in bytes
+            enable_type_classification: Enable message type-based threshold adjustment
+            performance_monitoring: Enable performance statistics collection
+        """
+        self.default_threshold = default_threshold
+        self.enable_type_classification = enable_type_classification
+        self.performance_monitoring = performance_monitoring
+
+        # Initialize components
+        self.classifier: MessageTypeClassifier | None = (
+            MessageTypeClassifier() if enable_type_classification else None
+        )
+        self.stats = CompressionStats()
+
+        # Compression level configuration
+        self.compression_levels = {
+            "speed": 1,  # Fast compression for critical messages
+            "balanced": 4,  # Balanced compression for normal messages
+            "efficiency": 9,  # High compression for bulk data
+        }
+
+        logger.info(
+            f"LZ4AdaptiveCompressor initialized: threshold={default_threshold}B, "
+            f"classification={enable_type_classification}, monitoring={performance_monitoring}"
+        )
+
+    def calculate_threshold_for_message(self, message: dict[str, Any]) -> int:
+        """
+        SUBTASK-5.6.2.3 [8b1] - Calculate compression threshold for specific message.
+
+        Args:
+            message: Message dictionary with type and priority
+
+        Returns:
+            Compression threshold in bytes adjusted for message characteristics
+        """
+        if not self.enable_type_classification or not self.classifier:
+            return self.default_threshold
+
+        classification = self.classifier.classify_message(message)
+        priority = message.get("priority", 50)
+
+        # Apply priority-based scaling
+        threshold = self.scale_threshold_by_priority(self.default_threshold, priority)
+
+        # Apply category-based adjustment
+        if classification.compression_priority == "speed":
+            threshold = int(threshold * 0.5)  # Lower threshold for speed
+        elif classification.compression_priority == "balanced":
+            threshold = threshold  # Use calculated threshold
+        else:  # efficiency
+            threshold = int(threshold * 1.5)  # Higher threshold for efficiency
+
+        # Ensure reasonable bounds
+        return max(256, min(threshold, 4096))
+
+    def scale_threshold_by_priority(self, base_threshold: int, priority: int) -> int:
+        """
+        SUBTASK-5.6.2.3 [8b2] - Scale threshold based on message priority.
+
+        Args:
+            base_threshold: Base threshold value
+            priority: Message priority (1=highest, higher numbers = lower priority)
+
+        Returns:
+            Scaled threshold value
+        """
+        if priority <= 4:  # Critical priority
+            return int(base_threshold * 0.5)
+        elif priority <= 15:  # Medium priority
+            return base_threshold
+        else:  # Low priority
+            return int(base_threshold * 1.5)
+
+    def adjust_threshold_for_network_conditions(
+        self, base_threshold: int, network_stats: dict[str, float]
+    ) -> int:
+        """
+        SUBTASK-5.6.2.3 [8b2] - Adjust threshold based on network conditions.
+
+        Args:
+            base_threshold: Base threshold value
+            network_stats: Network statistics with utilization, latency, packet_loss
+
+        Returns:
+            Adjusted threshold based on network conditions
+        """
+        utilization = network_stats.get("bandwidth_utilization_percent", 50.0)
+        latency = network_stats.get("latency_ms", 25.0)
+        packet_loss = network_stats.get("packet_loss_percent", 0.5)
+
+        # Calculate adjustment factor based on network conditions
+        adjustment_factor = 1.0
+
+        # High utilization -> more aggressive compression (lower threshold)
+        if utilization > 80:
+            adjustment_factor *= 0.6
+        elif utilization > 60:
+            adjustment_factor *= 0.8
+        elif utilization < 30:
+            adjustment_factor *= 1.3
+
+        # High latency -> be more conservative with compression overhead
+        if latency > 50:
+            adjustment_factor *= 1.2
+        elif latency < 20:
+            adjustment_factor *= 0.9
+
+        # High packet loss -> more aggressive compression to reduce retransmissions
+        if packet_loss > 1.0:
+            adjustment_factor *= 0.7
+
+        adjusted_threshold = int(base_threshold * adjustment_factor)
+        return max(256, min(adjusted_threshold, 4096))
+
+    def compress_with_lz4(self, data: bytes) -> bytes:
+        """
+        Compress data using LZ4 frame format.
+
+        Args:
+            data: Raw bytes to compress
+
+        Returns:
+            LZ4 compressed bytes
+        """
+        try:
+            # Use LZ4 frame format with correct API
+            compressed = lz4.frame.compress(
+                data, compression_level=self.compression_levels["balanced"]
+            )
+            # Verify compression actually happened
+            if len(compressed) >= len(data):
+                logger.warning(
+                    f"LZ4 compression ineffective: {len(compressed)} >= {len(data)} bytes"
+                )
+            return bytes(compressed)
+        except Exception as e:
+            logger.error(f"LZ4 compression failed: {e}")
+            raise  # Re-raise for proper error handling in tests
+
+    def compress_message(self, message: dict[str, Any]) -> bytes | None:
+        """
+        SUBTASK-5.6.2.3 [8b4,8b5] - Compress message with adaptive thresholds and monitoring.
+
+        Args:
+            message: Message dictionary to compress
+
+        Returns:
+            Compressed message bytes or None on failure
+        """
+        if not message:
+            return None
+
+        start_time = time.perf_counter()
+
+        try:
+            # Serialize message to JSON
+            json_str = json.dumps(message, separators=(",", ":"))
+            json_bytes = json_str.encode("utf-8")
+            original_size = len(json_bytes)
+
+            # Calculate adaptive threshold
+            threshold = self.calculate_threshold_for_message(message)
+
+            # Decide whether to compress
+            if original_size < threshold:
+                # Skip compression for small messages
+                if self.performance_monitoring:
+                    self.stats.last_compression_skipped = True
+                    self.stats.last_skip_reason = "size_threshold"
+                return json_bytes
+
+            # Determine compression level based on message classification
+            if self.classifier:
+                classification = self.classifier.classify_message(message)
+                compression_level = self.compression_levels.get(
+                    classification.compression_priority, 4
+                )
+            else:
+                compression_level = 4
+
+            # Compress with LZ4
+            compressed_data = lz4.frame.compress(json_bytes, compression_level=compression_level)
+
+            # Check compression ratio
+            compression_ratio = len(compressed_data) / original_size
+            if compression_ratio > 0.9:  # Poor compression ratio
+                if self.performance_monitoring:
+                    self.stats.last_compression_skipped = True
+                    self.stats.last_skip_reason = "poor_compression_ratio"
+                return json_bytes
+
+            # Add LZ4 marker for decompression
+            result = b"LZ4F" + compressed_data
+
+            # Update performance statistics
+            if self.performance_monitoring:
+                compression_time = time.perf_counter() - start_time
+                self.stats.total_compressions += 1
+                self.stats.total_compression_time += compression_time
+                self.stats.total_original_bytes += original_size
+                self.stats.total_compressed_bytes += len(result)
+                self.stats.total_bytes_saved += original_size - len(result)
+                self.stats.last_compression_skipped = False
+
+            return bytes(result)
+
+        except Exception as e:
+            logger.error(f"Message compression failed: {e}")
+            return None
+
+    def get_performance_stats(self) -> dict[str, Any]:
+        """
+        SUBTASK-5.6.2.3 [8b5] - Get compression performance statistics.
+
+        Returns:
+            Dictionary with performance metrics
+        """
+        if not self.performance_monitoring:
+            return {"performance_monitoring": False}
+
+        avg_compression_time = 0.0
+        if self.stats.total_compressions > 0:
+            avg_compression_time = (
+                self.stats.total_compression_time / self.stats.total_compressions
+            ) * 1000  # Convert to milliseconds
+
+        return {
+            "total_compressions": self.stats.total_compressions,
+            "average_compression_time_ms": round(avg_compression_time, 3),
+            "total_bytes_saved": self.stats.total_bytes_saved,
+            "last_compression_skipped": self.stats.last_compression_skipped,
+            "last_skip_reason": self.stats.last_skip_reason,
+            "performance_monitoring": True,
+        }
+
+    def get_efficiency_stats(self) -> dict[str, Any]:
+        """
+        SUBTASK-5.6.2.3 [8b5] - Get compression efficiency statistics.
+
+        Returns:
+            Dictionary with efficiency metrics
+        """
+        if not self.performance_monitoring or self.stats.total_original_bytes == 0:
+            return {"efficiency_monitoring": False}
+
+        avg_compression_ratio = self.stats.total_compressed_bytes / self.stats.total_original_bytes
+
+        bandwidth_savings_percent = (
+            (self.stats.total_bytes_saved / self.stats.total_original_bytes) * 100
+            if self.stats.total_original_bytes > 0
+            else 0.0
+        )
+
+        return {
+            "average_compression_ratio": round(avg_compression_ratio, 3),
+            "total_bytes_saved": self.stats.total_bytes_saved,
+            "bandwidth_savings_percent": round(bandwidth_savings_percent, 1),
+            "efficiency_monitoring": True,
         }
 
 

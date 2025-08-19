@@ -5,15 +5,11 @@ SUBTASK-6.1.1.2: Build and verify ASV Drones SDR components
 This test harness validates ASV .NET components integration with PISAD.
 """
 
-import asyncio
-import pytest
 from pathlib import Path
 
+import pytest
+
 from src.backend.services.asv_integration.asv_interop_service import ASVInteropService
-from src.backend.services.asv_integration.exceptions import (
-    ASVAnalyzerError,
-    ASVAssemblyLoadError,
-)
 
 
 class TestASVComponentValidation:
