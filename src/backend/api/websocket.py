@@ -5,7 +5,15 @@ WebSocket handler for real-time updates.
 import asyncio
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
+
+from src.backend.constants.websocket_messages import (
+    WebSocketMessageTypes, 
+    SDRConnectionStatus, 
+    ActiveSource, 
+    HomingAuthority, 
+    SyncStatus
+)
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -444,6 +452,12 @@ async def websocket_info():
             "pattern_resume - Search pattern resumed",
             "pattern_stop - Search pattern stopped",
             "homing_status - Homing algorithm status and gradient updates",
+            "sdrpp_connection - SDR++ connection status updates",
+            "dual_homing_status - Dual-system homing status and authority",
+            "ground_signal_quality - Ground station signal quality metrics",
+            "frequency_sync - Frequency synchronization status",
+            "emergency_fallback - Emergency fallback status updates",
+            "conflict_resolution - Conflict resolution status and history",
         ],
     }
 
@@ -583,3 +597,151 @@ async def broadcast_message(message: dict[str, Any]) -> None:
         message: Dictionary containing the message to broadcast
     """
     await manager.broadcast_json(message)
+
+
+# Story 5.4: SDR++ Integration WebSocket Handlers
+
+async def broadcast_sdrpp_connection_status(
+    status: str, 
+    latency: float | None = None, 
+    last_seen: str | None = None
+) -> None:
+    """Broadcast SDR++ connection status updates to all connected WebSocket clients."""
+    try:
+        # Validate status parameter
+        if status not in ['connected', 'disconnected', 'connecting']:
+            logger.warning(f"Invalid SDR++ connection status: {status}")
+            return
+            
+        message = {
+            "type": WebSocketMessageTypes.SDRPP_CONNECTION,
+            "data": {
+                "status": status,  # 'connected' | 'disconnected' | 'connecting'
+                "latency": latency,
+                "lastSeen": last_seen or datetime.utcnow().isoformat(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        }
+        await manager.broadcast_json(message)
+    except Exception as e:
+        logger.error(f"Error broadcasting SDR++ connection status: {e}")
+
+
+async def broadcast_dual_homing_status(
+    active_source: str, 
+    homing_authority: str, 
+    performance_metrics: dict[str, Any]
+) -> None:
+    """Broadcast dual-system homing status updates to all connected WebSocket clients."""
+    try:
+        # Validate parameters
+        if active_source not in ['ground', 'drone']:
+            logger.warning(f"Invalid active source: {active_source}")
+            return
+        if homing_authority not in ['ground_priority', 'drone_priority', 'coordinated']:
+            logger.warning(f"Invalid homing authority: {homing_authority}")
+            return
+            
+        message = {
+            "type": WebSocketMessageTypes.DUAL_HOMING_STATUS,
+            "data": {
+                "activeSource": active_source,  # 'ground' | 'drone'
+                "homingAuthority": homing_authority,  # 'ground_priority' | 'drone_priority' | 'coordinated'
+                "performanceMetrics": performance_metrics or {},
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        }
+        await manager.broadcast_json(message)
+    except Exception as e:
+        logger.error(f"Error broadcasting dual homing status: {e}")
+
+
+async def broadcast_ground_signal_quality(rssi: float, snr: float, noise_floor: float, quality_score: float):
+    """Broadcast ground signal quality metrics to all connected WebSocket clients."""
+    try:
+        # Validate numeric parameters
+        if not all(isinstance(x, (int, float)) for x in [rssi, snr, noise_floor, quality_score]):
+            logger.warning("Invalid signal quality parameters - must be numeric")
+            return
+            
+        message = {
+            "type": WebSocketMessageTypes.GROUND_SIGNAL_QUALITY,
+            "data": {
+                "rssi": rssi,
+                "snr": snr,
+                "noiseFloor": noise_floor,
+                "qualityScore": quality_score,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        }
+        await manager.broadcast_json(message)
+    except Exception as e:
+        logger.error(f"Error broadcasting ground signal quality: {e}")
+
+
+async def broadcast_frequency_sync_status(
+    ground_freq: float, 
+    drone_freq: float, 
+    sync_status: str
+) -> None:
+    """Broadcast frequency synchronization status to all connected WebSocket clients."""
+    try:
+        # Validate parameters
+        if sync_status not in ['synchronized', 'mismatch', 'syncing']:
+            logger.warning(f"Invalid sync status: {sync_status}")
+            return
+        if not all(isinstance(x, (int, float)) for x in [ground_freq, drone_freq]):
+            logger.warning("Invalid frequency parameters - must be numeric")
+            return
+            
+        message = {
+            "type": WebSocketMessageTypes.FREQUENCY_SYNC,
+            "data": {
+                "groundFrequency": ground_freq,
+                "droneFrequency": drone_freq,
+                "syncStatus": sync_status,  # 'synchronized' | 'mismatch' | 'syncing'
+                "frequencyDifference": abs(ground_freq - drone_freq),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        }
+        await manager.broadcast_json(message)
+    except Exception as e:
+        logger.error(f"Error broadcasting frequency sync status: {e}")
+
+
+async def broadcast_emergency_fallback_status(fallback_active: bool, trigger_reason: str = None):
+    """Broadcast emergency fallback status updates to all connected WebSocket clients."""
+    try:
+        if not isinstance(fallback_active, bool):
+            logger.warning("Invalid fallback_active parameter - must be boolean")
+            return
+            
+        message = {
+            "type": WebSocketMessageTypes.EMERGENCY_FALLBACK,
+            "data": {
+                "fallbackActive": fallback_active,
+                "triggerReason": trigger_reason,
+                "droneAutonomy": fallback_active,
+                "communicationStatus": "lost" if fallback_active else "normal",
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        }
+        await manager.broadcast_json(message)
+    except Exception as e:
+        logger.error(f"Error broadcasting emergency fallback status: {e}")
+
+
+async def broadcast_conflict_resolution_status(conflict_data: dict[str, Any]):
+    """Broadcast conflict resolution status to all connected WebSocket clients."""
+    try:
+        if not isinstance(conflict_data, dict):
+            logger.warning("Invalid conflict_data parameter - must be dict")
+            return
+            
+        message = {
+            "type": WebSocketMessageTypes.CONFLICT_RESOLUTION,
+            "data": conflict_data,
+        }
+        await manager.broadcast_json(message)
+    except Exception as e:
+        logger.error(f"Error broadcasting conflict resolution status: {e}")

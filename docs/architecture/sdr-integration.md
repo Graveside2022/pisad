@@ -12,7 +12,7 @@ The SDR (Software Defined Radio) subsystem provides the hardware interface for R
 - **ADC Resolution**: 8-bit
 - **Interface**: USB 2.0
 - **Driver**: `hackrf` via SoapySDR
-- **Serial**: 66a062dc2227359f (current device)
+- **Serial**: [redacted] (current device)
 
 ### Alternative SDR Support
 Through SoapySDR abstraction layer:

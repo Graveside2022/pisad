@@ -98,6 +98,33 @@ target_link_libraries(standalone_tcp_client PRIVATE
     pthread
 )
 
+# GoogleTest-based unit tests for TDD implementation
+find_package(GTest QUIET)
+if(GTest_FOUND)
+    add_executable(test_tcp_client test_tcp_client.cpp ${SOURCES})
+    target_include_directories(test_tcp_client PRIVATE
+        ${JSONCPP_INCLUDE_DIRS}
+        "${SDRPP_INCLUDE_DIR}"
+        "${SDRPP_INCLUDE_DIR}/core"
+    )
+    target_link_libraries(test_tcp_client PRIVATE
+        ${JSONCPP_LIBRARIES}
+        GTest::gtest
+        GTest::gtest_main
+        GTest::gmock
+        pthread
+    )
+    target_compile_definitions(test_tcp_client PRIVATE
+        SDRPP_MODULE_NAME="pisad_bridge"
+    )
+
+    # Add test target
+    enable_testing()
+    add_test(NAME RSSI_Processing_Tests COMMAND test_tcp_client)
+else()
+    message(WARNING "GoogleTest not found - unit tests will not be built")
+endif()
+
 # Development convenience targets
 add_custom_target(install_plugin
     COMMAND ${CMAKE_COMMAND} --build . --target install

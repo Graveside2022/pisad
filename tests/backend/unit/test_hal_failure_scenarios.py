@@ -358,12 +358,12 @@ class TestHALIntegratedFailureScenarios:
         # Should complete with error handling and execute fallback
         assert isinstance(result, dict)
         assert "response_time_ms" in result
-        
+
         # Should report that fallback was attempted
         assert "fallback_attempted" in result
         assert result["fallback_attempted"] is True
         assert "error" in result  # Original error should be logged
-        
+
         # Fallback should succeed even if primary method failed
         assert result["success"] is True  # Fallback executed successfully
 

@@ -435,7 +435,7 @@ Please follow all guided principles outlined here:
          * Method names: `enable_homing()`, `send_velocity_command()`, `ConfigProfile.__init__()`
          * Technical values: `5-10 m/s`, `<1ms`, `115200 baud`, `85%`, `12 unit`, `5 integration`
          * Configuration parameters: `PYTHONPATH`, `@dataclass`, `pymavlink`
-         * Hardware identifiers: `HackRF One #0 66a062dc2227359f`, `PID 674231`
+         * Hardware identifiers: `HackRF One — device ID redacted`, `PID 674231`
          * Error messages: `TypeError`, `AttributeError`, `3 ERROR`
          * Timestamps: `2025-08-17T02:58:00Z`
          * Duration indicators: `45m`, `2h`, `1h 30m`
@@ -473,7 +473,7 @@ Please follow all guided principles outlined here:
        **Archive and Historical Information:**
        - **Bold formatting** for resolution markers: `**[RESOLVED]**`
        - **Bold formatting** for archive fields: `**Resolution Date:**`, `**Resolution:**`, `**Verification:**`, `**Impact:**`, `**Time to Resolve:**`
-       - **Code block formatting** for technical details in archives: `HackRF One #0 66a062dc2227359f`, `SoapySDR`, `SITL processes confirmed running`
+       - **Code block formatting** for technical details in archives: `HackRF One — device ID redacted`, `SoapySDR`, `SITL processes confirmed running`
 
        **Metrics and Analysis:**
        - **Bold formatting** for metric categories: `**Sprint Velocity Metrics**`, `**PRD Coverage Analysis**`, `**Test Execution Metrics**`

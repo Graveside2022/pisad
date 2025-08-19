@@ -6,6 +6,12 @@ import RSSIGraph from "./RSSIGraph";
 import SDRStatus from "./SDRStatus";
 import SystemHealth from "./SystemHealth";
 import DetectionLog from "./DetectionLog";
+import SDRPlusConnectionPanel from "./SDRPlusConnectionPanel";
+import DualSystemHomingStatus from "./DualSystemHomingStatus";
+import GroundSignalQuality from "./GroundSignalQuality";
+import FrequencySyncIndicators from "./FrequencySyncIndicators";
+import EmergencyFallbackIndicators from "./EmergencyFallbackIndicators";
+import ConflictResolution from "../coordination/ConflictResolution";
 // import HomingMonitor from "../homing/HomingMonitor";
 // import GradientVisualization from "../homing/GradientVisualization";
 
@@ -87,6 +93,30 @@ function Dashboard() {
 
       <Grid size={{ xs: 12, md: 4 }}>
         <DetectionLog />
+      </Grid>
+
+      <Grid size={{ xs: 12, md: 4 }}>
+        <SDRPlusConnectionPanel />
+      </Grid>
+
+      <Grid size={{ xs: 12, md: 4 }}>
+        <GroundSignalQuality />
+      </Grid>
+
+      <Grid size={{ xs: 12, md: 4 }}>
+        <FrequencySyncIndicators />
+      </Grid>
+
+      <Grid size={{ xs: 12, md: 6 }}>
+        <DualSystemHomingStatus />
+      </Grid>
+
+      <Grid size={{ xs: 12, md: 6 }}>
+        <EmergencyFallbackIndicators />
+      </Grid>
+
+      <Grid size={{ xs: 12 }}>
+        <ConflictResolution />
       </Grid>
 
       {/* Temporarily disabled until homing components are fixed */}

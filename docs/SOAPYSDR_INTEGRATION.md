@@ -76,7 +76,7 @@ uv run python -c "import SoapySDR; print(SoapySDR.Device.enumerate())"
 
 ## Hardware Status
 - **HackRF One**: ✅ Connected and working
-  - Serial: 66a062dc2227359f
+  - Serial: [redacted]
   - Driver: hackrf via SoapySDR
   - Version: 2024.02.1
 

@@ -4,14 +4,14 @@ Tests fault injection and recovery patterns for callback failures.
 """
 
 import asyncio
+
 import pytest
-from unittest.mock import Mock
 
 from src.backend.utils.circuit_breaker import (
-    CircuitState,
+    CallbackCircuitBreaker,
     CircuitBreakerConfig,
     CircuitBreakerError,
-    CallbackCircuitBreaker,
+    CircuitState,
     MultiCallbackCircuitBreaker,
 )
 
@@ -30,9 +30,7 @@ class TestCircuitBreakerConfig:
     def test_custom_config(self):
         """Test custom configuration values."""
         config = CircuitBreakerConfig(
-            failure_threshold=5,
-            success_threshold=3,
-            expected_exceptions=(ValueError, TypeError)
+            failure_threshold=5, success_threshold=3, expected_exceptions=(ValueError, TypeError)
         )
         assert config.failure_threshold == 5
         assert config.success_threshold == 3
@@ -57,6 +55,7 @@ class TestCallbackCircuitBreaker:
     @pytest.mark.asyncio
     async def test_async_success(self, circuit_breaker):
         """Test successful async callback execution."""
+
         async def success_callback(value):
             return value * 2
 
@@ -67,6 +66,7 @@ class TestCallbackCircuitBreaker:
 
     def test_sync_success(self, circuit_breaker):
         """Test successful sync callback execution."""
+
         def success_callback(value):
             return value * 2
 
@@ -78,6 +78,7 @@ class TestCallbackCircuitBreaker:
     @pytest.mark.asyncio
     async def test_async_failure_opens_circuit(self, circuit_breaker):
         """Test async failures open circuit after threshold."""
+
         async def failing_callback(value):
             raise ValueError("Test failure")
 
@@ -95,6 +96,7 @@ class TestCallbackCircuitBreaker:
 
     def test_sync_failure_opens_circuit(self, circuit_breaker):
         """Test sync failures open circuit after threshold."""
+
         def failing_callback(value):
             raise ValueError("Test failure")
 
@@ -114,6 +116,7 @@ class TestCallbackCircuitBreaker:
     async def test_open_circuit_rejects_calls(self, circuit_breaker):
         """Test open circuit rejects calls with CircuitBreakerError."""
         from datetime import datetime
+
         # Force circuit open with recent failure
         circuit_breaker.state = CircuitState.OPEN
         circuit_breaker.failure_count = 2
@@ -128,6 +131,7 @@ class TestCallbackCircuitBreaker:
     def test_sync_open_circuit_rejects_calls(self, circuit_breaker):
         """Test sync open circuit rejects calls."""
         from datetime import datetime
+
         # Force circuit open with recent failure
         circuit_breaker.state = CircuitState.OPEN
         circuit_breaker.failure_count = 2
@@ -187,6 +191,7 @@ class TestMultiCallbackCircuitBreaker:
     @pytest.mark.asyncio
     async def test_async_call_through_manager(self, multi_breaker):
         """Test async call through multi-breaker manager."""
+
         async def test_callback(value):
             return value * 3
 
@@ -195,6 +200,7 @@ class TestMultiCallbackCircuitBreaker:
 
     def test_sync_call_through_manager(self, multi_breaker):
         """Test sync call through multi-breaker manager."""
+
         def test_callback(value):
             return value * 3
 
@@ -217,7 +223,7 @@ class TestMultiCallbackCircuitBreaker:
         # Create and break some circuits
         breaker1 = multi_breaker.get_breaker("callback1")
         breaker2 = multi_breaker.get_breaker("callback2")
-        
+
         # Force open state
         breaker1.state = CircuitState.OPEN
         breaker2.state = CircuitState.OPEN
@@ -234,19 +240,19 @@ class TestCircuitBreakerHalfOpenState:
     def quick_timeout_breaker(self):
         """Create breaker with short timeout for testing."""
         from datetime import timedelta
+
         config = CircuitBreakerConfig(
-            failure_threshold=2,
-            success_threshold=1,
-            timeout=timedelta(milliseconds=100)
+            failure_threshold=2, success_threshold=1, timeout=timedelta(milliseconds=100)
         )
         return CallbackCircuitBreaker(config=config, name="QuickTimeout")
 
     @pytest.mark.asyncio
     async def test_half_open_transition(self, quick_timeout_breaker):
         """Test transition from open to half-open state."""
+
         async def failing_callback(value):
             raise ValueError("Failure")
-        
+
         async def success_callback(value):
             return value
 
@@ -255,7 +261,7 @@ class TestCircuitBreakerHalfOpenState:
             await quick_timeout_breaker.call_async(failing_callback, 1)
         with pytest.raises(ValueError):
             await quick_timeout_breaker.call_async(failing_callback, 1)
-        
+
         assert quick_timeout_breaker.state == CircuitState.OPEN
 
         # Wait for timeout
@@ -269,6 +275,7 @@ class TestCircuitBreakerHalfOpenState:
     @pytest.mark.asyncio
     async def test_half_open_failure_reopens(self, quick_timeout_breaker):
         """Test failure in half-open state reopens circuit."""
+
         async def failing_callback(value):
             raise ValueError("Failure")
 
@@ -277,7 +284,7 @@ class TestCircuitBreakerHalfOpenState:
             await quick_timeout_breaker.call_async(failing_callback, 1)
         with pytest.raises(ValueError):
             await quick_timeout_breaker.call_async(failing_callback, 1)
-        
+
         assert quick_timeout_breaker.state == CircuitState.OPEN
 
         # Wait for timeout
@@ -286,7 +293,7 @@ class TestCircuitBreakerHalfOpenState:
         # Failure in half-open should reopen
         with pytest.raises(ValueError):
             await quick_timeout_breaker.call_async(failing_callback, 1)
-        
+
         assert quick_timeout_breaker.state == CircuitState.OPEN
 
 
@@ -298,9 +305,10 @@ class TestCircuitBreakerIntegration:
         """Test circuit breaker protecting RSSI callback failures."""
         config = CircuitBreakerConfig(failure_threshold=3, success_threshold=2)
         breaker = CallbackCircuitBreaker(config=config, name="RSSI_Processor")
-        
+
         # Simulate RSSI processing callback with intermittent failures
         call_count = 0
+
         async def rssi_callback(rssi_value):
             nonlocal call_count
             call_count += 1
@@ -317,7 +325,7 @@ class TestCircuitBreakerIntegration:
         for i in range(3):
             with pytest.raises(RuntimeError):
                 await breaker.call_async(rssi_callback, 10.0)
-        
+
         assert breaker.state == CircuitState.OPEN
         assert breaker.failure_count == 3
 
@@ -329,37 +337,37 @@ class TestCircuitBreakerIntegration:
     async def test_multiple_service_callbacks(self):
         """Test multiple services with independent circuit breakers."""
         multi_breaker = MultiCallbackCircuitBreaker()
-        
+
         # Different callback types
         async def rssi_callback(value):
             if value < 0:
                 raise ValueError("Invalid RSSI")
             return value
-        
+
         async def mavlink_callback(command):
             if command == "FAIL":
                 raise RuntimeError("MAVLink error")
             return f"ACK_{command}"
-        
+
         # Both should work initially
         rssi_result = await multi_breaker.call_async("rssi", rssi_callback, 15.0)
         mavlink_result = await multi_breaker.call_async("mavlink", mavlink_callback, "HOME")
-        
+
         assert rssi_result == 15.0
         assert mavlink_result == "ACK_HOME"
-        
+
         # Break RSSI but not MAVLink
         for _ in range(3):
             with pytest.raises(ValueError):
                 await multi_breaker.call_async("rssi", rssi_callback, -1.0)
-        
+
         # RSSI should be open, MAVLink should still work
         rssi_breaker = multi_breaker.get_breaker("rssi")
         mavlink_breaker = multi_breaker.get_breaker("mavlink")
-        
+
         assert rssi_breaker.state == CircuitState.OPEN
         assert mavlink_breaker.state == CircuitState.CLOSED
-        
+
         # MAVLink still works
         result = await multi_breaker.call_async("mavlink", mavlink_callback, "RTL")
         assert result == "ACK_RTL"

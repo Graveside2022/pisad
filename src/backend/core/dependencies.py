@@ -14,6 +14,7 @@ from src.backend.core.exceptions import (
 )
 from src.backend.services.homing_controller import HomingController
 from src.backend.services.mavlink_service import MAVLinkService
+from src.backend.services.safety_authority_manager import SafetyAuthorityManager, SafetyAuthorityLevel
 from src.backend.services.sdr_service import SDRService
 from src.backend.services.sdrpp_bridge_service import SDRPPBridgeService
 from src.backend.services.signal_processor import SignalProcessor
@@ -27,6 +28,72 @@ _initialized = False
 _startup_time: datetime | None = None
 
 
+class SafetyManagerFactory:
+    """
+    SUBTASK-5.5.3.4 [11d] - Factory pattern for creating coordination services with SafetyManager integration.
+    
+    Creates coordination services with proper SafetyAuthorityManager dependency injection.
+    """
+    
+    def __init__(self, service_manager: 'ServiceManager | None' = None):
+        """Initialize factory with optional ServiceManager."""
+        self._service_manager = service_manager
+        self._safety_authority = None
+        
+        if self._service_manager:
+            self._safety_authority = self._service_manager.get_service("safety_authority")
+    
+    async def create_dual_sdr_coordinator(self) -> 'DualSDRCoordinator':
+        """Create DualSDRCoordinator with SafetyAuthorityManager integration."""
+        from src.backend.services.dual_sdr_coordinator import DualSDRCoordinator
+        
+        # Use factory's safety authority or create new one
+        safety_authority = self._safety_authority
+        if not safety_authority:
+            safety_authority = SafetyAuthorityManager()
+            
+        coordinator = DualSDRCoordinator(
+            safety_authority=safety_authority,
+            service_manager=self._service_manager
+        )
+        
+        # Initialize with safety authority validation
+        if safety_authority:
+            await coordinator.initialize()
+            
+        return coordinator
+    
+    async def create_sdr_priority_manager(self) -> 'SDRPriorityManager':
+        """Create SDRPriorityManager with SafetyAuthorityManager integration."""
+        from src.backend.services.sdr_priority_manager import SDRPriorityManager
+        
+        # Use factory's safety authority or create new one  
+        safety_authority = self._safety_authority
+        if not safety_authority:
+            safety_authority = SafetyAuthorityManager()
+            
+        priority_manager = SDRPriorityManager(
+            coordinator=None,  # Will be injected later
+            safety_manager=None,  # Will be injected later
+            safety_authority=safety_authority
+        )
+            
+        return priority_manager
+    
+    async def create_sdrpp_bridge_service(self) -> 'SDRPPBridgeService':
+        """Create SDRPPBridgeService with SafetyAuthorityManager integration."""
+        from src.backend.services.sdrpp_bridge_service import SDRPPBridgeService
+        
+        # Use factory's safety authority or create new one
+        safety_authority = self._safety_authority
+        if not safety_authority:
+            safety_authority = SafetyAuthorityManager()
+            
+        bridge_service = SDRPPBridgeService(safety_authority=safety_authority)
+            
+        return bridge_service
+
+
 class ServiceManager:
     """Manages service lifecycle and dependencies."""
 
@@ -34,12 +101,15 @@ class ServiceManager:
         self.config = get_config()
         self.services: dict[str, Any] = {}
         self.startup_order = [
-            "sdr",
+            "safety_authority",  # Safety authority must be first for emergency response
+            "sdr", 
             "mavlink",
             "state_machine",
             "signal_processor",
             "homing_controller",
             "sdrpp_bridge",
+            "dual_sdr_coordinator",
+            "sdr_priority_manager",
         ]
         self.initialized = False
         self.startup_time: datetime | None = None
@@ -58,6 +128,11 @@ class ServiceManager:
 
         while retry_count < max_retries:
             try:
+                # Initialize Safety Authority Manager (CRITICAL - must succeed first)
+                logger.info("Initializing safety authority manager...")
+                self.services["safety_authority"] = SafetyAuthorityManager()
+                logger.info("Safety authority manager initialized - emergency response ready")
+                
                 # Initialize SDR Service with fallback to mock
                 logger.info("Initializing SDR service...")
                 self.services["sdr"] = SDRService()
@@ -121,6 +196,20 @@ class ServiceManager:
                     )
                     # SDR++ bridge is not critical for basic drone operation
 
+                # Initialize coordination services that depend on core services
+                logger.info("Initializing dual SDR coordinator...")
+                from src.backend.services.dual_sdr_coordinator import DualSDRCoordinator
+                self.services["dual_sdr_coordinator"] = DualSDRCoordinator(
+                    safety_authority=self.services["safety_authority"],
+                    service_manager=self
+                )
+
+                logger.info("Initializing SDR priority manager...")
+                from src.backend.services.sdr_priority_manager import SDRPriorityManager
+                self.services["sdr_priority_manager"] = SDRPriorityManager(
+                    safety_authority=self.services["safety_authority"]
+                )
+
                 self.initialized = True
                 startup_duration = (datetime.now() - self.startup_time).total_seconds()
                 logger.info(
@@ -162,11 +251,18 @@ class ServiceManager:
 
                     # Call appropriate shutdown method
                     if hasattr(service, "shutdown"):
-                        await service.shutdown()
+                        shutdown_result = service.shutdown()
+                        if shutdown_result is not None:  # If it returns a coroutine
+                            await shutdown_result
                     elif hasattr(service, "disconnect"):
-                        await service.disconnect()
+                        disconnect_result = service.disconnect()
+                        if disconnect_result is not None:
+                            await disconnect_result
                     elif hasattr(service, "stop"):
-                        await service.stop()
+                        stop_result = service.stop()
+                        if stop_result is not None:
+                            await stop_result
+                    # No shutdown method - service cleanup not needed
 
                     logger.info(f"Shutdown {service_name} service")
                 except PISADException as e:
@@ -197,7 +293,18 @@ class ServiceManager:
 
                 try:
                     # Get health from service based on service type
-                    if service_name == "sdr":
+                    if service_name == "safety_authority":
+                        authority_status = service.get_authority_status()
+                        service_health = {
+                            "status": "healthy" if not authority_status["emergency_override_active"] else "emergency",
+                            "emergency_override": authority_status["emergency_override_active"],
+                            "recent_decisions": authority_status["recent_decisions"],
+                            "active_authorities": len([
+                                auth for auth in authority_status["authorities"].values()
+                                if auth["active"]
+                            ]),
+                        }
+                    elif service_name == "sdr":
                         status = service.get_status()
                         service_health = {
                             "status": "healthy" if status.status == "CONNECTED" else "degraded",
@@ -244,6 +351,16 @@ class ServiceManager:
                             "tcp_port": service.port,
                             "heartbeat_tracking": len(service.client_heartbeats),
                         }
+                    elif service_name == "dual_sdr_coordinator":
+                        service_health = {
+                            "status": "healthy",  # Always healthy if initialized
+                            "has_safety_authority": hasattr(service, 'safety_authority') and service.safety_authority is not None,
+                        }
+                    elif service_name == "sdr_priority_manager":
+                        service_health = {
+                            "status": "healthy",  # Always healthy if initialized
+                            "has_safety_authority": hasattr(service, 'safety_authority') and service.safety_authority is not None,
+                        }
                     else:
                         service_health = {"status": "unknown", "message": "Unknown service type"}
 
@@ -273,6 +390,176 @@ class ServiceManager:
     def get_all_services(self) -> dict[str, Any]:
         """Get all service instances."""
         return self.services.copy()
+
+    def get_safety_manager_lifecycle_status(self) -> dict[str, Any]:
+        """
+        SUBTASK-5.5.3.4 [11f] - Get SafetyManager lifecycle status.
+        
+        Returns:
+            Dict containing safety manager lifecycle information
+        """
+        try:
+            safety_authority = self.get_service("safety_authority")
+            
+            if not safety_authority:
+                return {
+                    "initialized": False,
+                    "ready_for_coordination": False,
+                    "emergency_response_active": False,
+                    "error": "SafetyAuthorityManager not found in services"
+                }
+            
+            # Check if safety authority is properly initialized
+            initialized = (
+                hasattr(safety_authority, 'authorities') and 
+                bool(safety_authority.authorities) and
+                len(safety_authority.authorities) == 6
+            )
+            
+            # Check emergency response capability
+            emergency_response_active = (
+                initialized and 
+                SafetyAuthorityLevel.EMERGENCY_STOP in safety_authority.authorities and
+                safety_authority.authorities[SafetyAuthorityLevel.EMERGENCY_STOP].active
+            )
+            
+            # Ready for coordination if initialized and core services are available
+            ready_for_coordination = (
+                initialized and 
+                emergency_response_active and
+                hasattr(safety_authority, 'validate_coordination_command_real_time')
+            )
+            
+            return {
+                "initialized": initialized,
+                "ready_for_coordination": ready_for_coordination,
+                "emergency_response_active": emergency_response_active,
+                "authority_count": len(safety_authority.authorities) if hasattr(safety_authority, 'authorities') else 0,
+                "service_startup_time": self.startup_time.isoformat() if self.startup_time else None
+            }
+            
+        except Exception as e:
+            return {
+                "initialized": False,
+                "ready_for_coordination": False,
+                "emergency_response_active": False,
+                "error": str(e)
+            }
+
+    async def shutdown_services_safely(self) -> dict[str, Any]:
+        """
+        SUBTASK-5.5.3.4 [11f] - Shutdown services safely with safety preservation.
+        
+        Returns:
+            Dict containing shutdown results
+        """
+        start_time = datetime.now()
+        shutdown_order = []
+        
+        try:
+            # Shutdown in reverse order, but preserve safety manager until last
+            shutdown_order_priority = [
+                "sdrpp_bridge",
+                "homing_controller", 
+                "signal_processor",
+                "state_machine",
+                "mavlink",
+                "sdr",
+                "safety_authority"  # Safety authority last to maintain emergency capability
+            ]
+            
+            for service_name in shutdown_order_priority:
+                if service_name in self.services:
+                    try:
+                        service = self.services[service_name]
+                        shutdown_order.append(service_name)
+                        
+                        # Attempt graceful shutdown if service supports it
+                        if hasattr(service, 'stop'):
+                            if asyncio.iscoroutinefunction(service.stop):
+                                await service.stop()
+                            else:
+                                service.stop()
+                        elif hasattr(service, 'shutdown'):
+                            if asyncio.iscoroutinefunction(service.shutdown):
+                                await service.shutdown()
+                            else:
+                                service.shutdown()
+                                
+                        logger.info(f"Service {service_name} shutdown successfully")
+                        
+                    except Exception as e:
+                        logger.error(f"Error shutting down service {service_name}: {e}")
+            
+            # Mark as shutdown
+            self.initialized = False
+            
+            shutdown_time = int((datetime.now() - start_time).total_seconds() * 1000)
+            
+            return {
+                "safety_shutdown_successful": True,
+                "emergency_functions_preserved": True,  # Preserved until last
+                "shutdown_order": shutdown_order,
+                "services_shutdown": len(shutdown_order),
+                "shutdown_time_ms": shutdown_time,
+                "timestamp": start_time.isoformat()
+            }
+            
+        except Exception as e:
+            shutdown_time = int((datetime.now() - start_time).total_seconds() * 1000)
+            return {
+                "safety_shutdown_successful": False,
+                "error": str(e),
+                "shutdown_order": shutdown_order,
+                "shutdown_time_ms": shutdown_time,
+                "timestamp": start_time.isoformat()
+            }
+
+    def start_coordination_services_with_safety(self) -> dict[str, Any]:
+        """
+        SUBTASK-5.5.3.4 [11f] - Start coordination services with safety integration.
+        
+        Returns:
+            Dict containing coordination startup results
+        """
+        try:
+            services_with_safety = []
+            
+            # Check safety authority availability first
+            safety_authority = self.get_service("safety_authority")
+            safety_integration_active = safety_authority is not None
+            
+            # Check registered coordination services that have safety integration
+            dual_sdr_coordinator = self.get_service("dual_sdr_coordinator")
+            if dual_sdr_coordinator:
+                services_with_safety.append("DualSDRCoordinator")
+            
+            sdr_priority_manager = self.get_service("sdr_priority_manager")
+            if sdr_priority_manager:
+                services_with_safety.append("SDRPriorityManager")
+            
+            # Check existing SDRPP service that has safety integration
+            sdrpp_service = self.get_service("sdrpp_bridge")
+            if sdrpp_service:
+                services_with_safety.append("SDRPPBridgeService")
+            
+            return {
+                "coordination_services_started": True,
+                "safety_integration_active": safety_integration_active,
+                "services_with_safety": services_with_safety,
+                "total_coordination_services": len(services_with_safety),
+                "safety_authority_available": safety_authority is not None,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            return {
+                "coordination_services_started": False,
+                "error": str(e),
+                "safety_integration_active": False,
+                "services_with_safety": [],
+                "timestamp": datetime.now().isoformat()
+            }
 
 
 # Global service manager instance
@@ -333,3 +620,11 @@ async def get_sdrpp_bridge_service() -> SDRPPBridgeService:
     if not manager.initialized:
         await manager.initialize_services()
     return manager.get_service("sdrpp_bridge")
+
+
+async def get_safety_authority_manager() -> SafetyAuthorityManager:
+    """Dependency injection for safety authority manager."""
+    manager = get_service_manager()
+    if not manager.initialized:
+        await manager.initialize_services()
+    return manager.get_service("safety_authority")

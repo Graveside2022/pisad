@@ -531,7 +531,7 @@ class TestSDRPPBridgeServiceShutdown:
         """RED: Test shutdown handles client disconnection errors gracefully."""
         service = SDRPPBridgeService()
 
-        # Use different port to avoid conflicts  
+        # Use different port to avoid conflicts
         service.port = 8086
 
         # Start server

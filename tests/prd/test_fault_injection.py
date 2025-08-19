@@ -5,16 +5,15 @@ Tests hardware disconnections, communication failures, and emergency responses.
 """
 
 import asyncio
-import pytest
-from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, timedelta
+from unittest.mock import Mock, patch
+
+import pytest
 
 from src.backend.core.exceptions import (
-    SDRError,
     MAVLinkError,
-    SafetyInterlockError,
 )
-from src.backend.hal.hackrf_interface import HackRFInterface, HackRFConfig
+from src.backend.hal.hackrf_interface import HackRFConfig, HackRFInterface
 from src.backend.hal.mavlink_interface import MAVLinkInterface
 from src.backend.services.safety_manager import SafetyManager
 from src.backend.utils.circuit_breaker import (
@@ -35,6 +34,7 @@ class TestHardwareDisconnectionScenarios:
         interface = HackRFInterface(config)
         # Use mock device for testing
         from src.backend.hal.mock_hackrf import MockHackRF
+
         mock_device = MockHackRF()
         interface.device = mock_device
         return interface
@@ -83,7 +83,7 @@ class TestHardwareDisconnectionScenarios:
         mavlink_interface.is_connected = False
 
         # Safety system should trigger automatic RTL per PRD-FR10
-        with patch.object(safety_manager, '_force_motor_stop') as mock_stop:
+        with patch.object(safety_manager, "_force_motor_stop") as mock_stop:
             mock_stop.return_value = True
             result = safety_manager.trigger_emergency_stop()
             assert result["success"] is True
@@ -115,7 +115,7 @@ class TestHardwareDisconnectionScenarios:
     async def test_hardware_intermittent_failures(self, hackrf_interface):
         """Test intermittent hardware connection failures."""
         callback = Mock()
-        
+
         # Start with good connection
         assert await hackrf_interface.start_rx(callback) is True
 
@@ -125,7 +125,7 @@ class TestHardwareDisconnectionScenarios:
                 hackrf_interface.device.connected = False
             else:
                 hackrf_interface.device.connected = True
-            
+
             # System should handle intermittent failures gracefully
             await asyncio.sleep(0.01)
 
@@ -146,7 +146,7 @@ class TestCircuitBreakerFaultInjection:
     async def test_rssi_callback_circuit_breaker(self, rssi_circuit_breaker):
         """Test RSSI callback protection with circuit breaker."""
         failure_count = 0
-        
+
         async def rssi_callback(rssi_value):
             nonlocal failure_count
             failure_count += 1
@@ -173,8 +173,9 @@ class TestCircuitBreakerFaultInjection:
         """Test MAVLink command protection with circuit breaker."""
         config = CircuitBreakerConfig(failure_threshold=3)
         breaker = CallbackCircuitBreaker(config=config, name="MAVLink_Commands")
-        
+
         failure_count = 0
+
         async def mavlink_command(command):
             nonlocal failure_count
             failure_count += 1
@@ -194,14 +195,13 @@ class TestCircuitBreakerFaultInjection:
     @pytest.mark.asyncio
     async def test_circuit_breaker_recovery(self):
         """Test circuit breaker recovery after timeout."""
-        from datetime import timedelta
         config = CircuitBreakerConfig(
             failure_threshold=2,
             success_threshold=1,  # Only 1 success needed to close
-            timeout=timedelta(milliseconds=50)
+            timeout=timedelta(milliseconds=50),
         )
         breaker = CallbackCircuitBreaker(config=config, name="Recovery_Test")
-        
+
         # Force circuit open
         breaker.state = CircuitState.OPEN
         breaker.failure_count = 2
@@ -224,14 +224,14 @@ class TestCommunicationFaultInjection:
     async def test_mavlink_message_corruption(self):
         """Test MAVLink message corruption handling."""
         interface = MAVLinkInterface()
-        
+
         # Mock corrupted message handling
-        with patch.object(interface, '_process_mavlink_message') as mock_process:
+        with patch.object(interface, "_process_mavlink_message") as mock_process:
             mock_process.side_effect = [
                 ValueError("Corrupted message"),  # First message corrupted
                 None,  # Second message processed successfully
             ]
-            
+
             # Should handle corruption gracefully
             interface._handle_message_corruption("corrupted_data")
             # Should continue processing after corruption
@@ -242,11 +242,12 @@ class TestCommunicationFaultInjection:
         interface = MAVLinkInterface()
         interface.connection = Mock()
         interface.is_connected = True
-        
+
         # Simulate transmission failure
-        interface.connection.mav.set_position_target_local_ned_send.side_effect = \
-            MAVLinkError("Transmission failed")
-        
+        interface.connection.mav.set_position_target_local_ned_send.side_effect = MAVLinkError(
+            "Transmission failed"
+        )
+
         # Should fail gracefully
         result = await interface.send_velocity_command(1.0, 0.0, 0.0)
         assert result is False
@@ -256,10 +257,10 @@ class TestCommunicationFaultInjection:
         """Test heartbeat timeout detection per PRD-FR10."""
         interface = MAVLinkInterface()
         interface.connection = Mock()
-        
+
         # Mock heartbeat timeout
         interface.connection.wait_heartbeat.side_effect = TimeoutError("Heartbeat timeout")
-        
+
         # Should detect timeout and mark as disconnected
         result = await interface.connect()
         assert result is False
@@ -280,11 +281,11 @@ class TestSafetySystemFaultInjection:
         """Test emergency stop when MAVLink fails per PRD-FR16."""
         # Mock MAVLink failure
         safety_manager.mavlink.emergency_stop.side_effect = MAVLinkError("MAVLink failed")
-        
+
         start_time = datetime.now()
         result = safety_manager.trigger_emergency_stop()
         response_time = (datetime.now() - start_time).total_seconds() * 1000
-        
+
         # Should complete fallback within 500ms per PRD-FR16
         assert response_time < 500
         assert result["success"] is True  # Fallback should succeed
@@ -293,18 +294,20 @@ class TestSafetySystemFaultInjection:
 
     def test_emergency_stop_timeout_protection(self, safety_manager):
         """Test emergency stop timeout protection per PRD-FR16."""
+
         # Mock slow MAVLink response
         def slow_emergency_stop():
             import time
+
             time.sleep(0.6)  # Simulate >500ms response
             return True
-        
+
         safety_manager.mavlink.emergency_stop.side_effect = slow_emergency_stop
-        
+
         start_time = datetime.now()
         result = safety_manager.trigger_emergency_stop()
         response_time = (datetime.now() - start_time).total_seconds() * 1000
-        
+
         # Even with slow primary, total should be reasonable due to timeout handling
         assert response_time < 1000  # Allow some buffer for test execution
         assert result["response_time_ms"] > 500  # Should log the slow response
@@ -313,7 +316,7 @@ class TestSafetySystemFaultInjection:
         """Test RC override detection system failures."""
         # Mock MAVLink connection failure for RC channel reading
         safety_manager.mavlink = None  # No MAVLink connection
-            
+
         # Should handle RC failure gracefully with no connection
         result = safety_manager.is_rc_override_active()
         assert result is False  # Safe default when RC detection fails
@@ -322,12 +325,12 @@ class TestSafetySystemFaultInjection:
         """Test cascade failure scenario in safety systems."""
         # Mock multiple system failures
         safety_manager.mavlink.emergency_stop.side_effect = MAVLinkError("Primary failed")
-        
-        with patch.object(safety_manager, '_force_motor_stop') as mock_fallback:
+
+        with patch.object(safety_manager, "_force_motor_stop") as mock_fallback:
             mock_fallback.side_effect = RuntimeError("Fallback failed")
-            
+
             result = safety_manager.trigger_emergency_stop()
-            
+
             # Should report failure but attempt all fallbacks
             assert "error" in result
             assert "fallback_attempted" in result
@@ -342,14 +345,15 @@ class TestErrorRecoveryScenarios:
         """Test SDR frequency setting recovery after initial failure."""
         config = HackRFConfig()
         interface = HackRFInterface(config)
-        
+
         from src.backend.hal.mock_hackrf import MockHackRF
+
         mock_device = MockHackRF()
         interface.device = mock_device
-        
+
         # Simulate initial failure
         assert await interface.set_freq(100e6) is False  # Invalid frequency
-        
+
         # Recovery with valid frequency should work
         assert await interface.set_freq(3.2e9) is True
 
@@ -357,13 +361,13 @@ class TestErrorRecoveryScenarios:
     async def test_mavlink_reconnection_after_failure(self):
         """Test MAVLink reconnection capability after failure."""
         interface = MAVLinkInterface()
-        
+
         # Simulate initial connection failure
-        with patch('pymavlink.mavutil.mavlink_connection') as mock_conn:
+        with patch("pymavlink.mavutil.mavlink_connection") as mock_conn:
             mock_conn.side_effect = RuntimeError("Connection failed")
             result = await interface.connect()
             assert result is False
-        
+
         # Recovery attempt should be possible
         # (Would need actual hardware or more sophisticated mock for full test)
 
@@ -371,21 +375,22 @@ class TestErrorRecoveryScenarios:
     async def test_system_degradation_with_partial_hardware(self):
         """Test system operation with partial hardware availability."""
         # Test system behavior when only some hardware is available
-        
+
         # SDR available, MAVLink not
         hackrf_config = HackRFConfig()
         hackrf_interface = HackRFInterface(hackrf_config)
-        
+
         from src.backend.hal.mock_hackrf import MockHackRF
+
         hackrf_interface.device = MockHackRF()
-        
+
         mavlink_interface = MAVLinkInterface()
         # Don't connect MAVLink
-        
+
         # System should handle partial hardware gracefully
         assert await hackrf_interface.start_rx(Mock()) is True
         assert mavlink_interface.is_connected is False
-        
+
         # Cleanup
         await hackrf_interface.stop()
 
@@ -398,19 +403,19 @@ class TestPerformanceUnderFault:
         """Test response times under high failure rates."""
         config = CircuitBreakerConfig(failure_threshold=10)
         breaker = CallbackCircuitBreaker(config=config, name="Load_Test")
-        
+
         async def failing_callback(value):
             raise RuntimeError("Simulated failure")
-        
+
         # Measure response time under failure load
         start_time = datetime.now()
-        
+
         for i in range(5):  # Multiple failures but not enough to open circuit
             with pytest.raises(RuntimeError):
                 await breaker.call_async(failing_callback, i)
-        
+
         response_time = (datetime.now() - start_time).total_seconds() * 1000
-        
+
         # Should complete quickly even under failure load
         assert response_time < 100  # 100ms for 5 failures
         assert breaker.state == CircuitState.CLOSED
@@ -419,31 +424,30 @@ class TestPerformanceUnderFault:
     async def test_memory_usage_under_fault_injection(self):
         """Test memory usage doesn't grow under fault injection."""
         import gc
-        import sys
-        
+
         config = CircuitBreakerConfig(failure_threshold=5)
         breaker = CallbackCircuitBreaker(config=config, name="Memory_Test")
-        
+
         async def memory_intensive_failure(value):
             # Create some objects then fail
             data = list(range(1000))
             raise RuntimeError(f"Failed with {len(data)} items")
-        
+
         # Force garbage collection before test
         gc.collect()
         initial_objects = len(gc.get_objects())
-        
+
         # Run many failures
         for i in range(10):
             try:
                 await breaker.call_async(memory_intensive_failure, i)
             except (RuntimeError, CircuitBreakerError):
                 pass
-        
+
         # Force garbage collection after test
         gc.collect()
         final_objects = len(gc.get_objects())
-        
+
         # Memory growth should be minimal
         object_growth = final_objects - initial_objects
         assert object_growth < 100  # Some growth is expected but should be bounded
@@ -458,15 +462,15 @@ class TestSystemWideFaultInjection:
         """Test complete system fault tolerance end-to-end."""
         # This would test the complete pipeline with injected faults
         # For now, verify key components work together
-        
+
         safety_manager = SafetyManager()
         hackrf_config = HackRFConfig()
         hackrf_interface = HackRFInterface(hackrf_config)
-        
+
         # Test coordinated failure response
         assert safety_manager is not None
         assert hackrf_interface is not None
-        
+
         # Emergency stop should work even with limited hardware
         result = safety_manager.trigger_emergency_stop()
         assert result["success"] is True
@@ -481,22 +485,22 @@ class TestSystemWideFaultInjection:
             "circuit_breaker_open": False,
             "safety_fallback": False,
         }
-        
+
         # Simulate SDR disconnect
         faults_injected["sdr_disconnect"] = True
-        
+
         # Simulate MAVLink timeout
         faults_injected["mavlink_timeout"] = True
-        
+
         # Verify system still provides safety response
         safety_manager = SafetyManager()
         result = safety_manager.trigger_emergency_stop()
-        
+
         assert result["success"] is True
         faults_injected["safety_fallback"] = True
-        
+
         # Circuit breaker should protect against cascading failures
         faults_injected["circuit_breaker_open"] = True
-        
+
         # All fault types handled
         assert all(faults_injected.values())

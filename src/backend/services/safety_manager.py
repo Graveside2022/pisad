@@ -62,6 +62,11 @@ class SafetyManager:
         self.state = "IDLE"
         self.last_signal_time = time.time()
 
+        # SDR++ coordination awareness - Added for SUBTASK-5.5.3.1
+        self.coordination_status = {"active": False, "healthy": True, "source": "drone"}
+        self.coordination_battery_health = {"ground": None, "drone": None}
+        self.coordination_latency_ms = 0.0
+
         # Safety thresholds
         self.battery_low_voltage = 19.2  # 6S Li-ion low
         self.battery_critical_voltage = 18.0  # 6S Li-ion critical
@@ -90,11 +95,17 @@ class SafetyManager:
             if response_time_ms > 500:
                 logger.warning(f"Emergency stop took {response_time_ms:.1f}ms (> 500ms limit)")
 
-            return {
+            result = {
                 "success": success,
                 "response_time_ms": response_time_ms,
                 "priority": "CRITICAL",
             }
+
+            # Include coordination latency for timing validation [8f]
+            if self.include_coordination_in_decisions():
+                result["coordination_latency_ms"] = self.coordination_latency_ms
+
+            return result
 
         except (SafetyInterlockError, MAVLinkError, SDRError, Exception) as e:
             logger.error(f"Emergency stop failed: {e}")
@@ -301,7 +312,7 @@ class SafetyManager:
         """
         Determine failsafe action based on current conditions.
 
-        SAFETY: Priority-based failsafe decisions
+        SAFETY: Priority-based failsafe decisions with coordination health [8c]
         """
         # Priority 1: RC override
         if self.is_rc_override_active():
@@ -321,8 +332,23 @@ class SafetyManager:
         if not gps["ready"]:
             return {"priority": 3, "action": "LOITER", "reason": gps["reason"]}
 
+        # Priority 4: Coordination health (if active) - SUBTASK-5.5.3.1 [8c]
+        if self.include_coordination_in_decisions() and not self.is_coordination_healthy():
+            return {
+                "priority": 4,
+                "action": "FALLBACK_DRONE",
+                "reason": "Coordination system unhealthy",
+                "coordination_health": False,
+            }
+
         # No failsafe needed
-        return {"priority": 99, "action": "NONE", "reason": "All systems nominal"}
+        result = {"priority": 99, "action": "NONE", "reason": "All systems nominal"}
+
+        # Include coordination health status in decision matrix [8c]
+        if self.include_coordination_in_decisions():
+            result["coordination_health"] = self.is_coordination_healthy()
+
+        return result
 
     def set_motor_interlock(self, engaged: bool) -> None:
         """Set motor interlock state."""
@@ -487,3 +513,151 @@ class SafetyManager:
         except PISADException as e:
             logger.error(f"Force motor stop failed: {e}")
             return False
+
+    # SDR++ Coordination Awareness Methods - SUBTASK-5.5.3.1
+
+    def get_coordination_status(self) -> dict[str, Any]:
+        """
+        [8a] Get current SDR++ coordination status for safety monitoring.
+
+        Returns coordination status including health and active source.
+        """
+        return self.coordination_status.copy()
+
+    def set_coordination_status(self, status: dict[str, Any]) -> None:
+        """
+        [8a] Set SDR++ coordination status for safety monitoring.
+
+        Updates coordination status with health and source information.
+        """
+        self.coordination_status.update(status)
+
+    def is_coordination_healthy(self) -> bool:
+        """
+        [8a] Check if SDR++ coordination system is healthy.
+
+        Returns True if coordination is healthy, False otherwise.
+        """
+        return bool(self.coordination_status.get("healthy", True))
+
+    def check_dual_system_battery_status(self) -> dict[str, Any]:
+        """
+        [8b] Check battery status across both ground and drone systems.
+
+        Enhanced battery monitoring with coordination health awareness.
+        """
+        drone_battery = self.check_battery_status()
+        return {
+            "drone": drone_battery,
+            "ground": self.coordination_battery_health.get("ground"),
+            "coordination_impact": self.is_coordination_healthy(),
+        }
+
+    def get_coordination_battery_health(self) -> dict[str, Any]:
+        """
+        [8b] Get coordination-aware battery health status.
+
+        Returns battery health considering dual-system operation.
+        """
+        return self.coordination_battery_health.copy()
+
+    def include_coordination_in_decisions(self) -> bool:
+        """
+        [8c] Check if coordination health should be included in safety decisions.
+
+        Integration point for coordination health in safety decision matrix.
+        """
+        return bool(self.coordination_status.get("active", False))
+
+    def evaluate_source_safety(self, source: str) -> dict[str, Any]:
+        """
+        [8d] Evaluate safety of a given signal source.
+
+        Safety-aware source selection criteria with fallback triggers.
+        """
+        if source not in ["ground", "drone"]:
+            return {"safe": False, "reason": "unknown_source"}
+
+        if source == "drone":
+            return {"safe": True, "reason": "primary_safety_authority"}
+
+        safe = self.active and self.is_coordination_healthy()
+        return {"safe": safe, "reason": "requires_active_coordination"}
+
+    def get_safe_source_recommendation(self) -> str:
+        """
+        [8d] Get safety-recommended signal source.
+
+        Returns safest available source based on current conditions.
+        """
+        if not self.is_coordination_healthy():
+            return "drone"
+        return str(self.coordination_status.get("source", "drone"))
+
+    def trigger_source_fallback(self, reason: str) -> None:
+        """
+        [8d] Trigger safety fallback to drone-only operation.
+
+        Forces fallback to drone source for safety reasons.
+        """
+        self.coordination_status.update(
+            {"source": "drone", "fallback_reason": reason, "fallback_time": time.time()}
+        )
+
+    def handle_coordination_state_change(self, new_state: dict[str, Any]) -> None:
+        """
+        [8e] Handle coordination system state changes for safety.
+
+        Safety event triggers for coordination system state changes.
+        """
+        old_healthy = self.is_coordination_healthy()
+        self.set_coordination_status(new_state)
+        new_healthy = self.is_coordination_healthy()
+
+        if old_healthy != new_healthy:
+            logger.warning(f"Coordination health changed: {old_healthy} -> {new_healthy}")
+            if not new_healthy:
+                self.trigger_source_fallback("coordination_unhealthy")
+
+    def register_coordination_event_handler(self, handler_func: Any) -> None:
+        """
+        [8e] Register handler for coordination events (placeholder).
+
+        Event registration for coordination system state changes.
+        """
+        # Placeholder implementation for coordination event handling
+        pass
+
+    def monitor_coordination_latency(self, latency_ms: float) -> None:
+        """
+        [8f] Monitor coordination system latency for safety timing validation.
+
+        Tracks coordination latency for safety timing framework.
+        """
+        self.coordination_latency_ms = latency_ms
+        if latency_ms > 100.0:  # PRD-NFR2: <100ms requirement
+            logger.warning(f"Coordination latency {latency_ms:.1f}ms exceeds 100ms limit")
+
+    def validate_coordination_timing(self) -> dict[str, Any]:
+        """
+        [8f] Validate coordination timing meets safety requirements.
+
+        Coordination latency monitoring in safety timing validation framework.
+        """
+        return {
+            "valid": self.coordination_latency_ms <= 100.0,
+            "latency_ms": self.coordination_latency_ms,
+            "limit_ms": 100.0,
+        }
+
+    def get_coordination_latency_status(self) -> dict[str, Any]:
+        """
+        [8f] Get coordination latency status for safety monitoring.
+
+        Returns current coordination latency status.
+        """
+        return {
+            "latency_ms": self.coordination_latency_ms,
+            "within_limits": self.coordination_latency_ms <= 100.0,
+            "safety_impact": "acceptable" if self.coordination_latency_ms <= 100.0 else "warning",
+        }

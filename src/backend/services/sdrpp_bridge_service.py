@@ -17,6 +17,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from src.backend.services.safety_authority_manager import SafetyAuthorityLevel
 from src.backend.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,13 +26,23 @@ logger = get_logger(__name__)
 class SDRPPBridgeService:
     """TCP server service for SDR++ plugin communication."""
 
-    def __init__(self) -> None:
-        """Initialize SDR++ bridge service with default configuration."""
+    def __init__(self, safety_authority: 'SafetyAuthorityManager | None' = None) -> None:
+        """
+        Initialize SDR++ bridge service with safety authority integration.
+        
+        SUBTASK-5.5.3.4 [11c] - Integrate SafetyManager with communication monitoring.
+        
+        Args:
+            safety_authority: SafetyAuthorityManager for communication safety monitoring
+        """
         self.host = "0.0.0.0"  # Listen on all interfaces
         self.port = 8081  # SDR++ communication port
         self.server: asyncio.Server | None = None  # TCP server instance
         self.clients: list[Any] = []  # Connected clients list
         self.running = False  # Service running state
+        
+        # SUBTASK-5.5.3.4 [11c] - Safety authority dependency injection
+        self._safety_authority = safety_authority
 
         # Valid message types for JSON protocol
         self.valid_message_types: set[str] = {
@@ -55,6 +66,31 @@ class SDRPPBridgeService:
         self._safety_timeout = 10.0  # <10s timeout for safety notifications
         self._last_safety_notification = 0.0
         self._communication_quality_threshold = 0.5  # 50% quality threshold
+
+        # [2a] Enhanced TCP connection health monitoring
+        self._connection_health_status = "unknown"
+        self._last_health_check = 0.0
+        self._health_check_interval = 5.0  # 5 second health checks
+        self._connection_quality_history: list[float] = []
+
+        # [2b] Configurable communication loss timeout (default 10s per PRD)
+        self._communication_loss_timeout = 10.0
+        self._last_communication = time.time()
+
+        # [2d] Enhanced heartbeat monitoring between ground and drone systems
+        self._heartbeat_statistics: dict[str, Any] = {}
+        self._missed_heartbeats = 0
+        self._heartbeat_trend_analysis: dict[str, Any] = {}
+
+        # [2e] Communication quality assessment with latency tracking
+        self._latency_history: list[float] = []
+        self._quality_metrics: dict[str, Any] = {}
+        self._quality_threshold = 0.8  # 80% quality threshold
+
+        # [2f] Automatic notification system for communication issues
+        self._notification_handlers: list[Any] = []
+        self._notification_thresholds: dict[str, float] = {}
+        self._last_notification_time = 0.0
 
         # [1n] Communication loss detection with safety event triggers
         self._connection_lost_callbacks: list[Callable[..., Any]] = []
@@ -761,6 +797,292 @@ class SDRPPBridgeService:
                 "safety_integration": {"safety_manager_connected": False},
             }
 
+    # [2a] Enhanced TCP connection health monitoring methods
+    async def perform_connection_health_check(self) -> dict[str, Any]:
+        """
+        Perform enhanced TCP connection health check.
+
+        Returns:
+            Health status with connection health, quality score, and latency
+
+        PRD References:
+        - PRD-AC5.3.4: Automatic fallback within 10 seconds
+        """
+        try:
+            current_time = time.time()
+            self._last_health_check = current_time
+
+            # Calculate quality score based on connection metrics
+            if self._connection_quality_history:
+                avg_quality = sum(self._connection_quality_history) / len(
+                    self._connection_quality_history
+                )
+            else:
+                avg_quality = 0.5  # Default neutral quality
+
+            # Determine health status
+            if avg_quality >= 0.8:
+                health_status = "healthy"
+            elif avg_quality >= 0.5:
+                health_status = "degraded"
+            else:
+                health_status = "unhealthy"
+
+            self._connection_health_status = health_status
+
+            # Calculate average latency
+            avg_latency = (
+                sum(self._latency_history[-10:]) / len(self._latency_history[-10:])
+                if self._latency_history
+                else 0.0
+            )
+
+            return {
+                "connection_health": health_status,
+                "quality_score": avg_quality,
+                "latency_ms": avg_latency,
+                "check_timestamp": current_time,
+                "clients_connected": len(self.clients),
+            }
+
+        except Exception as e:
+            logger.error("Error performing connection health check: %s", e)
+            return {
+                "connection_health": "error",
+                "quality_score": 0.0,
+                "latency_ms": float("inf"),
+                "check_timestamp": time.time(),
+                "error": str(e),
+            }
+
+    # [2b] Configurable communication loss timeout methods
+    def set_communication_timeout(self, timeout_seconds: float) -> None:
+        """
+        Set configurable communication loss timeout.
+
+        Args:
+            timeout_seconds: Timeout in seconds (default 10s per PRD-AC5.3.4)
+        """
+        self._communication_loss_timeout = timeout_seconds
+        logger.info("Communication loss timeout set to %.1f seconds", timeout_seconds)
+
+    async def check_communication_loss_timeout(self) -> bool:
+        """
+        Check if communication loss timeout has been exceeded.
+
+        Returns:
+            True if timeout exceeded, False otherwise
+
+        PRD References:
+        - PRD-AC5.3.4: 10 second timeout for automatic fallback
+        """
+        try:
+            current_time = time.time()
+            time_since_last_comm = current_time - self._last_communication
+
+            if time_since_last_comm > self._communication_loss_timeout:
+                logger.warning(
+                    "Communication loss timeout exceeded: %.1f seconds", time_since_last_comm
+                )
+                await self.safety_communication_loss(
+                    f"Communication timeout exceeded: {time_since_last_comm:.1f}s"
+                )
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.error("Error checking communication loss timeout: %s", e)
+            return True  # Err on the side of caution
+
+    # [2c] Safety event triggers for communication degradation
+    async def trigger_communication_degradation(self, reason: str, metric_value: float) -> None:
+        """
+        Trigger safety event for communication degradation.
+
+        Args:
+            reason: Reason for degradation (e.g., 'high_latency')
+            metric_value: Associated metric value (e.g., latency in ms)
+
+        PRD References:
+        - PRD-AC5.5.3: Safety event triggers for degradation
+        """
+        try:
+            if self._safety_manager:
+                degradation_event = {
+                    "event_type": "communication_degradation",
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "source": "sdrpp_bridge",
+                    "degradation_reason": reason,
+                    "latency_ms": metric_value,
+                    "severity": "medium" if metric_value < 200.0 else "high",
+                }
+
+                await self._safety_manager.handle_communication_degradation(degradation_event)
+                logger.warning(
+                    "Communication degradation triggered: %s (%.1f)", reason, metric_value
+                )
+
+        except Exception as e:
+            logger.error("Error triggering communication degradation event: %s", e)
+
+    # [2d] Enhanced heartbeat monitoring analysis
+    async def analyze_heartbeat_patterns(self) -> dict[str, Any]:
+        """
+        Analyze heartbeat patterns for health assessment.
+
+        Returns:
+            Heartbeat analysis including intervals, missed counts, and pattern health
+        """
+        try:
+            current_time = time.time()
+
+            # Calculate heartbeat statistics
+            if self.client_heartbeats:
+                heartbeat_ages = [current_time - hb for hb in self.client_heartbeats.values()]
+                avg_interval = sum(heartbeat_ages) / len(heartbeat_ages)
+                max_age = max(heartbeat_ages)
+            else:
+                avg_interval = float("inf")
+                max_age = float("inf")
+
+            # Determine pattern health
+            if max_age <= self.heartbeat_timeout * 0.5:
+                pattern_health = "excellent"
+            elif max_age <= self.heartbeat_timeout * 0.8:
+                pattern_health = "good"
+            elif max_age <= self.heartbeat_timeout:
+                pattern_health = "degraded"
+            else:
+                pattern_health = "poor"
+
+            analysis = {
+                "average_interval": avg_interval,
+                "missed_count": self._missed_heartbeats,
+                "pattern_health": pattern_health,
+                "active_clients": len(self.client_heartbeats),
+                "oldest_heartbeat_age": max_age,
+            }
+
+            self._heartbeat_statistics = analysis
+            return analysis
+
+        except Exception as e:
+            logger.error("Error analyzing heartbeat patterns: %s", e)
+            return {
+                "average_interval": float("inf"),
+                "missed_count": 0,
+                "pattern_health": "error",
+                "active_clients": 0,
+                "error": str(e),
+            }
+
+    # [2e] Communication quality assessment methods
+    async def record_latency_measurement(self, latency_ms: float) -> None:
+        """
+        Record latency measurement for quality assessment.
+
+        Args:
+            latency_ms: Latency measurement in milliseconds
+        """
+        try:
+            self._latency_history.append(latency_ms)
+
+            # Keep only last 100 measurements for efficiency
+            if len(self._latency_history) > 100:
+                self._latency_history = self._latency_history[-100:]
+
+            # Update last communication timestamp
+            self._last_communication = time.time()
+
+            # Trigger degradation if latency is high
+            if latency_ms > 100.0:  # PRD-NFR2: <100ms requirement
+                await self.trigger_communication_degradation("high_latency", latency_ms)
+
+        except Exception as e:
+            logger.error("Error recording latency measurement: %s", e)
+
+    async def calculate_communication_quality(self) -> float:
+        """
+        Calculate communication quality score based on latency and reliability.
+
+        Returns:
+            Quality score between 0.0 and 1.0
+        """
+        try:
+            if not self._latency_history:
+                return 0.5  # Neutral quality with no data
+
+            # Calculate quality based on latency (PRD-NFR2: <100ms)
+            recent_latencies = self._latency_history[-20:]  # Last 20 measurements
+            avg_latency = sum(recent_latencies) / len(recent_latencies)
+
+            # Quality scoring: excellent <50ms, good <100ms, poor >100ms
+            if avg_latency <= 50.0:
+                quality_score = 1.0
+            elif avg_latency <= 100.0:
+                quality_score = 0.8 - (avg_latency - 50.0) / 50.0 * 0.3  # 0.8 to 0.5
+            else:
+                quality_score = max(0.1, 0.5 - (avg_latency - 100.0) / 200.0 * 0.4)  # 0.5 to 0.1
+
+            # Store in quality history
+            self._connection_quality_history.append(quality_score)
+            if len(self._connection_quality_history) > 50:
+                self._connection_quality_history = self._connection_quality_history[-50:]
+
+            return quality_score
+
+        except Exception as e:
+            logger.error("Error calculating communication quality: %s", e)
+            return 0.0
+
+    # [2f] Automatic notification system methods
+    def add_notification_handler(self, handler: Any) -> None:
+        """
+        Add notification handler for communication issues.
+
+        Args:
+            handler: Callable to handle notifications
+        """
+        self._notification_handlers.append(handler)
+        logger.info(
+            "Notification handler added, total handlers: %d", len(self._notification_handlers)
+        )
+
+    async def auto_notify_communication_issue(
+        self, issue_type: str, details: dict[str, Any]
+    ) -> None:
+        """
+        Automatically notify registered handlers of communication issues.
+
+        Args:
+            issue_type: Type of communication issue
+            details: Additional details about the issue
+        """
+        try:
+            current_time = time.time()
+
+            # Rate limit notifications (minimum 5 seconds between notifications)
+            if current_time - self._last_notification_time < 5.0:
+                return
+
+            self._last_notification_time = current_time
+
+            # Notify all registered handlers
+            for handler in self._notification_handlers:
+                try:
+                    if asyncio.iscoroutinefunction(handler):
+                        await handler(issue_type, details)
+                    else:
+                        handler(issue_type, details)
+                except Exception as e:
+                    logger.error("Error in notification handler: %s", e)
+
+            logger.info("Communication issue notification sent: %s", issue_type)
+
+        except Exception as e:
+            logger.error("Error sending automatic notification: %s", e)
+
     async def shutdown(self) -> None:
         """Shutdown SDR++ bridge service following ServiceManager pattern.
 
@@ -806,3 +1128,167 @@ class SDRPPBridgeService:
             self.client_heartbeats.clear()
             self.server = None
             raise
+
+    def validate_incoming_command(self, command_type: str, command_data: dict[str, Any]) -> dict[str, Any]:
+        """
+        SUBTASK-5.5.3.2 [9d] - Validate incoming commands from SDR++ ground station.
+        
+        Validates all incoming coordination commands before processing.
+        
+        Args:
+            command_type: Type of incoming command
+            command_data: Command data payload
+            
+        Returns:
+            Dict containing validation result
+        """
+        if not hasattr(self, '_safety_authority') or not self._safety_authority:
+            logger.warning("No safety authority available for command validation")
+            return {
+                "authorized": False,
+                "message": "Safety authority not available",
+                "validation_time_ms": 0
+            }
+        
+        try:
+            # Import here to avoid circular imports
+            from src.backend.services.safety_authority_manager import SafetyAuthorityLevel
+            import time
+            
+            # Map command to authority level
+            authority_level = SafetyAuthorityLevel.COMMUNICATION
+            validation_command_type = "source_selection"
+            
+            if command_type in ["emergency_stop", "system_shutdown"]:
+                authority_level = SafetyAuthorityLevel.EMERGENCY_STOP
+                validation_command_type = "emergency_stop"
+            elif command_type in ["frequency_change", "rssi_request"]:
+                authority_level = SafetyAuthorityLevel.SIGNAL
+                validation_command_type = "coordination_override"
+            elif command_type in ["heartbeat", "status_request"]:
+                # Allow heartbeat and status with minimal validation
+                return {
+                    "authorized": True,
+                    "message": "Heartbeat/status command authorized",
+                    "validation_time_ms": 0,
+                    "command_type": command_type
+                }
+            
+            # Validate with strict timing for real-time commands
+            start_time = time.time()
+            authorized, message = self._safety_authority.validate_coordination_command_real_time(
+                command_type=validation_command_type,
+                authority_level=authority_level,
+                details={
+                    "source": "sdrpp_ground_station",
+                    "command_type": command_type,
+                    "command_data": command_data,
+                },
+                response_time_limit_ms=25  # Very strict timing for bridge commands
+            )
+            validation_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Log the validation for audit trail
+            if hasattr(self._safety_authority, 'log_coordination_decision'):
+                self._safety_authority.log_coordination_decision(
+                    component="SDRPPBridgeService",
+                    decision_type=f"incoming_{command_type}",
+                    decision_details=command_data,
+                    authority_level=authority_level,
+                    outcome="authorized" if authorized else "denied"
+                )
+            
+            return {
+                "authorized": authorized,
+                "message": message,
+                "command_type": command_type,
+                "authority_level": authority_level.value,
+                "validation_time_ms": validation_time_ms,
+                "timestamp": time.time()
+            }
+            
+        except Exception as e:
+            logger.error(f"Command validation failed for {command_type}: {e}")
+            return {
+                "authorized": False,
+                "message": f"Validation error: {str(e)}",
+                "command_type": command_type,
+                "validation_time_ms": 0,
+                "timestamp": time.time()
+            }
+
+    def monitor_communication_safety(
+        self, 
+        connection_status: str, 
+        last_heartbeat_ms: int
+    ) -> dict[str, Any]:
+        """
+        SUBTASK-5.5.3.4 [11c] - Monitor communication safety with integrated SafetyManager.
+        
+        Monitors ground-station communication health and reports to SafetyAuthorityManager.
+        
+        Args:
+            connection_status: Status of SDR++ connection ("active", "degraded", "lost")
+            last_heartbeat_ms: Time since last heartbeat in milliseconds
+            
+        Returns:
+            Dict containing communication safety monitoring results
+        """
+        try:
+            # Assess communication health
+            if connection_status == "lost" or last_heartbeat_ms > 5000:  # >5s heartbeat loss
+                communication_health = "critical"
+                safety_concern = True
+            elif connection_status == "degraded" or last_heartbeat_ms > 2000:  # >2s degraded
+                communication_health = "degraded"
+                safety_concern = True
+            else:
+                communication_health = "healthy"
+                safety_concern = False
+            
+            # Log communication status with safety authority if available
+            safety_authority_notified = False
+            if self._safety_authority and hasattr(self._safety_authority, 'log_coordination_decision'):
+                try:
+                    self._safety_authority.log_coordination_decision(
+                        component="SDRPPBridgeService",
+                        decision_type="communication_monitoring",
+                        decision_details={
+                            "connection_status": connection_status,
+                            "last_heartbeat_ms": last_heartbeat_ms,
+                            "communication_health": communication_health,
+                            "safety_concern": safety_concern
+                        },
+                        authority_level=SafetyAuthorityLevel.COMMUNICATION,
+                        outcome="monitored"
+                    )
+                    safety_authority_notified = True
+                except Exception as e:
+                    logger.warning(f"Failed to notify safety authority of communication status: {e}")
+            
+            result = {
+                "safety_status": communication_health,
+                "communication_health": communication_health,
+                "safety_concern": safety_concern,
+                "connection_status": connection_status,
+                "last_heartbeat_ms": last_heartbeat_ms,
+                "safety_authority_notified": safety_authority_notified,
+                "timestamp": time.time()
+            }
+            
+            # Log critical conditions
+            if safety_concern:
+                logger.warning(f"Communication safety concern: {communication_health} - {connection_status}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Communication safety monitoring failed: {e}")
+            return {
+                "safety_status": "unknown",
+                "communication_health": "error",
+                "safety_concern": True,
+                "error": str(e),
+                "safety_authority_notified": False,
+                "timestamp": time.time()
+            }

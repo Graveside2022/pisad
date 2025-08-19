@@ -5,11 +5,10 @@ Tests PRD safety requirements FR15, FR16, FR17 with actual system integration
 
 import asyncio
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.backend.core.exceptions import SafetyInterlockError
 from src.backend.services.homing_controller import HomingController
 from src.backend.services.mavlink_service import MAVLinkService
 from src.backend.services.safety_manager import SafetyManager
@@ -69,7 +68,7 @@ class TestSafetyRequirementsIntegration:
         """Test FR15: System ceases velocity commands when flight mode changes from GUIDED."""
         homing = safety_system["homing_controller"]
         mavlink = safety_system["mavlink"]
-        
+
         # Enable homing in GUIDED mode
         mavlink.telemetry["mode"] = "GUIDED"
         result = homing.enable_homing("test_fr15")
@@ -78,16 +77,16 @@ class TestSafetyRequirementsIntegration:
 
         # Simulate mode change to MANUAL
         mavlink.telemetry["mode"] = "MANUAL"
-        
+
         # Test that velocity command would be blocked
         # The actual implementation should check mode before sending commands
-        with patch.object(mavlink, 'send_velocity_command') as mock_send:
+        with patch.object(mavlink, "send_velocity_command") as mock_send:
             try:
                 # This should either not send or disable homing
                 await homing.send_velocity_command(1.0, 0.0, 0.0)
             except Exception:
                 pass  # Expected if mode checking works
-            
+
             # In proper implementation, either no command sent or homing disabled
             # This test verifies the safety mechanism exists
             assert True  # Basic test that system handles mode changes
@@ -97,7 +96,7 @@ class TestSafetyRequirementsIntegration:
         """Test FR16: Emergency stop responds within 500ms."""
         safety_manager = safety_system["safety_manager"]
         homing = safety_system["homing_controller"]
-        
+
         # Enable homing
         homing.enable_homing("test_fr16")
         assert homing.homing_enabled
@@ -109,8 +108,10 @@ class TestSafetyRequirementsIntegration:
 
         # Verify timing requirement
         response_time_ms = (end_time - start_time) * 1000
-        assert response_time_ms < 500, f"Emergency stop took {response_time_ms:.1f}ms (>500ms requirement)"
-        
+        assert (
+            response_time_ms < 500
+        ), f"Emergency stop took {response_time_ms:.1f}ms (>500ms requirement)"
+
         # Verify emergency stop result
         assert result["success"] is True or result["success"] is False  # Should return status
         assert "response_time_ms" in result
@@ -120,7 +121,7 @@ class TestSafetyRequirementsIntegration:
         """Test FR17: Auto-disable homing after 10 seconds of signal loss."""
         homing = safety_system["homing_controller"]
         signal_processor = safety_system["signal_processor"]
-        
+
         # Enable homing
         homing.enable_homing("test_fr17")
         assert homing.homing_enabled
@@ -128,7 +129,7 @@ class TestSafetyRequirementsIntegration:
         # Simulate signal loss by setting very low RSSI
         signal_processor.current_rssi = -100  # Very weak signal (below 6dB threshold)
         signal_processor.noise_floor = -90
-        
+
         # Test immediate check of signal strength
         rssi = signal_processor.get_current_rssi()
         assert rssi <= -90  # Confirm signal is below threshold
@@ -137,7 +138,7 @@ class TestSafetyRequirementsIntegration:
         homing.disable_homing("SIGNAL_LOSS_AUTO_DISABLE")
         assert not homing.homing_enabled
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_safety_interlocks_battery_protection(self, safety_system):
         """Test safety interlocks prevent operation with low battery."""
         safety_manager = safety_system["safety_manager"]
@@ -248,31 +249,31 @@ class TestSafetyRequirementsIntegration:
 
         # Test state machine responds to safety events
         initial_state = state_machine.get_current_state()
-        
+
         # Trigger emergency stop
         result = safety_manager.trigger_emergency_stop()
-        
+
         # State machine should handle safety events appropriately
         current_state = state_machine.get_current_state()
         # State may change or remain same depending on implementation
-        assert hasattr(current_state, 'value')  # SystemState enum
-        assert hasattr(initial_state, 'value')  # SystemState enum
+        assert hasattr(current_state, "value")  # SystemState enum
+        assert hasattr(initial_state, "value")  # SystemState enum
 
     @pytest.mark.asyncio
     async def test_performance_requirements_safety(self, safety_system):
         """Test safety operations meet performance requirements."""
         safety_manager = safety_system["safety_manager"]
-        
+
         # Test rapid safety checks
         start_time = time.perf_counter()
-        
+
         for _ in range(10):
             safety_manager.check_battery_status()
             safety_manager.is_rc_override_active()
             safety_manager.check_gps_status()
-            
+
         end_time = time.perf_counter()
-        
+
         # All safety checks should complete quickly
         total_time_ms = (end_time - start_time) * 1000
         assert total_time_ms < 100, f"Safety checks took {total_time_ms:.1f}ms (should be <100ms)"

@@ -3,7 +3,6 @@ Mock MAVLink interface for testing without hardware
 """
 
 import logging
-import time
 from unittest.mock import Mock
 
 logger = logging.getLogger(__name__)
