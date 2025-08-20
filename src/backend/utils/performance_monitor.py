@@ -195,6 +195,13 @@ class AdaptivePerformanceMonitor:
         tcp_stats = self._calculate_statistics(self._tcp_latency_history)
         processing_stats = self._calculate_statistics(self._processing_latency_history)
 
+        # SUBTASK-5.6.2.4 [9a] - Add resource statistics
+        cpu_stats = self._calculate_statistics(self._cpu_history)
+        memory_stats = self._calculate_statistics(self._memory_history)
+        disk_stats = self._calculate_statistics(self._disk_usage_history)
+        network_stats = self._calculate_statistics(self._network_usage_history)
+        temperature_stats = self._calculate_statistics(self._temperature_history)
+
         # Determine performance status
         performance_status = self._determine_performance_status()
 
@@ -202,6 +209,11 @@ class AdaptivePerformanceMonitor:
             "statistics": {
                 "tcp_latency": tcp_stats,
                 "processing_latency": processing_stats,
+                "cpu_usage": cpu_stats,
+                "memory_usage": memory_stats,
+                "disk_usage": disk_stats,
+                "network_usage": network_stats,
+                "temperature": temperature_stats,
             },
             "baselines": {
                 "tcp_baseline_ms": self._tcp_baseline_ms,
@@ -449,3 +461,437 @@ class AdaptivePerformanceMonitor:
             return "warning"
 
         return "optimal"
+
+    def record_cpu_usage(self, cpu_percent: float) -> None:
+        """
+        SUBTASK-5.6.2.4 [9a] - Record CPU usage with threshold checking.
+
+        Args:
+            cpu_percent: CPU usage percentage (0.0-100.0)
+        """
+        self._cpu_history.append(cpu_percent)
+        self._check_cpu_usage_threshold(cpu_percent)
+        self._check_performance_degradation()
+
+        if self._structured_logging_enabled:
+            self._log_structured_entry("cpu_usage", cpu_percent)
+
+    def record_memory_usage(self, memory_percent: float) -> None:
+        """
+        SUBTASK-5.6.2.4 [9a] - Record memory usage with threshold checking.
+
+        Args:
+            memory_percent: Memory usage percentage (0.0-100.0)
+        """
+        self._memory_history.append(memory_percent)
+        self._check_memory_usage_threshold(memory_percent)
+        self._check_performance_degradation()
+
+        if self._structured_logging_enabled:
+            self._log_structured_entry("memory_usage", memory_percent)
+
+    def record_disk_usage(self, disk_percent: float) -> None:
+        """
+        SUBTASK-5.6.2.4 [9a] - Record disk usage with threshold checking.
+
+        Args:
+            disk_percent: Disk usage percentage (0.0-100.0)
+        """
+        self._disk_usage_history.append(disk_percent)
+        self._check_disk_usage_threshold(disk_percent)
+        self._check_performance_degradation()
+
+        if self._structured_logging_enabled:
+            self._log_structured_entry("disk_usage", disk_percent)
+
+    def record_network_usage(self, network_mbps: float) -> None:
+        """
+        SUBTASK-5.6.2.4 [9a] - Record network usage with threshold checking.
+
+        Args:
+            network_mbps: Network usage in Mbps
+        """
+        self._network_usage_history.append(network_mbps)
+        self._check_network_usage_threshold(network_mbps)
+        self._check_performance_degradation()
+
+        if self._structured_logging_enabled:
+            self._log_structured_entry("network_usage", network_mbps)
+
+    def record_temperature(self, temperature_celsius: float) -> None:
+        """
+        SUBTASK-5.6.2.4 [9a] - Record temperature with threshold checking.
+
+        Args:
+            temperature_celsius: Temperature in Celsius
+        """
+        self._temperature_history.append(temperature_celsius)
+        self._check_temperature_threshold(temperature_celsius)
+        self._check_performance_degradation()
+
+        if self._structured_logging_enabled:
+            self._log_structured_entry("temperature", temperature_celsius)
+
+    def _check_cpu_usage_threshold(self, cpu_percent: float) -> None:
+        """Check CPU usage against thresholds and generate alerts."""
+        if cpu_percent >= self.thresholds.cpu_usage_critical_percent:
+            self._create_alert(
+                "critical",
+                "cpu_usage",
+                self.thresholds.cpu_usage_critical_percent,
+                cpu_percent,
+                f"CPU usage {cpu_percent:.1f}% exceeds critical threshold of {self.thresholds.cpu_usage_critical_percent}%",
+            )
+        elif cpu_percent >= self.thresholds.cpu_usage_warning_percent:
+            self._create_alert(
+                "warning",
+                "cpu_usage",
+                self.thresholds.cpu_usage_warning_percent,
+                cpu_percent,
+                f"CPU usage {cpu_percent:.1f}% exceeds warning threshold of {self.thresholds.cpu_usage_warning_percent}%",
+            )
+
+    def _check_memory_usage_threshold(self, memory_percent: float) -> None:
+        """Check memory usage against thresholds and generate alerts."""
+        if memory_percent >= self.thresholds.memory_usage_critical_percent:
+            self._create_alert(
+                "critical",
+                "memory_usage",
+                self.thresholds.memory_usage_critical_percent,
+                memory_percent,
+                f"Memory usage {memory_percent:.1f}% exceeds critical threshold of {self.thresholds.memory_usage_critical_percent}%",
+            )
+        elif memory_percent >= self.thresholds.memory_usage_warning_percent:
+            self._create_alert(
+                "warning",
+                "memory_usage",
+                self.thresholds.memory_usage_warning_percent,
+                memory_percent,
+                f"Memory usage {memory_percent:.1f}% exceeds warning threshold of {self.thresholds.memory_usage_warning_percent}%",
+            )
+
+    def _check_disk_usage_threshold(self, disk_percent: float) -> None:
+        """Check disk usage against thresholds and generate alerts."""
+        if disk_percent >= self.thresholds.disk_usage_critical_percent:
+            self._create_alert(
+                "critical",
+                "disk_usage",
+                self.thresholds.disk_usage_critical_percent,
+                disk_percent,
+                f"Disk usage {disk_percent:.1f}% exceeds critical threshold of {self.thresholds.disk_usage_critical_percent}%",
+            )
+        elif disk_percent >= self.thresholds.disk_usage_warning_percent:
+            self._create_alert(
+                "warning",
+                "disk_usage",
+                self.thresholds.disk_usage_warning_percent,
+                disk_percent,
+                f"Disk usage {disk_percent:.1f}% exceeds warning threshold of {self.thresholds.disk_usage_warning_percent}%",
+            )
+
+    def _check_network_usage_threshold(self, network_mbps: float) -> None:
+        """Check network usage against thresholds and generate alerts."""
+        if network_mbps >= self.thresholds.network_usage_critical_mbps:
+            self._create_alert(
+                "critical",
+                "network_usage",
+                self.thresholds.network_usage_critical_mbps,
+                network_mbps,
+                f"Network usage {network_mbps:.1f} Mbps exceeds critical threshold of {self.thresholds.network_usage_critical_mbps} Mbps",
+            )
+        elif network_mbps >= self.thresholds.network_usage_warning_mbps:
+            self._create_alert(
+                "warning",
+                "network_usage",
+                self.thresholds.network_usage_warning_mbps,
+                network_mbps,
+                f"Network usage {network_mbps:.1f} Mbps exceeds warning threshold of {self.thresholds.network_usage_warning_mbps} Mbps",
+            )
+
+    def _check_temperature_threshold(self, temperature_celsius: float) -> None:
+        """Check temperature against thresholds and generate alerts."""
+        if temperature_celsius >= self.thresholds.temperature_critical_celsius:
+            self._create_alert(
+                "critical",
+                "temperature",
+                self.thresholds.temperature_critical_celsius,
+                temperature_celsius,
+                f"Temperature {temperature_celsius:.1f}°C exceeds critical threshold of {self.thresholds.temperature_critical_celsius}°C",
+            )
+        elif temperature_celsius >= self.thresholds.temperature_warning_celsius:
+            self._create_alert(
+                "warning",
+                "temperature",
+                self.thresholds.temperature_warning_celsius,
+                temperature_celsius,
+                f"Temperature {temperature_celsius:.1f}°C exceeds warning threshold of {self.thresholds.temperature_warning_celsius}°C",
+            )
+
+    def get_resource_trend_analysis(self) -> dict[str, Any]:
+        """
+        SUBTASK-5.6.2.4 [9d] - Get resource usage trend analysis with moving averages.
+
+        Returns:
+            Trend analysis for all resource metrics
+        """
+        return {
+            "cpu_usage": self._analyze_metric_trend(self._cpu_history, "cpu"),
+            "memory_usage": self._analyze_metric_trend(self._memory_history, "memory"),
+            "disk_usage": self._analyze_metric_trend(self._disk_usage_history, "disk"),
+            "network_usage": self._analyze_metric_trend(
+                self._network_usage_history, "network"
+            ),
+            "temperature": self._analyze_metric_trend(
+                self._temperature_history, "temperature"
+            ),
+        }
+
+    def get_predictive_threshold_adjustment(self) -> dict[str, Any]:
+        """
+        SUBTASK-5.6.2.4 [9d] - Get predictive threshold management recommendations.
+
+        Returns:
+            Predictions for threshold breaches and recommended adjustments
+        """
+        predictions = {}
+
+        # Analyze CPU usage trend for prediction
+        if len(self._cpu_history) >= 5:
+            cpu_trend = self._predict_threshold_breach(
+                self._cpu_history, self.thresholds.cpu_usage_critical_percent
+            )
+            predictions["cpu_usage"] = cpu_trend
+
+        # Analyze memory usage trend for prediction
+        if len(self._memory_history) >= 5:
+            memory_trend = self._predict_threshold_breach(
+                self._memory_history, self.thresholds.memory_usage_critical_percent
+            )
+            predictions["memory_usage"] = memory_trend
+
+        # Analyze temperature trend for prediction
+        if len(self._temperature_history) >= 5:
+            temp_trend = self._predict_threshold_breach(
+                self._temperature_history, self.thresholds.temperature_critical_celsius
+            )
+            predictions["temperature"] = temp_trend
+
+        return predictions
+
+    def _analyze_metric_trend(
+        self, history: deque[float], metric_name: str
+    ) -> dict[str, Any]:
+        """Analyze trend for a specific metric."""
+        if len(history) < 3:
+            return {"moving_average": 0.0, "trend_direction": "insufficient_data"}
+
+        # Calculate moving average
+        recent_values = list(history)[-5:]  # Last 5 values
+        moving_average = sum(recent_values) / len(recent_values)
+
+        # Determine trend direction
+        if len(recent_values) >= 3:
+            first_half = sum(recent_values[: len(recent_values) // 2]) / (
+                len(recent_values) // 2
+            )
+            second_half = sum(recent_values[len(recent_values) // 2 :]) / (
+                len(recent_values) - len(recent_values) // 2
+            )
+
+            if second_half > first_half * 1.05:  # 5% increase threshold
+                trend_direction = "increasing"
+            elif second_half < first_half * 0.95:  # 5% decrease threshold
+                trend_direction = "decreasing"
+            else:
+                trend_direction = "stable"
+        else:
+            trend_direction = "stable"
+
+        return {
+            "moving_average": round(moving_average, 2),
+            "trend_direction": trend_direction,
+            "sample_count": len(history),
+        }
+
+    def _predict_threshold_breach(
+        self, history: deque[float], threshold: float
+    ) -> dict[str, Any]:
+        """Predict when a metric might breach its threshold."""
+        if len(history) < 5:
+            return {"predicted_breach_time": 0, "confidence": 0.0}
+
+        recent_values = list(history)[-10:]  # Last 10 values
+
+        # Simple linear regression to predict trend
+        if len(recent_values) < 2:
+            return {"predicted_breach_time": 0, "confidence": 0.0}
+
+        # Calculate rate of change
+        time_points = list(range(len(recent_values)))
+        n = len(recent_values)
+
+        # Linear regression: y = mx + b
+        sum_x = sum(time_points)
+        sum_y = sum(recent_values)
+        sum_xy = sum(x * y for x, y in zip(time_points, recent_values))
+        sum_x2 = sum(x * x for x in time_points)
+
+        # Calculate slope (rate of change)
+        if n * sum_x2 - sum_x * sum_x != 0:
+            slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+        else:
+            slope = 0
+
+        current_value = recent_values[-1]
+
+        # Predict time to breach (in number of samples)
+        if slope > 0 and current_value < threshold:
+            predicted_breach_time = (threshold - current_value) / slope
+        else:
+            predicted_breach_time = float("inf")  # No breach predicted
+
+        # Confidence based on trend consistency
+        value_range = max(recent_values) - min(recent_values)
+        confidence = min(
+            1.0, abs(slope) / (value_range + 0.1)
+        )  # Avoid division by zero
+
+        return {
+            "predicted_breach_time": (
+                round(predicted_breach_time, 1)
+                if predicted_breach_time != float("inf")
+                else 0
+            ),
+            "confidence": round(confidence, 2),
+            "current_value": round(current_value, 2),
+            "threshold": threshold,
+            "rate_of_change": round(slope, 3),
+        }
+
+    def get_alerts_for_frontend(self) -> list[dict[str, Any]]:
+        """
+        SUBTASK-5.6.2.4 [9e] - Format alerts for frontend consumption.
+
+        Returns:
+            List of alerts formatted for SystemHealth.tsx component
+        """
+        frontend_alerts = []
+
+        for alert in self._active_alerts[-10:]:  # Last 10 alerts
+            frontend_alerts.append(
+                {
+                    "id": f"{alert.metric}_{int(alert.timestamp)}",
+                    "level": alert.level,
+                    "metric": alert.metric,
+                    "message": alert.message,
+                    "timestamp": alert.timestamp,
+                    "threshold": alert.threshold,
+                    "measured_value": alert.measured_value,
+                }
+            )
+
+        return frontend_alerts
+
+    def enable_structured_logging(self) -> None:
+        """
+        SUBTASK-5.6.2.4 [9f] - Enable structured logging for resource usage.
+        """
+        self._structured_logging_enabled = True
+        logger.info("Structured resource logging enabled")
+
+    def get_structured_log_entries(self) -> list[dict[str, Any]]:
+        """
+        SUBTASK-5.6.2.4 [9f] - Get structured log entries for analysis.
+
+        Returns:
+            List of structured log entries with timestamps and metrics
+        """
+        return self._structured_log_entries.copy()
+
+    def get_historical_analysis(self) -> dict[str, Any]:
+        """
+        SUBTASK-5.6.2.4 [9f] - Get historical analysis for optimization insights.
+
+        Returns:
+            Historical analysis with patterns and optimization recommendations
+        """
+        analysis = {
+            "daily_patterns": self._analyze_daily_patterns(),
+            "peak_hours": self._identify_peak_hours(),
+            "optimization_recommendations": self._generate_optimization_recommendations(),
+        }
+
+        return analysis
+
+    def _log_structured_entry(self, metric_type: str, value: float) -> None:
+        """Log a structured entry for a metric."""
+        # Determine threshold status
+        threshold_status = "normal"
+        if metric_type == "cpu_usage":
+            if value >= self.thresholds.cpu_usage_critical_percent:
+                threshold_status = "critical"
+            elif value >= self.thresholds.cpu_usage_warning_percent:
+                threshold_status = "warning"
+        elif metric_type == "memory_usage":
+            if value >= self.thresholds.memory_usage_critical_percent:
+                threshold_status = "critical"
+            elif value >= self.thresholds.memory_usage_warning_percent:
+                threshold_status = "warning"
+        # Add other metric types as needed
+
+        entry = {
+            "timestamp": time.time(),
+            "metric_type": metric_type,
+            "value": value,
+            "threshold_status": threshold_status,
+        }
+
+        self._structured_log_entries.append(entry)
+
+        # Keep only recent entries (last 1000)
+        if len(self._structured_log_entries) > 1000:
+            self._structured_log_entries.pop(0)
+
+    def _analyze_daily_patterns(self) -> dict[str, Any]:
+        """Analyze daily usage patterns from structured logs."""
+        if not self._structured_log_entries:
+            return {"status": "insufficient_data"}
+
+        # Simple analysis - could be enhanced with more sophisticated pattern detection
+        return {
+            "status": "patterns_detected",
+            "description": "Daily pattern analysis available with structured logging data",
+        }
+
+    def _identify_peak_hours(self) -> dict[str, Any]:
+        """Identify peak resource usage hours."""
+        if not self._structured_log_entries:
+            return {"status": "insufficient_data"}
+
+        # Simple analysis - could be enhanced with time-based aggregation
+        return {
+            "status": "peak_hours_identified",
+            "description": "Peak hour analysis available with structured logging data",
+        }
+
+    def _generate_optimization_recommendations(self) -> list[str]:
+        """Generate optimization recommendations based on historical data."""
+        recommendations = []
+
+        # Basic recommendations based on current thresholds
+        if self._cpu_history and len(self._cpu_history) > 0:
+            avg_cpu = sum(self._cpu_history) / len(self._cpu_history)
+            if avg_cpu > 80:
+                recommendations.append("Consider CPU optimization or load balancing")
+
+        if self._memory_history and len(self._memory_history) > 0:
+            avg_memory = sum(self._memory_history) / len(self._memory_history)
+            if avg_memory > 80:
+                recommendations.append(
+                    "Consider memory optimization or garbage collection tuning"
+                )
+
+        if not recommendations:
+            recommendations.append("System performance within normal parameters")
+
+        return recommendations

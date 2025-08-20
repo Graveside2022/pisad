@@ -4,6 +4,8 @@ Tests FFT-based RSSI computation, EWMA filtering, noise floor estimation,
 and signal detection logic per PRD requirements.
 """
 
+from datetime import UTC, datetime, timedelta
+
 import numpy as np
 import pytest
 
@@ -570,3 +572,142 @@ class TestSignalProcessor:
 
         assert isinstance(result1.rssi, float)
         assert isinstance(result2.rssi, float)
+
+    def test_asv_interference_detection_integration_with_processor(self, signal_processor):
+        """Test [23b1] ASV interference detection integration with SignalProcessor.
+
+        TASK-6.2.1-COURSE-CORRECTION-ALGORITHM-ENHANCEMENT
+        SUBTASK-6.2.1.3 [23b1] - Integrate ASV interference detection from ASVBearingCalculation.interference_detected
+
+        This test validates that ASV interference detection is properly integrated
+        into the main signal processing pipeline and results are propagated correctly.
+        """
+        # Arrange - Create test signal with interference characteristics
+        samples = 0.1 * np.random.randn(1024).astype(np.complex64)
+
+        # Act - Process signal with ASV interference detection
+        result = signal_processor.compute_rssi_with_asv_interference_detection(samples)
+
+        # Assert - Interference detection should be present in result
+        assert hasattr(result, "interference_detected")
+        assert isinstance(result.interference_detected, bool)
+        assert hasattr(result, "asv_analysis")
+
+        # Verify ASV analysis data structure
+        if result.asv_analysis:
+            assert isinstance(result.asv_analysis, dict)
+            assert "confidence" in result.asv_analysis
+            assert "signal_quality" in result.asv_analysis
+
+    def test_fm_chirp_signal_classification_integration(self, signal_processor):
+        """Test [23b2] FM chirp signal classification using ASV analyzer signal classification.
+
+        TASK-6.2.1-COURSE-CORRECTION-ALGORITHM-ENHANCEMENT
+        SUBTASK-6.2.1.3 [23b2] - Add FM chirp signal classification using ASV analyzer signal classification
+
+        This test validates that FM chirp signals are properly classified and integrated
+        into the signal processing results.
+        """
+        # Arrange - Create test signal that should be classified as FM chirp
+        samples = 0.2 * np.random.randn(1024).astype(np.complex64)
+
+        # Act - Process signal with ASV signal classification
+        result = signal_processor.compute_rssi_with_asv_signal_classification(samples)
+
+        # Assert - Signal classification should be present in result
+        assert hasattr(result, "signal_classification")
+        assert result.signal_classification in [
+            "FM_CHIRP",
+            "CONTINUOUS",
+            "NOISE",
+            "INTERFERENCE",
+            "UNKNOWN",
+        ]
+
+        # Verify classification confidence
+        if result.asv_analysis:
+            assert "signal_classification" in result.asv_analysis
+            assert "classification_confidence" in result.asv_analysis
+
+    def test_interference_based_confidence_weighting(self, signal_processor):
+        """Test [23b3] Implement interference-based confidence weighting in signal strength calculations.
+
+        TASK-6.2.1-COURSE-CORRECTION-ALGORITHM-ENHANCEMENT
+        SUBTASK-6.2.1.3 [23b3] - Implement interference-based confidence weighting in signal strength calculations
+
+        This test validates that signal confidence is properly weighted based on interference detection
+        and signal quality metrics from ASV analysis.
+        """
+        # Arrange - Create test signal
+        samples = 0.3 * np.random.randn(1024).astype(np.complex64)
+
+        # Act - Process signal with confidence weighting
+        result = signal_processor.compute_rssi_with_confidence_weighting(samples)
+
+        # Assert - Confidence weighting should be applied
+        assert hasattr(result, "confidence_score")
+        assert 0.0 <= result.confidence_score <= 1.0
+
+        # Verify confidence is reduced for interference
+        if result.interference_detected:
+            assert result.confidence_score < 0.8  # Interference should reduce confidence
+
+        # Verify ASV analysis includes confidence weighting data
+        if result.asv_analysis:
+            assert "confidence_weighting" in result.asv_analysis
+            assert "interference_penalty" in result.asv_analysis
+
+    def test_interference_rejection_filtering_for_gradient_calculations(self, signal_processor):
+        """Test [23b4] Create interference rejection filtering to exclude non-target signals from gradient calculations.
+
+        TASK-6.2.1-COURSE-CORRECTION-ALGORITHM-ENHANCEMENT
+        SUBTASK-6.2.1.3 [23b4] - Create interference rejection filtering to exclude non-target signals from gradient calculations
+
+        This test validates that interference rejection filtering properly excludes non-target signals
+        from gradient calculations while preserving authentic target signals.
+        """
+        # Arrange - Create test signal history with mixed signals (target + interference)
+        test_history = []
+        base_time = datetime.now(UTC)
+
+        # Create history with interference signals that should be filtered out
+        for i in range(10):
+            samples = 0.2 * np.random.randn(1024).astype(np.complex64)
+
+            # Create a reading with interference detection
+            result = signal_processor.compute_rssi_with_confidence_weighting(samples)
+
+            # Manually mark some as interference for testing
+            if i % 3 == 0:  # Every 3rd signal marked as interference
+                result.interference_detected = True
+                result.signal_classification = "INTERFERENCE"
+                result.confidence_score = 0.2  # Low confidence for interference
+            else:
+                result.interference_detected = False
+                result.signal_classification = "FM_CHIRP"
+                result.confidence_score = 0.8  # High confidence for target signals
+
+            result.timestamp = base_time + timedelta(milliseconds=i * 100)
+            test_history.append(result)
+
+        # Act - Apply interference rejection filtering for gradient calculations
+        filtered_result = signal_processor.compute_rssi_with_interference_rejection(test_history)
+
+        # Assert - Interference rejection filtering should be applied
+        assert hasattr(filtered_result, "filtered_readings")
+        assert hasattr(filtered_result, "rejection_stats")
+        assert hasattr(filtered_result, "gradient_data")
+
+        # Verify interference signals are filtered out
+        filtered_count = len(filtered_result.filtered_readings)
+        total_count = len(test_history)
+        expected_filtered = len([r for r in test_history if not r.interference_detected])
+
+        assert filtered_count == expected_filtered
+        assert filtered_result.rejection_stats["total_signals"] == total_count
+        assert filtered_result.rejection_stats["interference_rejected"] > 0
+
+        # Verify gradient calculation uses only filtered (target) signals
+        assert "filtered_gradient" in filtered_result.gradient_data
+        assert "confidence_weighted_gradient" in filtered_result.gradient_data
+        assert filtered_result.gradient_data["rejection_applied"] is True

@@ -53,16 +53,18 @@ class SystemState:
     mavlink_connected: bool = False  # MAVLink connection status
     flight_mode: str = "UNKNOWN"  # Current flight controller mode
     battery_percent: float = 0.0  # Battery percentage
-    gps_status: Literal["NO_FIX", "2D_FIX", "3D_FIX", "RTK"] = "NO_FIX"  # GPS fix status
+    gps_status: Literal["NO_FIX", "2D_FIX", "3D_FIX", "RTK"] = (
+        "NO_FIX"  # GPS fix status
+    )
     homing_enabled: bool = False  # Operator activation status for homing
     safety_interlocks: dict[str, bool] | None = None  # Status of all safety checks
     search_pattern_id: str | None = None  # Active search pattern ID
     search_substate: Literal["IDLE", "EXECUTING", "PAUSED"] = (
         "IDLE"  # Search pattern execution state
     )
-    homing_substage: Literal["IDLE", "GRADIENT_CLIMB", "SAMPLING", "APPROACH", "HOLDING"] = (
-        "IDLE"  # Homing algorithm substage
-    )
+    homing_substage: Literal[
+        "IDLE", "GRADIENT_CLIMB", "SAMPLING", "APPROACH", "HOLDING"
+    ] = "IDLE"  # Homing algorithm substage
     gradient_confidence: float = 0.0  # Gradient calculation confidence (0-100%)
     target_heading: float = 0.0  # Computed optimal heading in degrees
     last_update: datetime | None = None
@@ -162,6 +164,20 @@ class RSSIReading:
     snr: float = 0.0  # Signal-to-noise ratio in dB
     detection_id: str | None = None  # Associated detection event (nullable)
 
+    # TASK-6.2.1.3 [23b1] - ASV interference detection integration
+    interference_detected: bool = False  # ASV interference detection flag
+    asv_analysis: dict[str, Any] | None = None  # ASV signal analysis data
+
+    # TASK-6.2.1.3 [23b2] - ASV signal classification integration
+    signal_classification: str = (
+        "UNKNOWN"  # ASV signal classification (FM_CHIRP, CONTINUOUS, etc.)
+    )
+
+    # TASK-6.2.1.3 [23b3] - Interference-based confidence weighting
+    confidence_score: float = (
+        0.5  # Confidence score (0.0-1.0) weighted by interference and signal quality
+    )
+
 
 @dataclass
 class SignalDetection:
@@ -189,6 +205,11 @@ class DetectionEvent:
     confidence: float  # Detection confidence percentage (0-100)
     location: dict[str, Any] | None = None  # GPS coordinates if available
     state: str = "active"  # System state during detection
+    # SUBTASK-6.2.1.3 [23a3]: Doppler-compensated frequency tracking
+    doppler_compensated_frequency: float | None = (
+        None  # Doppler-compensated frequency in Hz
+    )
+    doppler_shift_hz: float | None = None  # Calculated Doppler shift in Hz
 
 
 @dataclass
@@ -237,3 +258,18 @@ class FieldTestMetrics:
     avg_rssi_dbm: float = -60.0
     signal_loss_count: int = 0
     state_transitions: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class InterferenceRejectionResult:
+    """Result from interference rejection filtering for gradient calculations.
+
+    TASK-6.2.1.3 [23b4] - Create interference rejection filtering to exclude
+    non-target signals from gradient calculations.
+    """
+
+    filtered_readings: list[RSSIReading]  # Readings after interference rejection
+    rejection_stats: dict[str, Any]  # Statistics about rejected signals
+    gradient_data: dict[str, Any]  # Gradient calculations using filtered signals
+    processing_time_ms: float = 0.0  # Processing latency
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))

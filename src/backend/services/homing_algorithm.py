@@ -2,6 +2,7 @@
 
 import logging
 import math
+import time
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
@@ -70,6 +71,9 @@ class HomingSubstage(str, Enum):
     SAMPLING = "SAMPLING"
     APPROACH = "APPROACH"
     HOLDING = "HOLDING"
+    # Enhanced substages for SUBTASK-6.2.1.2 [22d]
+    SPIRAL_SEARCH = "SPIRAL_SEARCH"
+    RETURN_TO_LAST_PEAK = "RETURN_TO_LAST_PEAK"
 
 
 @dataclass
@@ -610,7 +614,7 @@ class HomingAlgorithm:
             self.last_command = command
             return command
 
-        # Check gradient quality
+        # Check gradient quality and apply enhanced pattern selection
         if gradient is None or gradient.confidence < GRADIENT_CONFIDENCE_THRESHOLD:
             if _debug_mode_enabled and self.current_substage != HomingSubstage.SAMPLING:
                 logger.debug(
@@ -621,6 +625,43 @@ class HomingAlgorithm:
             command = self._generate_sampling_command(current_heading, current_time)
             self.last_command = command
             return command
+
+        # Enhanced pattern selection for SUBTASK-6.2.1.2 [22d]
+        if gradient and hasattr(gradient, "confidence"):
+            course_correction_strategy = self.get_course_correction_strategy(gradient)
+
+            # Handle signal loss scenario - return to last peak
+            if (
+                gradient.confidence < VERY_LOW_CONFIDENCE_THRESHOLD
+                or gradient.magnitude < 0.001
+            ):
+                if (
+                    _debug_mode_enabled
+                    and self.current_substage != HomingSubstage.RETURN_TO_LAST_PEAK
+                ):
+                    logger.debug(
+                        f"[Enhanced Pattern] {self.current_substage.value} -> RETURN_TO_LAST_PEAK, "
+                        f"signal loss detected, conf={gradient.confidence:.1f}%"
+                    )
+                self.current_substage = HomingSubstage.RETURN_TO_LAST_PEAK
+                command = self._generate_return_to_peak_command()
+                self.last_command = command
+                return command
+
+            # Handle low confidence with spiral search
+            elif course_correction_strategy == "spiral_search":
+                if (
+                    _debug_mode_enabled
+                    and self.current_substage != HomingSubstage.SPIRAL_SEARCH
+                ):
+                    logger.debug(
+                        f"[Enhanced Pattern] {self.current_substage.value} -> SPIRAL_SEARCH, "
+                        f"low confidence pattern, conf={gradient.confidence:.1f}%"
+                    )
+                self.current_substage = HomingSubstage.SPIRAL_SEARCH
+                command = self._generate_spiral_search_command(current_time)
+                self.last_command = command
+                return command
 
         # Normal gradient climbing
         if (
@@ -783,6 +824,41 @@ class HomingAlgorithm:
             forward_velocity=optimized_velocity, yaw_rate=optimized_yaw_rate
         )
 
+    def _generate_return_to_peak_command(self) -> VelocityCommand:
+        """Generate command to return to last known good position.
+
+        SUBTASK-6.2.1.2 [22c] - Return-to-last-peak algorithm when signal lost.
+
+        Returns:
+            Velocity command to navigate back to last good position
+        """
+        # Check if we have a last good position recorded
+        if not hasattr(self, "_last_good_position") or not self._last_good_position:
+            logger.warning(
+                "No last good position available for return-to-peak - using hold pattern"
+            )
+            return VelocityCommand(
+                forward_velocity=0.0, yaw_rate=0.2
+            )  # Slow turn to search
+
+        # Calculate direction to last good position
+        # Note: This is simplified - in practice would need current position from GPS/nav system
+        target_x = self._last_good_position["x"]
+        target_y = self._last_good_position["y"]
+        confidence = self._last_good_position["confidence"]
+
+        # For mock implementation, calculate a basic return command
+        # Real implementation would use current position from navigation system
+        return_velocity = min(2.0, confidence / 50.0)  # Scale velocity with confidence
+        return_yaw_rate = 0.1  # Gentle turn toward target
+
+        logger.info(
+            f"Returning to last peak: target=({target_x:.1f}, {target_y:.1f}), conf={confidence:.1f}%"
+        )
+        return VelocityCommand(
+            forward_velocity=return_velocity, yaw_rate=return_yaw_rate
+        )
+
     def _generate_sampling_command(
         self, current_heading: float, current_time: float
     ) -> VelocityCommand:
@@ -940,3 +1016,297 @@ class HomingAlgorithm:
         self.sampling_start_time = None
         self.last_gradient = None
         logger.info("Homing algorithm reset")
+
+    # Enhanced methods for SUBTASK-6.2.1.1 implementation
+
+    async def compute_enhanced_gradient(self, rssi_history: list[RSSISample]) -> Any:
+        """Compute enhanced gradient using ASV professional-grade bearing algorithms.
+
+        SUBTASK-6.2.1.1 [21a] - Replace basic np.gradient() calculation with ASV enhanced algorithms.
+
+        Args:
+            rssi_history: List of RSSI samples for gradient computation
+
+        Returns:
+            ASVEnhancedGradient: Enhanced gradient vector with ASV professional data
+        """
+        from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
+            ASVEnhancedGradient,
+        )
+
+        if not self._asv_integration or not self._use_asv_enhancement:
+            # Fallback to basic gradient calculation
+            basic_gradient = self.calculate_gradient()
+            if basic_gradient is None:
+                # Return default gradient if calculation fails
+                return ASVEnhancedGradient(
+                    magnitude=0.0,
+                    direction=0.0,
+                    confidence=0.0,
+                    asv_bearing_deg=0.0,
+                    asv_confidence=0.0,
+                    asv_precision_deg=10.0,
+                    signal_strength_dbm=(
+                        rssi_history[-1].rssi if rssi_history else -80.0
+                    ),
+                    interference_detected=False,
+                    processing_method="fallback_rssi",
+                    calculation_time_ms=5.0,
+                )
+            return ASVEnhancedGradient(
+                magnitude=basic_gradient.magnitude,
+                direction=basic_gradient.direction,
+                confidence=basic_gradient.confidence,
+                asv_bearing_deg=basic_gradient.direction,
+                asv_confidence=basic_gradient.confidence / 100.0,
+                asv_precision_deg=10.0,  # Basic precision
+                signal_strength_dbm=rssi_history[-1].rssi if rssi_history else -80.0,
+                interference_detected=False,
+                processing_method="fallback_rssi",
+                calculation_time_ms=5.0,
+            )
+
+        # Use ASV professional bearing calculation
+        start_time = time.time()
+
+        try:
+            # Get ASV professional bearing data
+            bearing_data = await self._asv_integration.compute_precise_bearing(
+                rssi_history
+            )
+            confidence = await self._asv_integration.assess_signal_confidence(
+                rssi_history
+            )
+
+            processing_time = (time.time() - start_time) * 1000  # Convert to ms
+
+            # Create enhanced gradient with ASV professional data
+            enhanced_gradient = ASVEnhancedGradient(
+                magnitude=bearing_data.strength,
+                direction=bearing_data.bearing_deg,
+                confidence=confidence * 100.0,  # Convert to percentage
+                asv_bearing_deg=bearing_data.bearing_deg,
+                asv_confidence=confidence,
+                asv_precision_deg=(
+                    bearing_data.precision_deg
+                    if hasattr(bearing_data, "precision_deg")
+                    else 1.8
+                ),
+                signal_strength_dbm=rssi_history[-1].rssi if rssi_history else -80.0,
+                interference_detected=(
+                    bearing_data.interference_flag
+                    if hasattr(bearing_data, "interference_flag")
+                    else False
+                ),
+                processing_method="asv_professional",
+                calculation_time_ms=processing_time,
+            )
+
+            logger.debug(
+                f"ASV enhanced gradient: bearing={enhanced_gradient.asv_bearing_deg:.1f}°, "
+                f"confidence={enhanced_gradient.asv_confidence:.2f}, "
+                f"precision=±{enhanced_gradient.asv_precision_deg:.1f}°"
+            )
+
+            return enhanced_gradient
+
+        except Exception as e:
+            logger.error(f"ASV enhanced gradient calculation failed: {e}")
+            # Fallback to basic calculation
+            basic_gradient = self.calculate_gradient()
+            if basic_gradient is None:
+                # Return default gradient if calculation fails
+                return ASVEnhancedGradient(
+                    magnitude=0.0,
+                    direction=0.0,
+                    confidence=0.0,
+                    asv_bearing_deg=0.0,
+                    asv_confidence=0.0,
+                    asv_precision_deg=10.0,
+                    signal_strength_dbm=(
+                        rssi_history[-1].rssi if rssi_history else -80.0
+                    ),
+                    interference_detected=False,
+                    processing_method="fallback_rssi",
+                    calculation_time_ms=(time.time() - start_time) * 1000,
+                )
+            return ASVEnhancedGradient(
+                magnitude=basic_gradient.magnitude,
+                direction=basic_gradient.direction,
+                confidence=basic_gradient.confidence,
+                asv_bearing_deg=basic_gradient.direction,
+                asv_confidence=basic_gradient.confidence / 100.0,
+                asv_precision_deg=10.0,
+                signal_strength_dbm=rssi_history[-1].rssi if rssi_history else -80.0,
+                interference_detected=False,
+                processing_method="fallback_rssi",
+                calculation_time_ms=(time.time() - start_time) * 1000,
+            )
+
+    def get_course_correction_strategy(self, gradient: Any) -> str:
+        """Get course correction strategy based on signal confidence.
+
+        SUBTASK-6.2.1.1 [21b] - Signal confidence assessment drives decisions.
+
+        Args:
+            gradient: Enhanced gradient with confidence metrics
+
+        Returns:
+            str: Recommended strategy ("continue_gradient_climb", "spiral_search", "s_turn_sampling")
+        """
+        if hasattr(gradient, "asv_confidence"):
+            confidence = gradient.asv_confidence * 100  # Convert to percentage
+        else:
+            confidence = gradient.confidence
+
+        if confidence < VERY_LOW_CONFIDENCE_THRESHOLD:
+            # Very low confidence always triggers spiral search
+            return "spiral_search"
+        elif confidence < MODERATE_CONFIDENCE_THRESHOLD:
+            # Moderate confidence - spiral search for general degradation
+            return "spiral_search"
+        else:
+            # Good confidence - check for interference
+            if (
+                hasattr(gradient, "interference_detected")
+                and gradient.interference_detected
+            ):
+                return "s_turn_sampling"
+            return "continue_gradient_climb"
+
+    def generate_adaptive_search_pattern(self, gradient: Any) -> Any:
+        """Generate adaptive search pattern for low confidence scenarios.
+
+        SUBTASK-6.2.1.2 [22a] - Spiral search pattern when confidence < 30%.
+
+        Args:
+            gradient: Gradient vector with confidence information
+
+        Returns:
+            SearchPattern: Generated search pattern with waypoints
+        """
+        from dataclasses import dataclass
+        from typing import List, Tuple
+
+        @dataclass
+        class SearchPattern:
+            pattern_type: str
+            initial_radius: float
+            waypoints: List[Tuple[float, float]]
+            estimated_duration_seconds: float
+
+        if gradient.confidence < 30.0:
+            # Generate spiral search pattern
+            waypoints = []
+            radius = SPIRAL_INITIAL_RADIUS
+            angle = 0.0
+
+            # Generate 3 spiral revolutions
+            for i in range(36):  # 10-degree increments
+                x = radius * np.cos(np.radians(angle))
+                y = radius * np.sin(np.radians(angle))
+                waypoints.append((x, y))
+
+                angle += 10
+                if angle >= 360:
+                    radius += SPIRAL_EXPANSION_RATE
+                    angle = 0
+
+            return SearchPattern(
+                pattern_type="spiral_search",
+                initial_radius=SPIRAL_INITIAL_RADIUS,
+                waypoints=waypoints,
+                estimated_duration_seconds=len(waypoints)
+                * 2.0,  # 2 seconds per waypoint
+            )
+
+        # Default to basic gradient climb
+        return SearchPattern(
+            pattern_type="gradient_climb",
+            initial_radius=0.0,
+            waypoints=[],
+            estimated_duration_seconds=0.0,
+        )
+
+    def generate_sampling_maneuver(self, gradient: Any) -> Any:
+        """Generate S-turn sampling maneuver for gradient determination.
+
+        SUBTASK-6.2.1.2 [22b] - S-turn sampling maneuvers for weak signals.
+
+        Args:
+            gradient: Gradient vector information
+
+        Returns:
+            SamplingPattern: S-turn sampling pattern
+        """
+        from dataclasses import dataclass
+
+        @dataclass
+        class SamplingPattern:
+            maneuver_type: str
+            amplitude: float
+            sample_points: int
+            duration_seconds: float
+
+        return SamplingPattern(
+            maneuver_type="s_turn_sampling",
+            amplitude=SAMPLING_YAW_AMPLITUDE,
+            sample_points=5,
+            duration_seconds=8.0,
+        )
+
+    def set_last_good_position(
+        self, x: float, y: float, confidence: float, timestamp: float
+    ) -> None:
+        """Set last known good position with strong signal.
+
+        SUBTASK-6.2.1.2 [22c] - Track last good position for return algorithm.
+
+        Args:
+            x: X position coordinate
+            y: Y position coordinate
+            confidence: Signal confidence at position
+            timestamp: Time of position record
+        """
+        self._last_good_position = {
+            "x": x,
+            "y": y,
+            "confidence": confidence,
+            "timestamp": timestamp,
+        }
+        logger.debug(
+            f"Last good position updated: ({x:.1f}, {y:.1f}) confidence={confidence:.1f}%"
+        )
+
+    def handle_signal_loss(self, gradient: Any) -> Any:
+        """Handle complete signal loss scenario.
+
+        SUBTASK-6.2.1.2 [22c] - Return-to-last-peak when signal lost.
+
+        Args:
+            gradient: Current gradient (should show signal loss)
+
+        Returns:
+            RecoveryCommand: Command to return to last good position
+        """
+        from dataclasses import dataclass
+
+        @dataclass
+        class RecoveryCommand:
+            strategy: str
+            target_x: float
+            target_y: float
+            velocity: float
+
+        if hasattr(self, "_last_good_position") and self._last_good_position:
+            return RecoveryCommand(
+                strategy="return_to_last_peak",
+                target_x=self._last_good_position["x"],
+                target_y=self._last_good_position["y"],
+                velocity=2.0,  # Conservative velocity for return
+            )
+
+        # No last good position available
+        return RecoveryCommand(
+            strategy="hold_position", target_x=0.0, target_y=0.0, velocity=0.0
+        )

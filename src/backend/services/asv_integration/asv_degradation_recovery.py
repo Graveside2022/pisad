@@ -218,6 +218,87 @@ class ASVDegradationDetector:
             interference_penalty_applied=interference_penalty_applied,
         )
 
+    def detect_degradation(
+        self, asv_metrics_list: list[Any]
+    ) -> DegradationEvent | None:
+        """Detect degradation from list of ASV metrics.
+
+        SUBTASK-6.2.1.1 [21c] - RSSI degradation detection algorithm.
+
+        Args:
+            asv_metrics_list: List of ASV metrics for trend analysis
+
+        Returns:
+            DegradationEvent if degradation detected
+        """
+        if not asv_metrics_list:
+            return None
+
+        # Clear history and add all samples for trend analysis
+        self._confidence_history.clear()
+        for metrics in asv_metrics_list:
+            # Apply interference penalty if detected
+            effective_confidence = metrics.confidence
+            if metrics.interference_detected:
+                effective_confidence -= self.interference_penalty
+            self._confidence_history.append(effective_confidence)
+
+        # Process latest metrics for analysis
+        latest_metrics = asv_metrics_list[-1]
+        return self.analyze_degradation(latest_metrics)
+
+    def select_recovery_strategy(
+        self, degradation_event: DegradationEvent | None
+    ) -> RecoveryAction:
+        """Select appropriate recovery strategy based on degradation event.
+
+        SUBTASK-6.2.1.1 [21d] - Recovery strategy selection.
+
+        Args:
+            degradation_event: Detected degradation event
+
+        Returns:
+            RecoveryAction with selected strategy
+        """
+        if not degradation_event:
+            return RecoveryAction(
+                strategy=RecoveryStrategy.CONTINUE_GRADIENT_CLIMB,
+                estimated_time_seconds=0.0,
+            )
+
+        if degradation_event.effective_confidence is not None:
+            confidence = degradation_event.effective_confidence
+        else:
+            confidence = 0.1  # Assume low confidence
+
+        # Strategy selection based on confidence level and patterns
+        if confidence <= 0.05:
+            # Total signal loss (5% or less)
+            strategy = RecoveryStrategy.RETURN_TO_LAST_GOOD
+            time_estimate = 30.0
+        elif confidence <= 0.10:
+            # Very low confidence (10% or less) - spiral search
+            strategy = RecoveryStrategy.SPIRAL_SEARCH
+            time_estimate = 60.0
+        elif confidence < 0.3 and degradation_event.interference_penalty_applied:
+            # Moderate confidence with interference - S-turn sampling to reduce interference
+            strategy = RecoveryStrategy.S_TURN_SAMPLING
+            time_estimate = 20.0
+        elif confidence < 0.3:
+            # Moderate confidence without interference - spiral search
+            strategy = RecoveryStrategy.SPIRAL_SEARCH
+            time_estimate = 60.0
+        else:
+            # Continue with gradient climb
+            strategy = RecoveryStrategy.CONTINUE_GRADIENT_CLIMB
+            time_estimate = 10.0
+
+        return RecoveryAction(
+            strategy=strategy,
+            estimated_time_seconds=time_estimate,
+            safety_validated=True,
+        )
+
 
 class ASVRecoveryManager:
     """Manages recovery strategies for signal degradation."""

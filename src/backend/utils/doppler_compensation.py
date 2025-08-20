@@ -82,6 +82,46 @@ class DopplerCompensator:
         """Initialize Doppler compensator."""
         pass
 
+    def calculate_doppler_shift(
+        self,
+        platform_velocity: PlatformVelocity,
+        signal_frequency_hz: float,
+        beacon_bearing_deg: float,
+    ) -> float:
+        """Calculate Doppler shift for moving platform scenario.
+
+        Args:
+            platform_velocity: Platform velocity components
+            signal_frequency_hz: Original signal frequency (Hz)
+            beacon_bearing_deg: Bearing to beacon (degrees, 0=North)
+
+        Returns:
+            Doppler shift in Hz (positive = approaching, negative = receding)
+        """
+        return calculate_doppler_shift(
+            platform_velocity, signal_frequency_hz, beacon_bearing_deg
+        )
+
+    def compensate_frequency(
+        self,
+        original_frequency_hz: float,
+        platform_velocity: PlatformVelocity,
+        beacon_bearing_deg: float,
+    ) -> float:
+        """Compensate frequency for Doppler shift.
+
+        Args:
+            original_frequency_hz: Observed/nominal frequency
+            platform_velocity: Current platform velocity
+            beacon_bearing_deg: Bearing to beacon (degrees)
+
+        Returns:
+            Compensated frequency (Hz)
+        """
+        return self.apply_compensation(
+            original_frequency_hz, platform_velocity, beacon_bearing_deg
+        )
+
     def apply_compensation(
         self,
         original_frequency_hz: float,
