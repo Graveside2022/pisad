@@ -1,13 +1,15 @@
 """Configuration management API routes."""
 
 import logging
+import time
 from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.backend.api.websocket import broadcast_message
+from src.backend.core.config import get_config
 from src.backend.core.exceptions import (
     ConfigurationError,
     SDRError,
@@ -53,12 +55,20 @@ async def _get_profile_by_id(profile_id: str) -> ConfigProfile | None:
             id=db_profile["id"],
             name=db_profile["name"],
             description=db_profile["description"],
-            sdrConfig=SDRConfig(**db_profile["sdrConfig"]) if db_profile["sdrConfig"] else None,
+            sdrConfig=(
+                SDRConfig(**db_profile["sdrConfig"])
+                if db_profile["sdrConfig"]
+                else None
+            ),
             signalConfig=(
-                SignalConfig(**db_profile["signalConfig"]) if db_profile["signalConfig"] else None
+                SignalConfig(**db_profile["signalConfig"])
+                if db_profile["signalConfig"]
+                else None
             ),
             homingConfig=(
-                HomingConfig(**db_profile["homingConfig"]) if db_profile["homingConfig"] else None
+                HomingConfig(**db_profile["homingConfig"])
+                if db_profile["homingConfig"]
+                else None
             ),
             isDefault=db_profile["isDefault"],
         )
@@ -102,6 +112,73 @@ class ProfileResponse(BaseModel):
     updatedAt: str
 
 
+class NetworkConfigUpdateRequest(BaseModel):
+    """Request model for updating network configuration at runtime."""
+
+    low_threshold: float = Field(
+        ..., ge=0.001, le=0.5, description="Low packet loss threshold (0.1%-50%)"
+    )
+    medium_threshold: float = Field(
+        ..., ge=0.001, le=0.5, description="Medium packet loss threshold (0.1%-50%)"
+    )
+    high_threshold: float = Field(
+        ..., ge=0.001, le=0.5, description="High packet loss threshold (0.1%-50%)"
+    )
+    critical_threshold: float = Field(
+        ..., ge=0.001, le=0.5, description="Critical packet loss threshold (0.1%-50%)"
+    )
+    congestion_detector_enabled: bool = Field(
+        True, description="Enable network congestion detection"
+    )
+    latency_threshold_ms: float = Field(
+        100.0,
+        ge=1.0,
+        le=5000.0,
+        description="Maximum acceptable latency in milliseconds",
+    )
+    runtime_adjustment_enabled: bool = Field(
+        True, description="Enable runtime threshold adjustment"
+    )
+    adaptive_rate_enabled: bool = Field(
+        True, description="Enable adaptive transmission rate adjustment"
+    )
+
+    def validate_threshold_ordering(self) -> "NetworkConfigUpdateRequest":
+        """Validate that thresholds are in ascending order."""
+        thresholds = [
+            self.low_threshold,
+            self.medium_threshold,
+            self.high_threshold,
+            self.critical_threshold,
+        ]
+
+        if not (thresholds[0] < thresholds[1] < thresholds[2] < thresholds[3]):
+            raise ValueError(
+                "Packet loss thresholds must be in ascending order: "
+                f"low({thresholds[0]}) < medium({thresholds[1]}) < "
+                f"high({thresholds[2]}) < critical({thresholds[3]})"
+            )
+
+        return self
+
+
+class NetworkConfigResponse(BaseModel):
+    """Response model for network configuration."""
+
+    low_threshold: float
+    medium_threshold: float
+    high_threshold: float
+    critical_threshold: float
+    congestion_detector_enabled: bool
+    baseline_latency_ms: float
+    latency_threshold_ms: float
+    runtime_adjustment_enabled: bool
+    operator_override_enabled: bool
+    monitoring_interval_ms: int
+    adaptive_rate_enabled: bool
+    update_timestamp: float
+
+
 @router.get("/profiles", response_model=list[ProfileResponse])
 async def list_profiles():
     """List all available configuration profiles.
@@ -124,12 +201,18 @@ async def list_profiles():
                         "id": profile.id,
                         "name": profile.name,
                         "description": profile.description,
-                        "sdrConfig": profile.sdrConfig.__dict__ if profile.sdrConfig else {},
+                        "sdrConfig": (
+                            profile.sdrConfig.__dict__ if profile.sdrConfig else {}
+                        ),
                         "signalConfig": (
-                            profile.signalConfig.__dict__ if profile.signalConfig else {}
+                            profile.signalConfig.__dict__
+                            if profile.signalConfig
+                            else {}
                         ),
                         "homingConfig": (
-                            profile.homingConfig.__dict__ if profile.homingConfig else {}
+                            profile.homingConfig.__dict__
+                            if profile.homingConfig
+                            else {}
                         ),
                         "isDefault": profile.isDefault,
                         "createdAt": profile.createdAt.isoformat(),
@@ -155,7 +238,9 @@ async def list_profiles():
         )
 
 
-@router.post("/profiles", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/profiles", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_profile(request: ProfileCreateRequest):
     """Create a new configuration profile.
 
@@ -191,7 +276,8 @@ async def create_profile(request: ProfileCreateRequest):
         # Save to YAML file
         if not config_service.save_profile(profile):
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save profile"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save profile",
             )
 
         # Save to database
@@ -239,7 +325,9 @@ async def update_profile(profile_id: str, request: ProfileUpdateRequest):
         # Load existing profile using helper function
         existing_profile = await _get_profile_by_id(profile_id)
         if not existing_profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+            )
 
         # Update profile
         profile = ConfigProfile(
@@ -265,7 +353,8 @@ async def update_profile(profile_id: str, request: ProfileUpdateRequest):
         # Save to YAML file
         if not config_service.save_profile(profile):
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save profile"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save profile",
             )
 
         # Update in database
@@ -313,7 +402,9 @@ async def activate_profile(profile_id: str):
         # Load profile using helper function
         profile = await _get_profile_by_id(profile_id)
         if not profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+            )
 
         # Apply configuration to SDR and Signal Processing services
 
@@ -362,7 +453,10 @@ async def activate_profile(profile_id: str):
 
         logger.info(f"Successfully activated profile: {profile.name}")
 
-        return {"status": "success", "message": f"Profile {profile.name} activated successfully"}
+        return {
+            "status": "success",
+            "message": f"Profile {profile.name} activated successfully",
+        }
 
     except HTTPException:
         raise
@@ -397,7 +491,9 @@ async def delete_profile(profile_id: str):
         deleted_db = profile_db.delete_profile(profile_id)
 
         if not deleted_yaml and not deleted_db:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+            )
 
         logger.info(f"Successfully deleted profile: {profile_id}")
 
@@ -410,4 +506,246 @@ async def delete_profile(profile_id: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete profile: {e!s}",
+        )
+
+
+@router.get("/network", response_model=NetworkConfigResponse)
+async def get_network_config():
+    """Get current network configuration.
+
+    Returns:
+        Current network configuration with thresholds and settings
+    """
+    try:
+        start_time = time.perf_counter()
+
+        config = get_config()
+        network_config = config.network
+
+        response = NetworkConfigResponse(
+            low_threshold=network_config.NETWORK_PACKET_LOSS_LOW_THRESHOLD,
+            medium_threshold=network_config.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD,
+            high_threshold=network_config.NETWORK_PACKET_LOSS_HIGH_THRESHOLD,
+            critical_threshold=network_config.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD,
+            congestion_detector_enabled=network_config.NETWORK_CONGESTION_DETECTOR_ENABLED,
+            baseline_latency_ms=network_config.NETWORK_BASELINE_LATENCY_MS,
+            latency_threshold_ms=network_config.NETWORK_LATENCY_THRESHOLD_MS,
+            runtime_adjustment_enabled=network_config.NETWORK_RUNTIME_ADJUSTMENT_ENABLED,
+            operator_override_enabled=network_config.NETWORK_OPERATOR_OVERRIDE_ENABLED,
+            monitoring_interval_ms=network_config.NETWORK_MONITORING_INTERVAL_MS,
+            adaptive_rate_enabled=network_config.NETWORK_ADAPTIVE_RATE_ENABLED,
+            update_timestamp=time.time(),
+        )
+
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.info(f"Retrieved network configuration in {elapsed_ms:.2f}ms")
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Error retrieving network configuration: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve network configuration: {e!s}",
+        )
+
+
+@router.put("/network", response_model=NetworkConfigResponse)
+async def update_network_config(request: NetworkConfigUpdateRequest):
+    """Update network configuration at runtime with <500ms response time.
+
+    SUBTASK-5.6.2.3 [8e6f] - Runtime configuration update API endpoint
+    for operator control with <500ms response time requirement.
+
+    Args:
+        request: Network configuration update request
+
+    Returns:
+        Updated network configuration
+    """
+    try:
+        start_time = time.perf_counter()
+
+        # Validate threshold ordering
+        try:
+            request = request.validate_threshold_ordering()
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+        # Get current configuration
+        config = get_config()
+        network_config = config.network
+
+        # Check if runtime adjustment is enabled
+        if not network_config.NETWORK_RUNTIME_ADJUSTMENT_ENABLED:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Runtime network configuration updates are disabled",
+            )
+
+        # Update configuration values
+        network_config.NETWORK_PACKET_LOSS_LOW_THRESHOLD = request.low_threshold
+        network_config.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD = request.medium_threshold
+        network_config.NETWORK_PACKET_LOSS_HIGH_THRESHOLD = request.high_threshold
+        network_config.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD = (
+            request.critical_threshold
+        )
+        network_config.NETWORK_CONGESTION_DETECTOR_ENABLED = (
+            request.congestion_detector_enabled
+        )
+        network_config.NETWORK_LATENCY_THRESHOLD_MS = request.latency_threshold_ms
+        network_config.NETWORK_RUNTIME_ADJUSTMENT_ENABLED = (
+            request.runtime_adjustment_enabled
+        )
+        network_config.NETWORK_ADAPTIVE_RATE_ENABLED = request.adaptive_rate_enabled
+
+        # Create response
+        response = NetworkConfigResponse(
+            low_threshold=network_config.NETWORK_PACKET_LOSS_LOW_THRESHOLD,
+            medium_threshold=network_config.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD,
+            high_threshold=network_config.NETWORK_PACKET_LOSS_HIGH_THRESHOLD,
+            critical_threshold=network_config.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD,
+            congestion_detector_enabled=network_config.NETWORK_CONGESTION_DETECTOR_ENABLED,
+            baseline_latency_ms=network_config.NETWORK_BASELINE_LATENCY_MS,
+            latency_threshold_ms=network_config.NETWORK_LATENCY_THRESHOLD_MS,
+            runtime_adjustment_enabled=network_config.NETWORK_RUNTIME_ADJUSTMENT_ENABLED,
+            operator_override_enabled=network_config.NETWORK_OPERATOR_OVERRIDE_ENABLED,
+            monitoring_interval_ms=network_config.NETWORK_MONITORING_INTERVAL_MS,
+            adaptive_rate_enabled=network_config.NETWORK_ADAPTIVE_RATE_ENABLED,
+            update_timestamp=time.time(),
+        )
+
+        # Broadcast configuration change via WebSocket
+        await broadcast_message(
+            {
+                "type": "config",
+                "action": "network_config_updated",
+                "config": {
+                    "low_threshold": response.low_threshold,
+                    "medium_threshold": response.medium_threshold,
+                    "high_threshold": response.high_threshold,
+                    "critical_threshold": response.critical_threshold,
+                    "congestion_detector_enabled": response.congestion_detector_enabled,
+                    "latency_threshold_ms": response.latency_threshold_ms,
+                    "adaptive_rate_enabled": response.adaptive_rate_enabled,
+                    "update_timestamp": response.update_timestamp,
+                },
+            }
+        )
+
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+        # Validate <500ms requirement
+        if elapsed_ms > 500:
+            logger.warning(
+                f"Network config update took {elapsed_ms:.2f}ms, exceeding 500ms requirement"
+            )
+        else:
+            logger.info(
+                f"Network configuration updated successfully in {elapsed_ms:.2f}ms"
+            )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.error(
+            f"Error updating network configuration after {elapsed_ms:.2f}ms: {e}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update network configuration: {e!s}",
+        )
+
+
+@router.patch("/network/thresholds/{severity}")
+async def update_network_threshold(severity: str, threshold: float):
+    """Update individual network threshold by severity level.
+
+    Args:
+        severity: Threshold severity level (low, medium, high, critical)
+        threshold: New threshold value (0.001-0.5)
+
+    Returns:
+        Updated threshold information
+    """
+    try:
+        start_time = time.perf_counter()
+
+        # Validate severity level
+        if severity not in ["low", "medium", "high", "critical"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid severity level: {severity}. Must be one of: low, medium, high, critical",
+            )
+
+        # Validate threshold bounds
+        if not (0.001 <= threshold <= 0.5):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Threshold must be between 0.001 and 0.5, got {threshold}",
+            )
+
+        # Get current configuration
+        config = get_config()
+        network_config = config.network
+
+        # Check if runtime adjustment is enabled
+        if not network_config.NETWORK_RUNTIME_ADJUSTMENT_ENABLED:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Runtime network configuration updates are disabled",
+            )
+
+        # Update specific threshold using NetworkConfig method
+        try:
+            network_config.update_threshold(severity, threshold)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+        # Validate <500ms requirement
+        if elapsed_ms > 500:
+            logger.warning(
+                f"Threshold update took {elapsed_ms:.2f}ms, exceeding 500ms requirement"
+            )
+        else:
+            logger.info(
+                f"Network {severity} threshold updated to {threshold} in {elapsed_ms:.2f}ms"
+            )
+
+        # Broadcast configuration change via WebSocket
+        await broadcast_message(
+            {
+                "type": "config",
+                "action": "network_threshold_updated",
+                "threshold": {
+                    "severity": severity,
+                    "value": threshold,
+                    "update_timestamp": time.time(),
+                },
+            }
+        )
+
+        return {
+            "status": "success",
+            "severity": severity,
+            "threshold": threshold,
+            "update_timestamp": time.time(),
+            "response_time_ms": elapsed_ms,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.error(
+            f"Error updating {severity} threshold after {elapsed_ms:.2f}ms: {e}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update {severity} threshold: {e!s}",
         )

@@ -88,3 +88,18 @@ HOMING_SAMPLING_DURATION: 5.0 # Duration of sampling maneuver in seconds
 HOMING_APPROACH_THRESHOLD: -50.0 # RSSI threshold for approach mode in dBm
 HOMING_PLATEAU_VARIANCE: 2.0 # RSSI variance for plateau detection
 HOMING_VELOCITY_SCALE_FACTOR: 0.1 # Scaling factor for velocity commands
+
+# Network Configuration - Packet Loss Thresholds and Runtime Adjustment
+NETWORK_PACKET_LOSS_LOW_THRESHOLD: 0.01 # 1% - Low packet loss threshold
+NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD: 0.05 # 5% - Medium packet loss threshold
+NETWORK_PACKET_LOSS_HIGH_THRESHOLD: 0.10 # 10% - High packet loss threshold
+NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD: 0.20 # 20% - Critical packet loss threshold
+NETWORK_CONGESTION_DETECTOR_ENABLED: true # Enable network congestion detection
+NETWORK_BASELINE_LATENCY_MS: 0.0 # Baseline latency measurement in milliseconds
+NETWORK_LATENCY_THRESHOLD_MS: 100.0 # Maximum acceptable latency in milliseconds
+
+# Network Runtime Adjustment Configuration
+NETWORK_RUNTIME_ADJUSTMENT_ENABLED: true # Enable runtime threshold adjustment
+NETWORK_OPERATOR_OVERRIDE_ENABLED: true # Allow operator override of thresholds
+NETWORK_MONITORING_INTERVAL_MS: 1000 # Network monitoring interval in milliseconds
+NETWORK_ADAPTIVE_RATE_ENABLED: true # Enable adaptive transmission rate adjustment

@@ -210,6 +210,12 @@ class NetworkConfig:
     NETWORK_BASELINE_LATENCY_MS: float = 0.0
     NETWORK_LATENCY_THRESHOLD_MS: float = 100.0
 
+    # Enhanced fields for runtime adjustment capability
+    NETWORK_RUNTIME_ADJUSTMENT_ENABLED: bool = True
+    NETWORK_OPERATOR_OVERRIDE_ENABLED: bool = True
+    NETWORK_MONITORING_INTERVAL_MS: int = 1000  # 1 second
+    NETWORK_ADAPTIVE_RATE_ENABLED: bool = True
+
     def __post_init__(self):
         """Validate packet loss thresholds are within acceptable bounds."""
         thresholds = [
@@ -219,11 +225,88 @@ class NetworkConfig:
             self.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD,
         ]
 
+        # Validate bounds (0.001-0.5 range)
         for threshold in thresholds:
             if not (0.001 <= threshold <= 0.5):
                 raise ValueError(
                     f"Packet loss threshold must be between 0.001 and 0.5, got {threshold}"
                 )
+
+        # Validate threshold ordering (low < medium < high < critical)
+        if not (thresholds[0] < thresholds[1] < thresholds[2] < thresholds[3]):
+            raise ValueError(
+                "Packet loss thresholds must be in ascending order: "
+                f"low({thresholds[0]}) < medium({thresholds[1]}) < "
+                f"high({thresholds[2]}) < critical({thresholds[3]})"
+            )
+
+    def get_threshold_by_severity(self, severity: str) -> float:
+        """Get packet loss threshold by severity level."""
+        severity_map = {
+            "low": self.NETWORK_PACKET_LOSS_LOW_THRESHOLD,
+            "medium": self.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD,
+            "high": self.NETWORK_PACKET_LOSS_HIGH_THRESHOLD,
+            "critical": self.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD,
+        }
+
+        if severity not in severity_map:
+            raise ValueError(f"Unknown severity level: {severity}")
+
+        return severity_map[severity]
+
+    def update_threshold(self, severity: str, value: float) -> None:
+        """Update individual threshold with validation."""
+        # Validate bounds
+        if not (0.001 <= value <= 0.5):
+            raise ValueError(
+                f"Packet loss threshold must be between 0.001 and 0.5, got {value}"
+            )
+
+        # Get current thresholds for ordering validation
+        current_thresholds = {
+            "low": self.NETWORK_PACKET_LOSS_LOW_THRESHOLD,
+            "medium": self.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD,
+            "high": self.NETWORK_PACKET_LOSS_HIGH_THRESHOLD,
+            "critical": self.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD,
+        }
+
+        # Update the threshold
+        current_thresholds[severity] = value
+
+        # Validate ordering
+        thresholds = list(current_thresholds.values())
+        if not (thresholds[0] < thresholds[1] < thresholds[2] < thresholds[3]):
+            raise ValueError(
+                f"Updating {severity} threshold to {value} would break threshold ordering"
+            )
+
+        # Apply the update
+        if severity == "low":
+            self.NETWORK_PACKET_LOSS_LOW_THRESHOLD = value
+        elif severity == "medium":
+            self.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD = value
+        elif severity == "high":
+            self.NETWORK_PACKET_LOSS_HIGH_THRESHOLD = value
+        elif severity == "critical":
+            self.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD = value
+        else:
+            raise ValueError(f"Unknown severity level: {severity}")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert NetworkConfig to dictionary for API responses."""
+        return {
+            "NETWORK_PACKET_LOSS_LOW_THRESHOLD": self.NETWORK_PACKET_LOSS_LOW_THRESHOLD,
+            "NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD": self.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD,
+            "NETWORK_PACKET_LOSS_HIGH_THRESHOLD": self.NETWORK_PACKET_LOSS_HIGH_THRESHOLD,
+            "NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD": self.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD,
+            "NETWORK_CONGESTION_DETECTOR_ENABLED": self.NETWORK_CONGESTION_DETECTOR_ENABLED,
+            "NETWORK_BASELINE_LATENCY_MS": self.NETWORK_BASELINE_LATENCY_MS,
+            "NETWORK_LATENCY_THRESHOLD_MS": self.NETWORK_LATENCY_THRESHOLD_MS,
+            "NETWORK_RUNTIME_ADJUSTMENT_ENABLED": self.NETWORK_RUNTIME_ADJUSTMENT_ENABLED,
+            "NETWORK_OPERATOR_OVERRIDE_ENABLED": self.NETWORK_OPERATOR_OVERRIDE_ENABLED,
+            "NETWORK_MONITORING_INTERVAL_MS": self.NETWORK_MONITORING_INTERVAL_MS,
+            "NETWORK_ADAPTIVE_RATE_ENABLED": self.NETWORK_ADAPTIVE_RATE_ENABLED,
+        }
 
 
 @dataclass
@@ -330,6 +413,9 @@ class ConfigLoader:
 
         # Load default configuration profile if available
         self._load_default_profile()
+
+        # Validate configuration after all loading is complete
+        self._validate_config()
 
         return self.config
 
@@ -518,45 +604,45 @@ class ConfigLoader:
             logger.warning(f"Could not load default profile: {e}")
 
     def _apply_yaml_config(self, yaml_config: dict[str, Any]) -> None:
-        """Apply configuration from YAML dictionary."""
+        """Apply configuration from YAML dictionary with proper type conversion."""
         if not yaml_config:
             return
 
-        # Map flat YAML keys to nested config structure
+        # Map flat YAML keys to nested config structure with type conversion
         for key, value in yaml_config.items():
-            # Determine which config section this belongs to
+            # Determine which config section this belongs to and apply with type conversion
             if key.startswith("APP_"):
-                setattr(self.config.app, key, value)
+                self._set_config_value(self.config.app, key, str(value))
             elif key.startswith("SDR_"):
-                setattr(self.config.sdr, key, value)
+                self._set_config_value(self.config.sdr, key, str(value))
             elif key.startswith("SIGNAL_"):
-                setattr(self.config.signal, key, value)
+                self._set_config_value(self.config.signal, key, str(value))
             elif key.startswith("INTERFEROMETRY_"):
-                setattr(self.config.interferometry, key, value)
+                self._set_config_value(self.config.interferometry, key, str(value))
             elif key.startswith("DB_"):
-                setattr(self.config.database, key, value)
+                self._set_config_value(self.config.database, key, str(value))
             elif key.startswith("LOG_"):
-                setattr(self.config.logging, key, value)
+                self._set_config_value(self.config.logging, key, str(value))
             elif key.startswith("WS_"):
-                setattr(self.config.websocket, key, value)
+                self._set_config_value(self.config.websocket, key, str(value))
             elif key.startswith("SAFETY_"):
-                setattr(self.config.safety, key, value)
+                self._set_config_value(self.config.safety, key, str(value))
             elif key.startswith("PERF_"):
-                setattr(self.config.performance, key, value)
+                self._set_config_value(self.config.performance, key, str(value))
             elif key.startswith("API_"):
-                setattr(self.config.api, key, value)
+                self._set_config_value(self.config.api, key, str(value))
             elif key.startswith("MONITORING_"):
-                setattr(self.config.monitoring, key, value)
+                self._set_config_value(self.config.monitoring, key, str(value))
             elif key.startswith("TELEMETRY_"):
-                setattr(self.config.telemetry, key, value)
+                self._set_config_value(self.config.telemetry, key, str(value))
             elif key.startswith("HOMING_"):
-                setattr(self.config.homing, key, value)
+                self._set_config_value(self.config.homing, key, str(value))
             elif key.startswith("HARDWARE_"):
-                setattr(self.config.hardware, key, value)
+                self._set_config_value(self.config.hardware, key, str(value))
             elif key.startswith("NETWORK_"):
-                setattr(self.config.network, key, value)
+                self._set_config_value(self.config.network, key, str(value))
             elif key.startswith("DEV_"):
-                setattr(self.config.development, key, value)
+                self._set_config_value(self.config.development, key, str(value))
 
     def _apply_env_overrides(self) -> None:
         """Apply environment variable overrides."""
@@ -648,6 +734,31 @@ class ConfigLoader:
 
         setattr(config_section, key, converted_value)
         logger.debug(f"Set {key} = {converted_value} from environment")
+
+    def _validate_config(self) -> None:
+        """Validate configuration after all loading is complete."""
+        # Validate network configuration thresholds
+        thresholds = [
+            self.config.network.NETWORK_PACKET_LOSS_LOW_THRESHOLD,
+            self.config.network.NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD,
+            self.config.network.NETWORK_PACKET_LOSS_HIGH_THRESHOLD,
+            self.config.network.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD,
+        ]
+
+        # Validate bounds (0.001-0.5 range)
+        for threshold in thresholds:
+            if not (0.001 <= threshold <= 0.5):
+                raise ValueError(
+                    f"Packet loss threshold must be between 0.001 and 0.5, got {threshold}"
+                )
+
+        # Validate threshold ordering (low < medium < high < critical)
+        if not (thresholds[0] < thresholds[1] < thresholds[2] < thresholds[3]):
+            raise ValueError(
+                "Packet loss thresholds must be in ascending order: "
+                f"low({thresholds[0]}) < medium({thresholds[1]}) < "
+                f"high({thresholds[2]}) < critical({thresholds[3]})"
+            )
 
 
 # Global configuration instance

@@ -11,6 +11,7 @@ PRD References:
 """
 
 import asyncio
+import contextlib
 import json
 import socket
 import time
@@ -287,10 +288,8 @@ class SDRPPBridgeService:
 
         if self._queue_processor_task:
             self._queue_processor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._queue_processor_task
-            except asyncio.CancelledError:
-                pass
             self._queue_processor_task = None
 
         logger.info("Intelligent message queue processor stopped")

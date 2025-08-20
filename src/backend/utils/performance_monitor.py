@@ -42,6 +42,37 @@ class PerformanceThresholds:
     memory_usage_warning_percent: float = 75.0  # Warning at 75% memory
     memory_usage_critical_percent: float = 90.0  # Critical at 90% memory
 
+    # SUBTASK-5.6.2.4 [9b] - Extended resource monitoring thresholds
+    disk_usage_warning_percent: float = 80.0  # Warning at 80% disk
+    disk_usage_critical_percent: float = 95.0  # Critical at 95% disk
+    temperature_warning_celsius: float = 70.0  # Warning at 70°C
+    temperature_critical_celsius: float = 85.0  # Critical at 85°C
+    network_usage_warning_mbps: float = 50.0  # Warning at 50 Mbps
+    network_usage_critical_mbps: float = 80.0  # Critical at 80 Mbps
+
+    def adjust_for_operational_context(self, context: str) -> None:
+        """
+        SUBTASK-5.6.2.4 [9b] - Adjust thresholds based on operational context.
+
+        Args:
+            context: Operational context ('mission_critical', 'normal', 'testing')
+        """
+        if context == "mission_critical":
+            # Lower thresholds for mission critical operations
+            self.cpu_usage_critical_percent = 80.0
+            self.memory_usage_critical_percent = 85.0
+            self.temperature_critical_celsius = 80.0
+        elif context == "normal":
+            # Standard thresholds for normal operations
+            self.cpu_usage_critical_percent = 85.0
+            self.memory_usage_critical_percent = 90.0
+            self.temperature_critical_celsius = 85.0
+        elif context == "testing":
+            # Relaxed thresholds for testing
+            self.cpu_usage_critical_percent = 95.0
+            self.memory_usage_critical_percent = 95.0
+            self.temperature_critical_celsius = 90.0
+
 
 @dataclass
 class PerformanceAlert:
@@ -73,6 +104,11 @@ class AdaptivePerformanceMonitor:
         self._cpu_history: deque[float] = deque(maxlen=100)
         self._memory_history: deque[float] = deque(maxlen=100)
 
+        # SUBTASK-5.6.2.4 [9a] - Extended resource monitoring history
+        self._disk_usage_history: deque[float] = deque(maxlen=100)
+        self._temperature_history: deque[float] = deque(maxlen=100)
+        self._network_usage_history: deque[float] = deque(maxlen=100)
+
         # Performance baselines for adaptive thresholds
         self._tcp_baseline_ms: float | None = None
         self._processing_baseline_ms: float | None = None
@@ -96,6 +132,10 @@ class AdaptivePerformanceMonitor:
         self._degradation_start_time: float | None = None
         self._consecutive_violations = 0
         self._violation_threshold = 3  # Trigger after 3 consecutive violations
+
+        # SUBTASK-5.6.2.4 [9f] - Structured logging support
+        self._structured_logging_enabled = False
+        self._structured_log_entries: list[dict[str, Any]] = []
 
         logger.info(
             "AdaptivePerformanceMonitor initialized with TCP latency limit %sms",
@@ -226,7 +266,9 @@ class AdaptivePerformanceMonitor:
             if self._processing_baseline_ms is None:
                 self._processing_baseline_ms = value
             else:
-                self._processing_baseline_ms = 0.9 * self._processing_baseline_ms + 0.1 * value
+                self._processing_baseline_ms = (
+                    0.9 * self._processing_baseline_ms + 0.1 * value
+                )
 
         # Establish baseline after sufficient samples
         if self._baseline_sample_count >= 50:
@@ -234,7 +276,11 @@ class AdaptivePerformanceMonitor:
             logger.info(
                 "Performance baseline established: TCP %s ms, Processing %s ms",
                 f"{self._tcp_baseline_ms:.1f}" if self._tcp_baseline_ms else "N/A",
-                f"{self._processing_baseline_ms:.1f}" if self._processing_baseline_ms else "N/A",
+                (
+                    f"{self._processing_baseline_ms:.1f}"
+                    if self._processing_baseline_ms
+                    else "N/A"
+                ),
             )
 
     def _check_tcp_latency_threshold(self, latency_ms: float) -> None:
@@ -276,7 +322,12 @@ class AdaptivePerformanceMonitor:
             )
 
     def _create_alert(
-        self, level: str, metric: str, threshold: float, measured_value: float, message: str
+        self,
+        level: str,
+        metric: str,
+        threshold: float,
+        measured_value: float,
+        message: str,
     ) -> None:
         """Create and dispatch performance alert."""
         alert = PerformanceAlert(
@@ -312,7 +363,9 @@ class AdaptivePerformanceMonitor:
         """
         # Get recent averages for key metrics
         recent_tcp = self._get_recent_average(self._tcp_latency_history, 10)
-        recent_processing = self._get_recent_average(self._processing_latency_history, 10)
+        recent_processing = self._get_recent_average(
+            self._processing_latency_history, 10
+        )
 
         # Check if any critical thresholds are being violated
         violations = 0

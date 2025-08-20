@@ -112,7 +112,7 @@ class SafetyAuthorityManager:
         """Initialize the complete safety authority hierarchy"""
 
         # Get hierarchy from analyzer
-        hierarchy = self.analyzer.get_safety_authority_hierarchy()
+        self.analyzer.get_safety_authority_hierarchy()
 
         # Initialize Level 1: Emergency Stop
         self.authorities[SafetyAuthorityLevel.EMERGENCY_STOP] = SafetyAuthority(
@@ -272,7 +272,10 @@ class SafetyAuthorityManager:
         """Find the appropriate authority level to approve this decision type"""
 
         # Emergency stop can only be approved by level 1
-        if decision.decision_type == SafetyDecisionType.EMERGENCY_STOP or decision.decision_type == SafetyDecisionType.SYSTEM_SHUTDOWN:
+        if (
+            decision.decision_type == SafetyDecisionType.EMERGENCY_STOP
+            or decision.decision_type == SafetyDecisionType.SYSTEM_SHUTDOWN
+        ):
             return SafetyAuthorityLevel.EMERGENCY_STOP
 
         # Coordination override can be approved by levels 1-3
@@ -1081,7 +1084,9 @@ class SafetyAuthorityManager:
             }
 
     async def isolate_coordination_system(
-        self, isolation_level: str = "complete", preserve_components: list[str] = None
+        self,
+        isolation_level: str = "complete",
+        preserve_components: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         SUBTASK-5.5.3.3 [10a] - Isolate coordination system during emergency.
@@ -1852,7 +1857,7 @@ class SafetyAuthorityManager:
             failed_phases = []
 
             for phase in recovery_phases:
-                phase_start = datetime.now()
+                datetime.now()
 
                 try:
                     phase_result = await self._execute_recovery_phase(
@@ -1947,7 +1952,7 @@ class SafetyAuthorityManager:
     ) -> dict[str, Any]:
         """Helper method to execute individual recovery phase"""
         try:
-            phase_start = datetime.now()
+            datetime.now()
 
             if phase == "safety_validation":
                 validation_result = (
@@ -2048,7 +2053,7 @@ class SafetyAuthorityManager:
 
         try:
             # Check response time by performing a quick operation
-            test_decision = SafetyDecision(
+            SafetyDecision(
                 decision_type=SafetyDecisionType.EMERGENCY_STOP,
                 requesting_authority=SafetyAuthorityLevel.EMERGENCY_STOP,
                 details={"health_check": True},

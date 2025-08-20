@@ -10,6 +10,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from src.backend.services.asv_integration.exceptions import (
@@ -132,6 +133,10 @@ class ASVAnalyzerBase(ABC):
             # Immediately mark as uninitialized
             self._is_initialized = False
 
+            # Clear telemetry service to prevent broadcasting during emergency
+            if hasattr(self, "_telemetry_service"):
+                self._telemetry_service = None
+
             logger.warning(
                 f"Emergency shutdown completed for {self.analyzer_type} analyzer"
             )
@@ -141,6 +146,8 @@ class ASVAnalyzerBase(ABC):
             logger.error(f"Error during {self.analyzer_type} emergency shutdown: {e}")
             # Ensure state is cleared even on error
             self._is_initialized = False
+            if hasattr(self, "_telemetry_service"):
+                self._telemetry_service = None
 
     @abstractmethod
     async def process_signal(self, iq_data: bytes) -> ASVSignalData:
@@ -151,6 +158,446 @@ class ASVAnalyzerBase(ABC):
     def get_signal_overflow_indicator(self) -> float:
         """Get current signal overflow indicator value."""
         pass
+
+    async def get_health_status(self) -> dict[str, Any]:
+        """Get comprehensive health status for the analyzer.
+
+        SUBTASK-6.1.2.4 [17d-1]: Enhanced health status methods
+
+        Returns:
+            Dictionary containing comprehensive health status information
+        """
+        try:
+            current_time = datetime.now(UTC)
+
+            # Get basic operational status
+            operational = self._is_initialized and self._dotnet_instance is not None
+
+            # Get performance metrics
+            performance_metrics = await self._get_performance_metrics()
+
+            # Detect error conditions
+            error_conditions = await self._detect_error_conditions()
+
+            # Check for performance degradation
+            performance_degraded = await self._detect_performance_degradation()
+
+            health_status = {
+                "operational": operational,
+                "signal_processing_healthy": operational and not performance_degraded,
+                "performance_metrics": performance_metrics,
+                "error_conditions": error_conditions,
+                "performance_degraded": performance_degraded,
+                "last_health_check_timestamp": current_time.isoformat(),
+                "analyzer_type": self.analyzer_type,
+                "frequency_hz": self.frequency_hz,
+                "initialization_time": getattr(self, "_initialization_time", None),
+            }
+
+            return health_status
+
+        except Exception as e:
+            logger.error(f"Health status check failed for {self.analyzer_type}: {e}")
+            return {
+                "operational": False,
+                "signal_processing_healthy": False,
+                "performance_metrics": {},
+                "error_conditions": {"health_check_error": str(e)},
+                "performance_degraded": True,
+                "last_health_check_timestamp": datetime.now(UTC).isoformat(),
+                "analyzer_type": self.analyzer_type,
+                "error": str(e),
+            }
+
+    async def _get_performance_metrics(self) -> dict[str, float]:
+        """Get current performance metrics.
+
+        SUBTASK-6.1.2.4 [17d-3]: Performance monitoring metrics
+        """
+        try:
+            # Get basic performance data
+            signal_processing_latency = getattr(self, "_last_processing_time_ms", 0.0)
+
+            # Calculate metrics based on recent signal processing
+            last_signal_data = getattr(self, "_last_signal_data", None)
+
+            metrics = {
+                "signal_processing_latency_ms": signal_processing_latency,
+                "throughput_samples_per_second": 1000.0
+                / max(signal_processing_latency, 1.0),
+                "error_rate_percentage": getattr(self, "_error_rate", 0.0),
+                "memory_usage_bytes": getattr(self, "_memory_usage", 0),
+                "cpu_usage_percentage": getattr(self, "_cpu_usage", 0.0),
+                "signal_quality_average": (
+                    last_signal_data.signal_quality if last_signal_data else 0.0
+                ),
+                "overflow_indicator": self.get_signal_overflow_indicator(),
+            }
+
+            return metrics
+
+        except Exception as e:
+            logger.error(f"Performance metrics collection failed: {e}")
+            return {
+                "signal_processing_latency_ms": 999.0,  # Indicate error
+                "throughput_samples_per_second": 0.0,
+                "error_rate_percentage": 100.0,
+                "memory_usage_bytes": 0,
+                "cpu_usage_percentage": 0.0,
+                "signal_quality_average": 0.0,
+                "overflow_indicator": 1.0,  # Max overflow indicates error
+            }
+
+    async def _detect_error_conditions(self) -> dict[str, Any]:
+        """Detect and classify current error conditions.
+
+        SUBTASK-6.1.2.4 [17d-2]: Error condition detection and classification
+        """
+        error_conditions: dict[str, list[str]] = {
+            "initialization_errors": [],
+            "signal_processing_errors": [],
+            "hardware_communication_errors": [],
+            "performance_degradation_errors": [],
+            "timeout_errors": [],
+        }
+
+        try:
+            # Check initialization errors
+            if not self._is_initialized:
+                error_conditions["initialization_errors"].append(
+                    "Analyzer not properly initialized"
+                )
+
+            if self._dotnet_instance is None:
+                error_conditions["hardware_communication_errors"].append(
+                    ".NET analyzer instance not available"
+                )
+
+            # Check performance degradation
+            performance_metrics = await self._get_performance_metrics()
+
+            if (
+                performance_metrics["signal_processing_latency_ms"]
+                > self.config.processing_timeout_ms
+            ):
+                error_conditions["performance_degradation_errors"].append(
+                    f"Processing latency {performance_metrics['signal_processing_latency_ms']:.1f}ms exceeds timeout {self.config.processing_timeout_ms}ms"
+                )
+
+            if performance_metrics["error_rate_percentage"] > 10.0:
+                error_conditions["signal_processing_errors"].append(
+                    f"High error rate: {performance_metrics['error_rate_percentage']:.1f}%"
+                )
+
+            if (
+                performance_metrics["overflow_indicator"]
+                > self.config.signal_overflow_threshold
+            ):
+                error_conditions["signal_processing_errors"].append(
+                    f"Signal overflow detected: {performance_metrics['overflow_indicator']:.2f} > {self.config.signal_overflow_threshold}"
+                )
+
+            return error_conditions
+
+        except Exception as e:
+            logger.error(f"Error condition detection failed: {e}")
+            error_conditions["health_check_errors"] = [f"Error detection failed: {e}"]
+            return error_conditions
+
+    async def _detect_performance_degradation(self) -> bool:
+        """Detect if performance has degraded below acceptable thresholds.
+
+        SUBTASK-6.1.2.4 [17d-3]: Performance degradation detection
+        """
+        try:
+            performance_metrics = await self._get_performance_metrics()
+
+            # Define performance degradation thresholds
+            degradation_thresholds = getattr(
+                self,
+                "_performance_thresholds",
+                {
+                    "max_latency_ms": self.config.processing_timeout_ms
+                    * 0.8,  # 80% of timeout
+                    "min_throughput_samples_per_sec": 100.0,
+                    "max_error_rate_percent": 5.0,
+                    "max_overflow_indicator": self.config.signal_overflow_threshold
+                    * 0.9,
+                },
+            )
+
+            # Check each threshold
+            if (
+                performance_metrics["signal_processing_latency_ms"]
+                > degradation_thresholds["max_latency_ms"]
+            ):
+                return True
+
+            if (
+                performance_metrics["throughput_samples_per_second"]
+                < degradation_thresholds["min_throughput_samples_per_sec"]
+            ):
+                return True
+
+            if (
+                performance_metrics["error_rate_percentage"]
+                > degradation_thresholds["max_error_rate_percent"]
+            ):
+                return True
+
+            return (
+                performance_metrics["overflow_indicator"]
+                > degradation_thresholds["max_overflow_indicator"]
+            )
+
+        except Exception as e:
+            logger.error(f"Performance degradation detection failed: {e}")
+            return True  # Assume degraded if check fails
+
+    async def detect_performance_degradation(self) -> bool:
+        """Public method to detect performance degradation.
+
+        SUBTASK-6.1.2.4 [17d-3]: Public degradation detection interface
+        """
+        return await self._detect_performance_degradation()
+
+    async def set_performance_thresholds(self, thresholds: dict[str, float]) -> None:
+        """Set custom performance thresholds for degradation detection.
+
+        SUBTASK-6.1.2.4 [17d-3]: Configurable performance thresholds
+        """
+        self._performance_thresholds = thresholds.copy()
+        logger.info(
+            f"Updated performance thresholds for {self.analyzer_type}: {thresholds}"
+        )
+
+    async def configure_health_alerts(self, alert_config: dict[str, Any]) -> None:
+        """Configure health alert thresholds and notification channels.
+
+        SUBTASK-6.1.2.4 [17d-7]: Health alerts and threshold notifications
+        """
+        self._health_alert_config = alert_config.copy()
+        logger.info(
+            f"Configured health alerts for {self.analyzer_type}: {alert_config}"
+        )
+
+    async def check_health_thresholds(self) -> bool:
+        """Check if health thresholds are exceeded and trigger alerts.
+
+        SUBTASK-6.1.2.4 [17d-7]: Health threshold checking
+        """
+        if not hasattr(self, "_health_alert_config"):
+            return False
+
+        try:
+            performance_metrics = await self._get_performance_metrics()
+            alert_config = self._health_alert_config
+
+            alert_triggered = False
+
+            # Check latency threshold
+            if "latency_threshold_ms" in alert_config:
+                if (
+                    performance_metrics["signal_processing_latency_ms"]
+                    > alert_config["latency_threshold_ms"]
+                ):
+                    alert_triggered = True
+                    logger.warning(
+                        f"Health alert: {self.analyzer_type} latency {performance_metrics['signal_processing_latency_ms']:.1f}ms exceeds threshold {alert_config['latency_threshold_ms']}ms"
+                    )
+
+            # Check error rate threshold
+            if "error_rate_threshold_percent" in alert_config:
+                if (
+                    performance_metrics["error_rate_percentage"]
+                    > alert_config["error_rate_threshold_percent"]
+                ):
+                    alert_triggered = True
+                    logger.warning(
+                        f"Health alert: {self.analyzer_type} error rate {performance_metrics['error_rate_percentage']:.1f}% exceeds threshold {alert_config['error_rate_threshold_percent']}%"
+                    )
+
+            return alert_triggered
+
+        except Exception as e:
+            logger.error(f"Health threshold check failed: {e}")
+            return True  # Assume alert condition if check fails
+
+    async def register_telemetry_service(self, telemetry_service: Any) -> None:
+        """Register telemetry service for health broadcasting.
+
+        SUBTASK-6.1.2.4 [17d-5]: Telemetry integration for health broadcasting
+
+        Args:
+            telemetry_service: Telemetry service instance for broadcasting health data
+        """
+        try:
+            self._telemetry_service = telemetry_service
+            logger.info(
+                f"Registered telemetry service for {self.analyzer_type} analyzer health broadcasting"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to register telemetry service: {e}")
+
+    async def broadcast_health_status(self) -> None:
+        """Broadcast current health status via telemetry service.
+
+        SUBTASK-6.1.2.4 [17d-5]: Real-time health broadcasting
+        """
+        try:
+            if (
+                not hasattr(self, "_telemetry_service")
+                or self._telemetry_service is None
+            ):
+                logger.debug(
+                    f"No telemetry service registered for {self.analyzer_type} analyzer"
+                )
+                return
+
+            # Get current health status
+            health_status = await self.get_health_status()
+
+            # Format for telemetry broadcasting
+            telemetry_data = {
+                "message_type": "asv_analyzer_health",
+                "analyzer_id": f"{self.analyzer_type.lower()}_analyzer",
+                "analyzer_type": self.analyzer_type,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "health_status": health_status,
+            }
+
+            # Broadcast via telemetry service
+            if hasattr(self._telemetry_service, "broadcast_data"):
+                await self._telemetry_service.broadcast_data(telemetry_data)
+                logger.debug(
+                    f"Broadcast health status for {self.analyzer_type} analyzer via telemetry"
+                )
+            else:
+                logger.warning(
+                    "Telemetry service does not support broadcast_data method"
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to broadcast health status: {e}")
+
+    async def get_health_dashboard_format(self) -> dict[str, Any]:
+        """Get health status in format compatible with existing PISAD health monitoring dashboard.
+
+        SUBTASK-6.1.2.4 [17d-8]: Integration with existing health monitoring
+
+        Returns:
+            Health data formatted for existing dashboard integration
+        """
+        try:
+            health_status = await self.get_health_status()
+            performance_metrics = health_status.get("performance_metrics", {})
+
+            # Map to existing dashboard format
+            dashboard_format = {
+                "service_name": f"asv_{self.analyzer_type.lower()}_analyzer",
+                "status": self._map_health_to_dashboard_status(health_status),
+                "metrics": {
+                    "response_time_ms": performance_metrics.get(
+                        "signal_processing_latency_ms", 0
+                    ),
+                    "success_rate_percent": 100.0
+                    - performance_metrics.get("error_rate_percentage", 0.0),
+                    "resource_usage_percent": performance_metrics.get(
+                        "cpu_usage_percentage", 0.0
+                    ),
+                    "throughput_samples_per_sec": performance_metrics.get(
+                        "throughput_samples_per_second", 0.0
+                    ),
+                    "memory_usage_mb": performance_metrics.get("memory_usage_bytes", 0)
+                    / (1024 * 1024),
+                },
+                "alerts": self._extract_dashboard_alerts(health_status),
+                "last_check_timestamp": health_status.get(
+                    "last_health_check_timestamp"
+                ),
+                "analyzer_specific": {
+                    "frequency_hz": self.frequency_hz,
+                    "analyzer_type": self.analyzer_type,
+                    "initialization_status": self._is_initialized,
+                },
+            }
+
+            return dashboard_format
+
+        except Exception as e:
+            logger.error(f"Failed to format health status for dashboard: {e}")
+            return {
+                "service_name": f"asv_{self.analyzer_type.lower()}_analyzer",
+                "status": "critical",
+                "metrics": {},
+                "alerts": [f"Health formatting error: {e}"],
+                "last_check_timestamp": datetime.now(UTC).isoformat(),
+                "error": str(e),
+            }
+
+    def _map_health_to_dashboard_status(self, health_status: dict[str, Any]) -> str:
+        """Map comprehensive health status to simple dashboard status.
+
+        Args:
+            health_status: Comprehensive health status dictionary
+
+        Returns:
+            Dashboard status: "healthy", "degraded", "critical", or "offline"
+        """
+        if not health_status.get("operational", False):
+            return "offline"
+
+        if health_status.get("performance_degraded", False):
+            error_conditions = health_status.get("error_conditions", {})
+
+            # Check for critical errors
+            critical_errors = error_conditions.get(
+                "initialization_errors", []
+            ) + error_conditions.get("hardware_communication_errors", [])
+
+            if critical_errors:
+                return "critical"
+            else:
+                return "degraded"
+
+        if health_status.get("signal_processing_healthy", False):
+            return "healthy"
+        else:
+            return "degraded"
+
+    def _extract_dashboard_alerts(self, health_status: dict[str, Any]) -> list[str]:
+        """Extract alert messages for dashboard display.
+
+        Args:
+            health_status: Comprehensive health status dictionary
+
+        Returns:
+            List of alert message strings
+        """
+        alerts = []
+
+        try:
+            error_conditions = health_status.get("error_conditions", {})
+
+            # Collect alerts from all error categories
+            for category, errors in error_conditions.items():
+                if isinstance(errors, list) and errors:
+                    for error in errors:
+                        alerts.append(f"{category.replace('_', ' ').title()}: {error}")
+
+            # Add performance degradation alert if applicable
+            if health_status.get("performance_degraded", False):
+                performance_metrics = health_status.get("performance_metrics", {})
+                latency = performance_metrics.get("signal_processing_latency_ms", 0)
+                if latency > 100:
+                    alerts.append(f"High processing latency: {latency:.1f}ms")
+
+            return alerts
+
+        except Exception as e:
+            logger.error(f"Failed to extract dashboard alerts: {e}")
+            return [f"Alert extraction error: {e}"]
 
 
 class ASVGpAnalyzer(ASVAnalyzerBase):

@@ -207,7 +207,6 @@ async def switch_frequency_profile(
 
         # For now, simulate successful frequency switching
         # Full coordinator integration will be implemented in subsequent subtasks
-        success = True
         logger.info(
             f"Frequency switching simulated for {profile.center_frequency_hz/1e6:.3f} MHz"
         )
@@ -421,7 +420,7 @@ async def asv_health_check() -> dict[str, Any]:
     """
     try:
         # Test ASV configuration manager availability
-        asv_config_manager = ASVConfigurationManager()
+        ASVConfigurationManager()
         config_available = True
     except Exception:
         config_available = False

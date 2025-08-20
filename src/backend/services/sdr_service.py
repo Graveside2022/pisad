@@ -117,7 +117,9 @@ class SDRService:
         # If device args specified, try to find matching device
         if device_args:
             try:
-                args_dict = dict(arg.split("=") for arg in device_args.split(",") if "=" in arg)
+                args_dict = dict(
+                    arg.split("=") for arg in device_args.split(",") if "=" in arg
+                )
                 for device in devices:
                     if all(device.get(k) == v for k, v in args_dict.items()):
                         logger.info(f"Selected device: {device}")
@@ -161,7 +163,9 @@ class SDRService:
             self._health_check_task = asyncio.create_task(self._health_monitor())
 
             self.status.status = "CONNECTED"
-            logger.info(f"SDR initialized: {self.status.device_name} ({self.status.driver})")
+            logger.info(
+                f"SDR initialized: {self.status.device_name} ({self.status.driver})"
+            )
 
         except Exception as e:
             self.status.status = "ERROR"
@@ -195,7 +199,8 @@ class SDRService:
             if supported_rates and self.config.sampleRate not in supported_rates:
                 # Find closest supported rate
                 closest_rate = min(
-                    supported_rates, key=lambda x: abs(float(x) - self.config.sampleRate)
+                    supported_rates,
+                    key=lambda x: abs(float(x) - self.config.sampleRate),
                 )
                 logger.warning(
                     f"Sample rate {self.config.sampleRate/1e6:.1f} Msps not supported, "
@@ -225,7 +230,9 @@ class SDRService:
         except Exception as e:
             raise SDRConfigError(f"Failed to configure device: {e}")
 
-    async def stream_iq(self) -> AsyncGenerator[np.ndarray[Any, np.dtype[np.complex64]], None]:
+    async def stream_iq(
+        self,
+    ) -> AsyncGenerator[np.ndarray[Any, np.dtype[np.complex64]], None]:
         """Stream IQ samples from SDR device.
 
         Yields:
@@ -235,7 +242,9 @@ class SDRService:
             raise SDRStreamError("Device not initialized")
 
         # Setup stream
-        self.stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+        self.stream = self.device.setupStream(
+            SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32
+        )
         self.device.activateStream(self.stream)
         self._stream_active = True
         self.status.stream_active = True
@@ -262,7 +271,9 @@ class SDRService:
                     current_time = time.time()
                     time_diff = current_time - self._last_sample_time
                     if time_diff > 1.0:  # Update rate every second
-                        self.status.samples_per_second = self._sample_counter / time_diff
+                        self.status.samples_per_second = (
+                            self._sample_counter / time_diff
+                        )
                         self._sample_counter = 0
                         self._last_sample_time = current_time
 
@@ -328,7 +339,9 @@ class SDRService:
 
         return self.status
 
-    async def get_fft_data(self, center_freq: int, bandwidth: int, num_samples: int = 1024) -> dict:
+    async def get_fft_data(
+        self, center_freq: int, bandwidth: int, num_samples: int = 1024
+    ) -> dict:
         """Get FFT spectrum data for waterfall display.
 
         Args:
@@ -358,7 +371,9 @@ class SDRService:
 
             # Generate realistic RSSI values (-100 to -20 dBm with noise)
             # Add some spectral features for testing
-            magnitudes = np.random.random(num_samples) * 30 - 100  # -100 to -70 dBm base
+            magnitudes = (
+                np.random.random(num_samples) * 30 - 100
+            )  # -100 to -70 dBm base
 
             # Add some signal peaks for testing
             peak1_idx = int(num_samples * 0.3)
@@ -385,12 +400,14 @@ class SDRService:
                 self._start_stream()
 
             # Read IQ samples
-            rx_stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+            rx_stream = self.device.setupStream(
+                SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32
+            )
             self.device.activateStream(rx_stream)
 
             # Buffer for IQ samples
             buff = np.array([0] * num_samples, np.complex64)
-            sr = self.device.readStream(rx_stream, [buff], num_samples)
+            self.device.readStream(rx_stream, [buff], num_samples)
 
             # Compute FFT
             fft_data = np.fft.fftshift(np.fft.fft(buff))
@@ -462,7 +479,9 @@ class SDRService:
                             logger.warning("SDR disconnected")
                             # Start reconnection
                             if not self._reconnect_task:
-                                self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+                                self._reconnect_task = asyncio.create_task(
+                                    self._reconnect_loop()
+                                )
 
             except asyncio.CancelledError:
                 break
@@ -568,7 +587,9 @@ class SDRService:
                     actual_freq = self.device.getFrequency(SoapySDR.SOAPY_SDR_RX, 0)
                     error_ppm = (actual_freq - freq) / freq * 1e6
                     freq_errors.append(error_ppm)
-                    logger.debug(f"Frequency {freq/1e6:.1f} MHz: error = {error_ppm:.2f} ppm")
+                    logger.debug(
+                        f"Frequency {freq/1e6:.1f} MHz: error = {error_ppm:.2f} ppm"
+                    )
                 except PISADException as e:
                     logger.warning(f"Failed to test frequency {freq/1e6:.1f} MHz: {e}")
 
@@ -589,7 +610,9 @@ class SDRService:
             self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, 0.0)
 
             # Setup stream for noise measurement
-            stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+            stream = self.device.setupStream(
+                SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32
+            )
             self.device.activateStream(stream)
 
             # Collect samples for noise analysis
@@ -619,7 +642,9 @@ class SDRService:
                     "noise_std_db": float(noise_std),
                     "samples_collected": len(noise_samples),
                 }
-                logger.info(f"Noise floor: {noise_floor:.1f} dBm (std: {noise_std:.1f} dB)")
+                logger.info(
+                    f"Noise floor: {noise_floor:.1f} dBm (std: {noise_std:.1f} dB)"
+                )
 
             # Step 3: Optimize gain settings
             logger.info("Optimizing gain settings...")
@@ -638,7 +663,9 @@ class SDRService:
                     self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, gain)
 
                     # Measure dynamic range at this gain
-                    stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+                    stream = self.device.setupStream(
+                        SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32
+                    )
                     self.device.activateStream(stream)
 
                     samples = []
@@ -654,7 +681,9 @@ class SDRService:
                     self.device.closeStream(stream)
 
                     if samples:
-                        dynamic_range = 20 * np.log10(max(samples) / (min(samples) + 1e-10))
+                        dynamic_range = 20 * np.log10(
+                            max(samples) / (min(samples) + 1e-10)
+                        )
                         gain_metrics.append(
                             {
                                 "gain_db": gain,
@@ -686,7 +715,9 @@ class SDRService:
             logger.info("Testing sample rate stability...")
 
             # Measure actual sample rate
-            stream = self.device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
+            stream = self.device.setupStream(
+                SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32
+            )
             self.device.activateStream(stream)
 
             sample_counts = []
@@ -735,8 +766,12 @@ class SDRService:
             # Generate recommendations
             recommendations = []
 
-            if calibration_results["frequency_accuracy"].get("recommended_ppm_correction"):
-                ppm = calibration_results["frequency_accuracy"]["recommended_ppm_correction"]
+            if calibration_results["frequency_accuracy"].get(
+                "recommended_ppm_correction"
+            ):
+                ppm = calibration_results["frequency_accuracy"][
+                    "recommended_ppm_correction"
+                ]
                 if abs(ppm) > 1:
                     recommendations.append(f"Apply PPM correction of {ppm:.1f}")
 
@@ -745,8 +780,13 @@ class SDRService:
                 if rec_gain != original_gain and original_gain != "AUTO":
                     recommendations.append(f"Consider using gain of {rec_gain:.1f} dB")
 
-            if calibration_results["sample_rate_stability"].get("stability_percent", 0) > 5:
-                recommendations.append("Sample rate instability detected - check USB connection")
+            if (
+                calibration_results["sample_rate_stability"].get("stability_percent", 0)
+                > 5
+            ):
+                recommendations.append(
+                    "Sample rate instability detected - check USB connection"
+                )
 
             calibration_results["recommendations"] = recommendations
             calibration_results["status"] = "complete"

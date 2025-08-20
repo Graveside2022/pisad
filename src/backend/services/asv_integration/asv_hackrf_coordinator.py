@@ -662,7 +662,7 @@ class ASVHackRFCoordinator(BaseService):
                                 health_status = await analyzer.get_health_status()
                                 self._coordination_metrics.analyzer_health_status[
                                     analyzer_id
-                                ] = health_status
+                                ] = health_status.get("operational", False)
                             else:
                                 # Assume healthy if no explicit health check
                                 self._coordination_metrics.analyzer_health_status[
@@ -973,3 +973,206 @@ class ASVHackRFCoordinator(BaseService):
         except Exception as e:
             logger.error(f"Error getting current frequency: {e}")
             return 406_000_000  # Safe default
+
+    # ========================================================================
+    # TASK 17d - HEALTH MONITORING WITH SAFETY STATUS REPORTING
+    # ========================================================================
+
+    async def report_analyzer_health_to_safety(
+        self, health_report: dict[str, Any]
+    ) -> None:
+        """Report analyzer health status to safety authority manager.
+
+        SUBTASK-6.1.2.4 [17d-4]: Health status reporting to safety authority
+
+        Args:
+            health_report: Dictionary containing analyzer health information
+        """
+        try:
+            if self._safety_authority is None:
+                logger.warning("Cannot report health - no safety authority configured")
+                return
+
+            # Report health to safety authority if method exists
+            if hasattr(self._safety_authority, "receive_component_health_report"):
+                await self._safety_authority.receive_component_health_report(
+                    component_id="asv_analyzer",
+                    health_data=health_report,
+                    authority_level=SafetyAuthorityLevel.SIGNAL,
+                    timestamp=datetime.now(UTC).isoformat(),
+                )
+                logger.debug(
+                    f"Reported analyzer health to safety authority: {health_report['analyzer_id']}"
+                )
+            else:
+                logger.debug("Safety authority does not support health reporting")
+
+        except Exception as e:
+            logger.error(f"Failed to report analyzer health to safety authority: {e}")
+
+    async def get_all_analyzer_health_status(self) -> dict[str, dict[str, Any]]:
+        """Get comprehensive health status for all active analyzers.
+
+        SUBTASK-6.1.2.4 [17d-1]: Comprehensive health status collection
+
+        Returns:
+            Dictionary mapping analyzer IDs to their health status
+        """
+        try:
+            health_statuses = {}
+
+            for analyzer_id, analyzer in self._active_analyzers.items():
+                try:
+                    if hasattr(analyzer, "get_health_status"):
+                        health_status = await analyzer.get_health_status()
+                        health_statuses[analyzer_id] = health_status
+
+                        # Report to safety authority if health is degraded
+                        if health_status.get("performance_degraded", False):
+                            await self.report_analyzer_health_to_safety(
+                                {
+                                    "analyzer_id": analyzer_id,
+                                    "operational": health_status.get(
+                                        "operational", False
+                                    ),
+                                    "performance_degraded": True,
+                                    "error_conditions": health_status.get(
+                                        "error_conditions", {}
+                                    ),
+                                }
+                            )
+                    else:
+                        # Provide basic health status for analyzers without health monitoring
+                        health_statuses[analyzer_id] = {
+                            "operational": True,
+                            "signal_processing_healthy": True,
+                            "performance_metrics": {},
+                            "error_conditions": {},
+                            "performance_degraded": False,
+                            "last_health_check_timestamp": datetime.now(
+                                UTC
+                            ).isoformat(),
+                            "analyzer_type": getattr(
+                                analyzer, "analyzer_type", "unknown"
+                            ),
+                        }
+
+                except Exception as e:
+                    logger.error(
+                        f"Failed to get health status for analyzer {analyzer_id}: {e}"
+                    )
+                    health_statuses[analyzer_id] = {
+                        "operational": False,
+                        "signal_processing_healthy": False,
+                        "performance_metrics": {},
+                        "error_conditions": {"health_check_error": str(e)},
+                        "performance_degraded": True,
+                        "last_health_check_timestamp": datetime.now(UTC).isoformat(),
+                        "analyzer_type": getattr(analyzer, "analyzer_type", "unknown"),
+                        "error": str(e),
+                    }
+
+            return health_statuses
+
+        except Exception as e:
+            logger.error(f"Failed to collect analyzer health statuses: {e}")
+            return {}
+
+    async def configure_analyzer_health_alerts(
+        self, analyzer_id: str, alert_config: dict[str, Any]
+    ) -> bool:
+        """Configure health alert thresholds for a specific analyzer.
+
+        SUBTASK-6.1.2.4 [17d-7]: Health alerts and threshold notifications
+
+        Args:
+            analyzer_id: ID of the analyzer to configure
+            alert_config: Alert configuration dictionary
+
+        Returns:
+            True if configuration was successful, False otherwise
+        """
+        try:
+            analyzer = self._active_analyzers.get(analyzer_id)
+            if analyzer is None:
+                logger.error(
+                    f"Analyzer {analyzer_id} not found for health alert configuration"
+                )
+                return False
+
+            if hasattr(analyzer, "configure_health_alerts"):
+                await analyzer.configure_health_alerts(alert_config)
+                logger.info(
+                    f"Configured health alerts for analyzer {analyzer_id}: {alert_config}"
+                )
+                return True
+            else:
+                logger.warning(
+                    f"Analyzer {analyzer_id} does not support health alert configuration"
+                )
+                return False
+
+        except Exception as e:
+            logger.error(
+                f"Failed to configure health alerts for analyzer {analyzer_id}: {e}"
+            )
+            return False
+
+    async def check_all_analyzer_health_thresholds(self) -> dict[str, bool]:
+        """Check health thresholds for all analyzers and trigger alerts if needed.
+
+        SUBTASK-6.1.2.4 [17d-7]: Health threshold checking across all analyzers
+
+        Returns:
+            Dictionary mapping analyzer IDs to alert status (True if alert triggered)
+        """
+        try:
+            alert_statuses = {}
+
+            for analyzer_id, analyzer in self._active_analyzers.items():
+                try:
+                    if hasattr(analyzer, "check_health_thresholds"):
+                        alert_triggered = await analyzer.check_health_thresholds()
+                        alert_statuses[analyzer_id] = alert_triggered
+
+                        if alert_triggered:
+                            logger.warning(
+                                f"Health alert triggered for analyzer {analyzer_id}"
+                            )
+                            # Report critical health issues to safety authority
+                            health_status = (
+                                await analyzer.get_health_status()
+                                if hasattr(analyzer, "get_health_status")
+                                else {}
+                            )
+                            await self.report_analyzer_health_to_safety(
+                                {
+                                    "analyzer_id": analyzer_id,
+                                    "operational": health_status.get(
+                                        "operational", False
+                                    ),
+                                    "performance_degraded": health_status.get(
+                                        "performance_degraded", True
+                                    ),
+                                    "error_conditions": health_status.get(
+                                        "error_conditions", {}
+                                    ),
+                                    "alert_triggered": True,
+                                }
+                            )
+                    else:
+                        alert_statuses[analyzer_id] = False
+
+                except Exception as e:
+                    logger.error(
+                        f"Failed to check health thresholds for analyzer {analyzer_id}: {e}"
+                    )
+                    alert_statuses[analyzer_id] = (
+                        True  # Assume alert condition on error
+                    )
+
+            return alert_statuses
+
+        except Exception as e:
+            logger.error(f"Failed to check analyzer health thresholds: {e}")
+            return {}

@@ -672,7 +672,7 @@ async def broadcast_ground_signal_quality(
     try:
         # Validate numeric parameters
         if not all(
-            isinstance(x, (int, float)) for x in [rssi, snr, noise_floor, quality_score]
+            isinstance(x, int | float) for x in [rssi, snr, noise_floor, quality_score]
         ):
             logger.warning("Invalid signal quality parameters - must be numeric")
             return
@@ -701,7 +701,7 @@ async def broadcast_frequency_sync_status(
         if sync_status not in ["synchronized", "mismatch", "syncing"]:
             logger.warning(f"Invalid sync status: {sync_status}")
             return
-        if not all(isinstance(x, (int, float)) for x in [ground_freq, drone_freq]):
+        if not all(isinstance(x, int | float) for x in [ground_freq, drone_freq]):
             logger.warning("Invalid frequency parameters - must be numeric")
             return
 
@@ -721,7 +721,7 @@ async def broadcast_frequency_sync_status(
 
 
 async def broadcast_emergency_fallback_status(
-    fallback_active: bool, trigger_reason: str = None
+    fallback_active: bool, trigger_reason: str | None = None
 ):
     """Broadcast emergency fallback status updates to all connected WebSocket clients."""
     try:

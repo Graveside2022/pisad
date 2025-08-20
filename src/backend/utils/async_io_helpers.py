@@ -59,7 +59,9 @@ class AsyncFileIO:
         return await asyncio.to_thread(_read_json)
 
     @staticmethod
-    async def write_json(path: Path | str, data: dict[str, Any], indent: int = 2) -> None:
+    async def write_json(
+        path: Path | str, data: dict[str, Any], indent: int = 2
+    ) -> None:
         """Write JSON file without blocking."""
 
         def _write_json():
@@ -128,7 +130,9 @@ class AsyncDatabasePool:
             await self._available.put(conn)
 
         self._initialized = True
-        logger.info(f"Initialized async database pool with {self.pool_size} connections")
+        logger.info(
+            f"Initialized async database pool with {self.pool_size} connections"
+        )
 
     async def close(self) -> None:
         """Close all connections in pool."""
@@ -157,17 +161,15 @@ class AsyncDatabasePool:
 
     async def fetchone(self, query: str, params: tuple = ()) -> dict[str, Any] | None:
         """Fetch single row."""
-        async with self.acquire() as conn:
-            async with conn.execute(query, params) as cursor:
-                row = await cursor.fetchone()
-                return dict(row) if row else None
+        async with self.acquire() as conn, conn.execute(query, params) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
 
     async def fetchall(self, query: str, params: tuple = ()) -> list[dict[str, Any]]:
         """Fetch all rows."""
-        async with self.acquire() as conn:
-            async with conn.execute(query, params) as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+        async with self.acquire() as conn, conn.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
     async def executemany(self, query: str, params_list: list[tuple]) -> None:
         """Execute query multiple times with different parameters."""
@@ -205,7 +207,9 @@ class AsyncBatchProcessor:
 
             # Process batch
             if asyncio.iscoroutinefunction(processor):
-                batch_results = await asyncio.gather(*[processor(item) for item in batch])
+                batch_results = await asyncio.gather(
+                    *[processor(item) for item in batch]
+                )
             else:
                 # Run sync function in thread
                 batch_results = await asyncio.gather(

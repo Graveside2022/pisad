@@ -357,7 +357,7 @@ class ASVConfigurationManager:
         except Exception as e:
             logger.error(f"Failed to save analyzer profiles: {e}")
 
-    def get_global_config(self, key: str = None) -> dict[str, Any] | Any:
+    def get_global_config(self, key: str | None = None) -> dict[str, Any] | Any:
         """Get global configuration value(s).
 
         Args:

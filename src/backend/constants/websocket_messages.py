@@ -5,7 +5,7 @@ This module defines all WebSocket message types used for communication
 between the backend and frontend components in Story 5.4.
 """
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 
 # Story 5.4 WebSocket Message Types
@@ -21,7 +21,7 @@ class WebSocketMessageTypes:
     CONFLICT_RESOLUTION = "conflict_resolution"
 
     # All Story 5.4 message types
-    ALL_STORY_5_4_TYPES = [
+    ALL_STORY_5_4_TYPES: ClassVar[list[str]] = [
         SDRPP_CONNECTION,
         DUAL_HOMING_STATUS,
         GROUND_SIGNAL_QUALITY,

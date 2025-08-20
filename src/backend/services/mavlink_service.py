@@ -116,6 +116,14 @@ class MAVLinkService:
         # Safety check callback for velocity commands
         self._safety_check_callback: Callable[[], bool] | None = None
 
+        # Parameter interface for Mission Planner integration
+        self._parameter_handlers: dict[str, Callable[[float], bool]] = {}
+        self._parameters: dict[str, float] = {}
+        self._parameter_callbacks: list[Callable[[str, float], None]] = []
+
+        # Initialize frequency control parameters
+        self._initialize_frequency_parameters()
+
         # Telemetry streaming tasks
         self._telemetry_tasks: list[asyncio.Task[None]] = []
         self._rssi_value: float = -100.0  # Default noise floor
@@ -1436,3 +1444,513 @@ class MAVLinkService:
             self.send_named_value_float("SIGNAL", 0.0)  # Signal indicator = 0
         except Exception as e:
             logger.error(f"Failed to send signal lost telemetry: {e}")
+
+    def _initialize_frequency_parameters(self) -> None:
+        """Initialize MAVLink parameters for Mission Planner frequency control.
+
+        SUBTASK-6.1.3.1 [18a] - MAVLink parameter interface for operator frequency selection.
+        Creates Mission Planner-compatible parameter interface for ASV frequency control.
+        """
+        try:
+            # Register frequency profile parameter (0=Emergency, 1=Aviation, 2=Custom)
+            self._register_parameter(
+                "PISAD_FREQ_PROF", 0.0, self._handle_frequency_profile_change
+            )
+
+            # Register custom frequency parameter (Hz)
+            self._register_parameter(
+                "PISAD_FREQ_HZ", 406000000.0, self._handle_custom_frequency_change
+            )
+
+            # Register homing mode enable/disable parameter
+            self._register_parameter(
+                "PISAD_HOMING_EN", 0.0, self._handle_homing_enable_change
+            )
+
+            logger.info("Mission Planner frequency parameters initialized")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize frequency parameters: {e}")
+
+    def _register_parameter(
+        self, param_name: str, default_value: float, handler: Callable[[float], bool]
+    ) -> None:
+        """Register a MAVLink parameter with handler.
+
+        Args:
+            param_name: Parameter name (Mission Planner compatible)
+            default_value: Default parameter value
+            handler: Callback function for parameter changes
+        """
+        self._parameter_handlers[param_name] = handler
+        self._parameters[param_name] = default_value
+        logger.debug(f"Registered parameter {param_name}={default_value}")
+
+    def set_parameter(self, param_name: str, value: float) -> bool:
+        """Set a MAVLink parameter value.
+
+        Args:
+            param_name: Parameter name
+            value: Parameter value
+
+        Returns:
+            True if parameter was set successfully
+        """
+        try:
+            if param_name not in self._parameter_handlers:
+                logger.warning(f"Unknown parameter: {param_name}")
+                return False
+
+            # Call parameter handler for validation and processing
+            handler = self._parameter_handlers[param_name]
+            if handler(value):
+                self._parameters[param_name] = value
+
+                # Notify callbacks of parameter change
+                for callback in self._parameter_callbacks:
+                    try:
+                        callback(param_name, value)
+                    except Exception as e:
+                        logger.error(f"Parameter callback error: {e}")
+
+                logger.info(f"Parameter {param_name} set to {value}")
+                return True
+            else:
+                logger.warning(f"Parameter validation failed: {param_name}={value}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error setting parameter {param_name}: {e}")
+            return False
+
+    def get_parameter(self, param_name: str) -> float | None:
+        """Get a MAVLink parameter value.
+
+        Args:
+            param_name: Parameter name
+
+        Returns:
+            Parameter value or None if not found
+        """
+        return self._parameters.get(param_name)
+
+    def request_parameter(self, param_name: str) -> bool:
+        """Request parameter value to be sent to Mission Planner.
+
+        Args:
+            param_name: Parameter name to request
+
+        Returns:
+            True if request was processed
+        """
+        try:
+            if param_name in self._parameters:
+                value = self._parameters[param_name]
+                self._send_param_value(param_name, value)
+                return True
+            else:
+                logger.warning(f"Parameter not found for request: {param_name}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error requesting parameter {param_name}: {e}")
+            return False
+
+    def _handle_param_set(self, msg: Any) -> bool:
+        """Handle PARAM_SET message from Mission Planner.
+
+        Args:
+            msg: MAVLink PARAM_SET message
+
+        Returns:
+            True if parameter was set successfully
+        """
+        try:
+            # Handle both string and bytes for param_id
+            if isinstance(msg.param_id, bytes):
+                param_id = msg.param_id.decode("utf-8").rstrip("\x00")
+            else:
+                param_id = str(msg.param_id).rstrip("\x00")
+            param_value = float(msg.param_value)
+
+            if self.set_parameter(param_id, param_value):
+                # Send confirmation back to Mission Planner
+                self._send_param_value(param_id, param_value)
+                return True
+            else:
+                return False
+
+        except Exception as e:
+            logger.error(f"Error handling PARAM_SET: {e}")
+            return False
+
+    def _handle_param_request_read(self, msg: Any) -> bool:
+        """Handle PARAM_REQUEST_READ message from Mission Planner.
+
+        Args:
+            msg: MAVLink PARAM_REQUEST_READ message
+
+        Returns:
+            True if parameter was sent successfully
+        """
+        try:
+            # Handle both string and bytes for param_id
+            if isinstance(msg.param_id, bytes):
+                param_id = msg.param_id.decode("utf-8").rstrip("\x00")
+            else:
+                param_id = str(msg.param_id).rstrip("\x00")
+            return self.request_parameter(param_id)
+
+        except Exception as e:
+            logger.error(f"Error handling PARAM_REQUEST_READ: {e}")
+            return False
+
+    def _send_param_value(self, param_name: str, value: float) -> None:
+        """Send PARAM_VALUE message to Mission Planner.
+
+        Args:
+            param_name: Parameter name
+            value: Parameter value
+        """
+        if not self.connection:
+            return
+
+        try:
+            # Send PARAM_VALUE message
+            self.connection.mav.param_value_send(
+                param_name.encode("utf-8")[:16],  # Parameter ID (max 16 chars)
+                value,  # Parameter value
+                2,  # MAV_PARAM_TYPE_REAL32
+                len(self._parameters),  # Total parameter count
+                list(self._parameters.keys()).index(param_name),  # Parameter index
+            )
+
+        except Exception as e:
+            logger.error(f"Error sending PARAM_VALUE for {param_name}: {e}")
+
+    def _handle_frequency_profile_change(self, value: float) -> bool:
+        """Handle frequency profile parameter change.
+
+        SUBTASK-6.1.3.1 [18b] - Frequency profile selection via Mission Planner.
+
+        Args:
+            value: Profile index (0=Emergency, 1=Aviation, 2=Custom)
+
+        Returns:
+            True if profile change was successful
+        """
+        try:
+            profile_index = int(value)
+
+            # Validate profile index
+            if profile_index not in [0, 1, 2]:
+                logger.warning(f"Invalid frequency profile: {profile_index}")
+                return False
+
+            # Map profile index to frequency profile name
+            profile_names = ["Emergency", "Aviation", "Custom"]
+            profile_name = profile_names[profile_index]
+
+            # TODO: Integrate with ASV frequency switching
+            # This will be implemented in the next phase
+            logger.info(
+                f"Frequency profile changed to: {profile_name} (index={profile_index})"
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error handling frequency profile change: {e}")
+            return False
+
+    def _handle_custom_frequency_change(self, value: float) -> bool:
+        """Handle custom frequency parameter change.
+
+        SUBTASK-6.1.3.1 [18c] - Real-time frequency change commands.
+
+        Args:
+            value: Frequency in Hz
+
+        Returns:
+            True if frequency change was successful
+        """
+        try:
+            frequency_hz = int(value)
+
+            # Validate frequency range (HackRF One: 1 MHz - 6 GHz)
+            if not (1_000_000 <= frequency_hz <= 6_000_000_000):
+                logger.warning(f"Frequency out of range: {frequency_hz} Hz")
+                return False
+
+            # TODO: Integrate with ASV frequency switching
+            # This will be implemented in the next phase
+            logger.info(f"Custom frequency changed to: {frequency_hz} Hz")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error handling custom frequency change: {e}")
+            return False
+
+    def _handle_homing_enable_change(self, value: float) -> bool:
+        """Handle homing enable parameter change.
+
+        SUBTASK-6.1.3.3 [20b] - Homing mode activation via Mission Planner.
+
+        Args:
+            value: Enable flag (0=disabled, 1=enabled)
+
+        Returns:
+            True if homing enable change was successful
+        """
+        try:
+            # Validate that value is 0 or 1 only
+            if value not in [0.0, 1.0]:
+                logger.warning(f"Invalid homing enable value: {value} (must be 0 or 1)")
+                return False
+
+            enable_flag = bool(int(value))
+
+            # TODO: Integrate with existing homing controller
+            # This will be implemented in the next phase
+            logger.info(
+                f"Homing mode {'enabled' if enable_flag else 'disabled'} via Mission Planner"
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error handling homing enable change: {e}")
+            return False
+
+    def add_parameter_callback(self, callback: Callable[[str, float], None]) -> None:
+        """Add callback for parameter changes.
+
+        Args:
+            callback: Function to call when parameters change
+        """
+        self._parameter_callbacks.append(callback)
+
+    def send_asv_bearing_telemetry(self, bearing_calculation: Any) -> None:
+        """Send ASV bearing calculation telemetry to Mission Planner.
+
+        SUBTASK-6.1.3.2 [19a][19b] - Enhanced RF telemetry with ASV signal classification.
+
+        Args:
+            bearing_calculation: ASVBearingCalculation object with enhanced telemetry
+        """
+        if not self.connection or self.state != ConnectionState.CONNECTED:
+            return
+
+        try:
+            current_time = time.time()
+
+            # Send ASV bearing and confidence data
+            self.send_named_value_float(
+                "ASV_BEARING", bearing_calculation.bearing_deg, current_time
+            )
+            self.send_named_value_float(
+                "ASV_CONFIDENCE", bearing_calculation.confidence * 100.0, current_time
+            )  # Send as percentage
+            self.send_named_value_float(
+                "ASV_PRECISION", bearing_calculation.precision_deg, current_time
+            )
+
+            # Send enhanced signal quality indicators
+            self.send_named_value_float(
+                "ASV_SIG_QUAL", bearing_calculation.signal_quality * 100.0, current_time
+            )
+            self.send_named_value_float(
+                "ASV_SIG_RSSI", bearing_calculation.signal_strength_dbm, current_time
+            )
+
+            # Send interference detection flag (0=no interference, 1=interference detected)
+            interference_flag = (
+                1.0 if bearing_calculation.interference_detected else 0.0
+            )
+            self.send_named_value_float("ASV_INTERF", interference_flag, current_time)
+
+            # Send signal classification as numeric code for Mission Planner display
+            classification_code = self._map_signal_classification_to_code(
+                bearing_calculation.signal_classification
+            )
+            self.send_named_value_float(
+                "ASV_SIG_TYPE", float(classification_code), current_time
+            )
+
+            # Enhanced status text with ASV analysis
+            status_text = (
+                f"ASV: {bearing_calculation.bearing_deg:.1f}° "
+                f"±{bearing_calculation.precision_deg:.1f}° "
+                f"Conf:{bearing_calculation.confidence*100:.0f}% "
+                f"Type:{bearing_calculation.signal_classification}"
+            )
+            self.send_statustext(status_text, severity=6)  # INFO level
+
+            logger.debug(f"Sent ASV bearing telemetry: {status_text}")
+
+        except Exception as e:
+            logger.error(f"Failed to send ASV bearing telemetry: {e}")
+
+    def send_asv_signal_quality_telemetry(
+        self, signal_quality_data: dict[str, Any]
+    ) -> None:
+        """Send ASV signal quality and trend analysis telemetry.
+
+        SUBTASK-6.1.3.2 [19c][19d] - Signal quality indicators and RSSI trend visualization.
+
+        Args:
+            signal_quality_data: Dictionary with signal quality metrics
+        """
+        if not self.connection or self.state != ConnectionState.CONNECTED:
+            return
+
+        try:
+            current_time = time.time()
+
+            # Send signal trend indicators
+            rssi_trend = signal_quality_data.get(
+                "rssi_trend", 0.0
+            )  # Positive = improving, negative = degrading
+            self.send_named_value_float("ASV_RSSI_TREND", rssi_trend, current_time)
+
+            # Send signal stability metrics
+            signal_stability = signal_quality_data.get(
+                "signal_stability", 0.0
+            )  # 0.0-1.0 stability score
+            self.send_named_value_float(
+                "ASV_STABILITY", signal_stability * 100.0, current_time
+            )
+
+            # Send frequency drift information
+            frequency_drift = signal_quality_data.get("frequency_drift_hz", 0.0)
+            self.send_named_value_float("ASV_FREQ_DRIFT", frequency_drift, current_time)
+
+            # Send multipath indicator
+            multipath_severity = signal_quality_data.get(
+                "multipath_severity", 0.0
+            )  # 0.0-1.0
+            self.send_named_value_float(
+                "ASV_MULTIPATH", multipath_severity * 100.0, current_time
+            )
+
+            logger.debug("Sent ASV signal quality telemetry")
+
+        except Exception as e:
+            logger.error(f"Failed to send ASV signal quality telemetry: {e}")
+
+    def send_asv_detection_event_telemetry(
+        self, detection_event: dict[str, Any]
+    ) -> None:
+        """Send ASV detection event notifications for Mission Planner status.
+
+        SUBTASK-6.1.3.3 [20c] - RF detection event notifications in Mission Planner.
+
+        Args:
+            detection_event: Dictionary with detection event data
+        """
+        if not self.connection or self.state != ConnectionState.CONNECTED:
+            return
+
+        try:
+            current_time = time.time()
+
+            # Send detection event type
+            event_type_code = self._map_detection_event_to_code(
+                detection_event.get("event_type", "UNKNOWN")
+            )
+            self.send_named_value_float(
+                "ASV_DET_EVENT", float(event_type_code), current_time
+            )
+
+            # Send detection strength
+            detection_strength = detection_event.get("detection_strength", 0.0)
+            self.send_named_value_float(
+                "ASV_DET_STR", detection_strength * 100.0, current_time
+            )
+
+            # Send ASV analyzer source info
+            analyzer_source = detection_event.get("analyzer_source", "UNKNOWN")
+            analyzer_code = self._map_analyzer_source_to_code(analyzer_source)
+            self.send_named_value_float(
+                "ASV_ANALYZER", float(analyzer_code), current_time
+            )
+
+            # Enhanced status message for Mission Planner
+            event_type = detection_event.get("event_type", "DETECTION")
+            frequency_mhz = detection_event.get("frequency_hz", 0) / 1_000_000
+            status_msg = (
+                f"ASV {event_type}: {frequency_mhz:.3f}MHz "
+                f"Strength:{detection_strength*100:.0f}% "
+                f"Source:{analyzer_source}"
+            )
+            self.send_statustext(status_msg, severity=5)  # NOTICE level
+
+            logger.info(f"Sent ASV detection event: {status_msg}")
+
+        except Exception as e:
+            logger.error(f"Failed to send ASV detection event telemetry: {e}")
+
+    def _map_signal_classification_to_code(self, classification: str) -> int:
+        """Map ASV signal classification to numeric code for Mission Planner.
+
+        Args:
+            classification: ASV signal classification string
+
+        Returns:
+            Numeric code for Mission Planner telemetry
+        """
+        classification_map = {
+            "UNKNOWN": 0,
+            "CONTINUOUS": 1,
+            "FM_CHIRP": 2,
+            "FM_CHIRP_WEAK": 3,
+            "INTERFERENCE": 4,
+            "BEACON_121_5": 5,
+            "BEACON_406": 6,
+            "AVIATION": 7,
+            "MULTIPATH": 8,
+            "SPURIOUS": 9,
+        }
+        return classification_map.get(classification, 0)
+
+    def _map_detection_event_to_code(self, event_type: str) -> int:
+        """Map detection event type to numeric code.
+
+        Args:
+            event_type: Detection event type string
+
+        Returns:
+            Numeric code for telemetry
+        """
+        event_map = {
+            "UNKNOWN": 0,
+            "DETECTION": 1,
+            "SIGNAL_LOST": 2,
+            "SIGNAL_IMPROVED": 3,
+            "INTERFERENCE_DETECTED": 4,
+            "INTERFERENCE_CLEARED": 5,
+            "FREQUENCY_DRIFT": 6,
+            "MULTIPATH_DETECTED": 7,
+            "BEACON_CONFIRMED": 8,
+        }
+        return event_map.get(event_type, 0)
+
+    def _map_analyzer_source_to_code(self, analyzer_source: str) -> int:
+        """Map ASV analyzer source to numeric code.
+
+        Args:
+            analyzer_source: ASV analyzer source identifier
+
+        Returns:
+            Numeric code for telemetry
+        """
+        analyzer_map = {
+            "UNKNOWN": 0,
+            "ASV_PROFESSIONAL": 1,
+            "ASV_STANDARD": 2,
+            "ASV_ENHANCED": 3,
+            "HACKRF_DIRECT": 4,
+            "HYBRID_ASV": 5,
+        }
+        return analyzer_map.get(analyzer_source, 0)

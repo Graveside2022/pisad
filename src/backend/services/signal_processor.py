@@ -961,7 +961,7 @@ class SignalProcessor:
 
         # Create RSSIReading objects for each result
         current_time = datetime.now(UTC)
-        for i, rssi_dbm in enumerate(rssi_dbm_batch):
+        for _i, rssi_dbm in enumerate(rssi_dbm_batch):
             # Update noise floor (could be optimized further but maintain compatibility)
             self.update_noise_floor(rssi_dbm)
             snr = rssi_dbm - self.noise_floor

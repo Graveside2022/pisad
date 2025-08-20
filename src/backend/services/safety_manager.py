@@ -246,10 +246,7 @@ class SafetyManager:
         if distance > self.geofence_radius:
             return False
 
-        if position["alt"] > self.geofence_altitude:
-            return False
-
-        return True
+        return not position["alt"] > self.geofence_altitude
 
     def validate_mode_change(self, new_mode: str) -> bool:
         """
@@ -266,10 +263,7 @@ class SafetyManager:
             return False
 
         # Allow other standard modes
-        if new_mode in ["GUIDED", "AUTO", "STABILIZE", "ALT_HOLD"]:
-            return True
-
-        return False
+        return new_mode in ["GUIDED", "AUTO", "STABILIZE", "ALT_HOLD"]
 
     def signal_lost(self, duration: float) -> None:
         """Handle signal loss event."""
@@ -507,7 +501,7 @@ class SafetyManager:
         """Check if any command has timed out."""
         current_time = time.time()
 
-        for command, start_time in self.watchdog_commands.items():
+        for _command, start_time in self.watchdog_commands.items():
             if current_time - start_time > self.watchdog_timeout:
                 return True
 

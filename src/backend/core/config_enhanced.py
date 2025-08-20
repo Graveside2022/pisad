@@ -48,7 +48,9 @@ class EnhancedConfigLoader:
             self.config_path = Path(config_path)
 
         self.config = Config()
-        self.inheritance_loader = YAMLInheritanceLoader(base_dir=self.project_root / "config")
+        self.inheritance_loader = YAMLInheritanceLoader(
+            base_dir=self.project_root / "config"
+        )
 
     def load(self) -> Config:
         """
@@ -65,7 +67,9 @@ class EnhancedConfigLoader:
             if self.config_path.exists():
                 yaml_config = self.inheritance_loader.load(self.config_path)
                 self._apply_yaml_config(yaml_config)
-                logger.info(f"Loaded configuration from {self.config_path} with inheritance")
+                logger.info(
+                    f"Loaded configuration from {self.config_path} with inheritance"
+                )
             else:
                 # Try loading base.yaml as fallback
                 base_path = self.project_root / "config" / "base.yaml"
@@ -173,15 +177,21 @@ class EnhancedConfigLoader:
             # Store additional safety parameters as custom attributes
             # These can be accessed but aren't part of the base SafetyConfig
             battery_cfg = safety_cfg.get("battery", {})
-            self.config.safety.battery_low_voltage = battery_cfg.get("low_voltage", 19.2)
-            self.config.safety.battery_critical_voltage = battery_cfg.get("critical_voltage", 18.0)
+            self.config.safety.battery_low_voltage = battery_cfg.get(
+                "low_voltage", 19.2
+            )
+            self.config.safety.battery_critical_voltage = battery_cfg.get(
+                "critical_voltage", 18.0
+            )
 
             gps_cfg = safety_cfg.get("gps", {})
             self.config.safety.gps_min_satellites = gps_cfg.get("min_satellites", 8)
             self.config.safety.gps_max_hdop = gps_cfg.get("max_hdop", 2.0)
 
             rc_cfg = safety_cfg.get("rc", {})
-            self.config.safety.rc_override_threshold = rc_cfg.get("override_threshold", 50)
+            self.config.safety.rc_override_threshold = rc_cfg.get(
+                "override_threshold", 50
+            )
 
         # Homing configuration
         if "homing" in yaml_config:
@@ -223,8 +233,16 @@ class EnhancedConfigLoader:
             "PISAD_SDR_FREQUENCY": ("sdr", "SDR_FREQUENCY", int),
             "PISAD_SDR_GAIN": ("sdr", "SDR_GAIN", int),
             "PISAD_LOG_LEVEL": ("logging", "LOG_LEVEL"),
-            "PISAD_DEBUG_MODE": ("development", "DEV_DEBUG_MODE", lambda x: x.lower() == "true"),
-            "PISAD_MOCK_SDR": ("development", "DEV_MOCK_SDR", lambda x: x.lower() == "true"),
+            "PISAD_DEBUG_MODE": (
+                "development",
+                "DEV_DEBUG_MODE",
+                lambda x: x.lower() == "true",
+            ),
+            "PISAD_MOCK_SDR": (
+                "development",
+                "DEV_MOCK_SDR",
+                lambda x: x.lower() == "true",
+            ),
         }
 
         for env_var, mapping in env_mappings.items():
@@ -235,7 +253,9 @@ class EnhancedConfigLoader:
                     # Apply type conversion
                     value = mapping[2](value)
                 setattr(config_section, mapping[1], value)
-                logger.debug(f"Override {mapping[0]}.{mapping[1]} with {env_var}={value}")
+                logger.debug(
+                    f"Override {mapping[0]}.{mapping[1]} with {env_var}={value}"
+                )
 
     def _validate_config(self):
         """Validate configuration values."""
@@ -246,14 +266,17 @@ class EnhancedConfigLoader:
             )
 
         # Validate safety thresholds (if custom attributes exist)
-        if hasattr(self.config.safety, "battery_low_voltage") and hasattr(
-            self.config.safety, "battery_critical_voltage"
-        ):
-            if (
+        if (
+            hasattr(self.config.safety, "battery_low_voltage")
+            and hasattr(self.config.safety, "battery_critical_voltage")
+            and (
                 self.config.safety.battery_low_voltage
                 <= self.config.safety.battery_critical_voltage
-            ):
-                raise ConfigurationError("Battery low voltage must be higher than critical voltage")
+            )
+        ):
+            raise ConfigurationError(
+                "Battery low voltage must be higher than critical voltage"
+            )
 
         # Validate file paths
         log_dir = Path(self.config.logging.LOG_FILE_PATH).parent

@@ -50,12 +50,23 @@ except ImportError:
     subprocess = None
     _SUBPROCESS_AVAILABLE = False
 
+import contextlib
 import hashlib
 import json
 import pickle
 import zlib
 
 from src.backend.utils.logging import get_logger
+
+# Import NetworkConfig for type hints
+try:
+    from src.backend.core.config import NetworkConfig
+except ImportError:
+    # Handle circular import by using TYPE_CHECKING
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from src.backend.core.config import NetworkConfig
 
 logger = get_logger(__name__)
 
@@ -1294,13 +1305,20 @@ class ResourceOptimizer:
     CPU usage management, network bandwidth optimization, and graceful degradation.
     """
 
-    def __init__(self, enable_memory_profiler: bool = True):
+    def __init__(
+        self,
+        enable_memory_profiler: bool = True,
+        network_config: "NetworkConfig | None" = None,
+    ):
         self.enable_memory_profiler = (
             enable_memory_profiler and _MEMORY_PROFILER_AVAILABLE
         )
         self.memory_pools: dict[str, MemoryPool] = {}
         self.circular_buffers: dict[str, RSsiCircularBuffer] = {}
         self.degradation_manager = GracefulDegradationManager()
+
+        # [8e6c] - Store network configuration for configurable thresholds
+        self._network_config = network_config
 
         # Resource monitoring
         self._resource_history: deque[ResourceMetrics] = deque(maxlen=1000)
@@ -1931,10 +1949,7 @@ class ResourceOptimizer:
             )
 
         # Peak management score - penalize excessive peaks
-        if peak <= 80:
-            peak_score = 100
-        else:
-            peak_score = max(0, 100 - (peak - 80) * 2)
+        peak_score = 100 if peak <= 80 else max(0, 100 - (peak - 80) * 2)
 
         # Combined efficiency score
         efficiency = (consistency_score + utilization_score + peak_score) / 3
@@ -2030,6 +2045,64 @@ class ResourceOptimizer:
         Returns thermal monitor for CPU temperature tracking and throttling.
         """
         return self._thermal_monitor
+
+    def create_bandwidth_throttle(
+        self,
+        window_size_seconds: float = 5.0,
+        max_bandwidth_bps: int = 1_000_000,
+        update_interval_ms: int = 100,
+        congestion_threshold_ratio: float = 0.8,
+        enable_congestion_detection: bool = True,
+    ) -> "BandwidthThrottle":
+        """
+        [8e6c] - Create BandwidthThrottle with configurable network settings.
+
+        Creates bandwidth throttle using NetworkConfig if available,
+        with fallback to provided parameters.
+        """
+        return BandwidthThrottle(
+            window_size_seconds=window_size_seconds,
+            max_bandwidth_bps=max_bandwidth_bps,
+            update_interval_ms=update_interval_ms,
+            congestion_threshold_ratio=congestion_threshold_ratio,
+            enable_congestion_detection=enable_congestion_detection,
+            network_config=self._network_config,
+        )
+
+    def update_network_config(self, network_config: "NetworkConfig") -> None:
+        """
+        [8e6c] - Update network configuration for runtime threshold adjustments.
+
+        Updates the stored network configuration and propagates changes
+        to all network-related components.
+        """
+        self._network_config = network_config
+        logger.info("ResourceOptimizer network configuration updated")
+
+    def get_network_monitor(self) -> "NetworkBandwidthMonitor":
+        """Get network bandwidth monitor instance."""
+        return NetworkBandwidthMonitor()
+
+    def get_async_scheduler(self) -> "AsyncTaskScheduler":
+        """Get async task scheduler instance."""
+        return self.create_async_task_scheduler()
+
+    def should_trigger_degradation(self, network_stats: dict[str, Any]) -> bool:
+        """
+        [8e6c] - Determine if graceful degradation should be triggered based on network stats.
+
+        Uses configurable packet loss thresholds from NetworkConfig if available.
+        """
+        packet_loss_rate = network_stats.get("packet_loss_rate", 0.0)
+
+        # Use configurable critical threshold if available
+        critical_threshold = 0.20  # Default 20%
+        if self._network_config:
+            critical_threshold = (
+                self._network_config.NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD
+            )
+
+        return packet_loss_rate > critical_threshold
 
 
 @dataclass
@@ -2870,68 +2943,67 @@ class AsyncTaskScheduler:
         """
         timeout = timeout_override or self.task_timeout_seconds
 
-        async with self.task_semaphore:
-            async with self.coordination_semaphore:
-                start_time = time.perf_counter()
+        async with self.task_semaphore, self.coordination_semaphore:
+            start_time = time.perf_counter()
 
-                try:
-                    # Execute task with timeout
-                    result = await asyncio.wait_for(
-                        task_func(*args, **kwargs), timeout=timeout
-                    )
+            try:
+                # Execute task with timeout
+                result = await asyncio.wait_for(
+                    task_func(*args, **kwargs), timeout=timeout
+                )
 
-                    execution_time = time.perf_counter() - start_time
-                    self.completed_tasks += 1
-                    self.total_task_time += execution_time
+                execution_time = time.perf_counter() - start_time
+                self.completed_tasks += 1
+                self.total_task_time += execution_time
 
-                    logger.debug(
-                        f"Coordination task completed in {execution_time:.3f}s, "
-                        f"priority: {priority}"
-                    )
+                logger.debug(
+                    f"Coordination task completed in {execution_time:.3f}s, "
+                    f"priority: {priority}"
+                )
 
-                    return {
-                        "result": result,
-                        "execution_time_seconds": execution_time,
-                        "status": "completed",
-                        "priority": priority,
-                        "task_type": "coordination",
-                    }
+                return {
+                    "result": result,
+                    "execution_time_seconds": execution_time,
+                    "status": "completed",
+                    "priority": priority,
+                    "task_type": "coordination",
+                }
 
-                except TimeoutError:
-                    execution_time = time.perf_counter() - start_time
-                    self.timeout_tasks += 1
+            except TimeoutError:
+                execution_time = time.perf_counter() - start_time
+                self.timeout_tasks += 1
 
-                    logger.warning(
-                        f"Coordination task timed out after {timeout}s, "
-                        f"priority: {priority}"
-                    )
+                logger.warning(
+                    f"Coordination task timed out after {timeout}s, "
+                    f"priority: {priority}"
+                )
 
-                    return {
-                        "result": None,
-                        "execution_time_seconds": execution_time,
-                        "status": "timeout",
-                        "priority": priority,
-                        "task_type": "coordination",
-                        "timeout_seconds": timeout,
-                    }
+                return {
+                    "result": None,
+                    "execution_time_seconds": execution_time,
+                    "status": "timeout",
+                    "priority": priority,
+                    "task_type": "coordination",
+                    "timeout_seconds": timeout,
+                }
 
-                except Exception as e:
-                    execution_time = time.perf_counter() - start_time
-                    self.failed_tasks += 1
+            except Exception as e:
+                execution_time = time.perf_counter() - start_time
+                self.failed_tasks += 1
 
-                    logger.error(
-                        f"Coordination task failed after {execution_time:.3f}s: {e}, "
-                        f"priority: {priority}"
-                    )
+                logger.error(
+                    f"Coordination task failed after {execution_time:.3f}s: {e}, "
+                    f"priority: {priority}"
+                )
 
-                    return {
-                        "result": None,
-                        "execution_time_seconds": execution_time,
-                        "status": "failed",
-                        "priority": priority,
-                        "task_type": "coordination",
-                        "error": str(e),
-                    }
+                return {
+                    "result": None,
+                    "execution_time_seconds": execution_time,
+                    "status": "failed",
+                    "priority": priority,
+                    "task_type": "coordination",
+                    "error": str(e),
+                }
 
     async def schedule_signal_processing_task(
         self,
@@ -2956,72 +3028,71 @@ class AsyncTaskScheduler:
         """
         timeout = timeout_override or self.task_timeout_seconds
 
-        async with self.task_semaphore:
-            async with self.signal_processing_semaphore:
-                start_time = time.perf_counter()
+        async with self.task_semaphore, self.signal_processing_semaphore:
+            start_time = time.perf_counter()
 
-                try:
-                    # Execute CPU-intensive task in thread pool
-                    loop = asyncio.get_event_loop()
-                    result = await asyncio.wait_for(
-                        loop.run_in_executor(
-                            self.signal_processing_executor, task_func, *args, **kwargs
-                        ),
-                        timeout=timeout,
-                    )
+            try:
+                # Execute CPU-intensive task in thread pool
+                loop = asyncio.get_event_loop()
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        self.signal_processing_executor, task_func, *args, **kwargs
+                    ),
+                    timeout=timeout,
+                )
 
-                    execution_time = time.perf_counter() - start_time
-                    self.completed_tasks += 1
-                    self.total_task_time += execution_time
+                execution_time = time.perf_counter() - start_time
+                self.completed_tasks += 1
+                self.total_task_time += execution_time
 
-                    logger.debug(
-                        f"Signal processing task completed in {execution_time:.3f}s, "
-                        f"priority: {priority}"
-                    )
+                logger.debug(
+                    f"Signal processing task completed in {execution_time:.3f}s, "
+                    f"priority: {priority}"
+                )
 
-                    return {
-                        "result": result,
-                        "execution_time_seconds": execution_time,
-                        "status": "completed",
-                        "priority": priority,
-                        "task_type": "signal_processing",
-                    }
+                return {
+                    "result": result,
+                    "execution_time_seconds": execution_time,
+                    "status": "completed",
+                    "priority": priority,
+                    "task_type": "signal_processing",
+                }
 
-                except TimeoutError:
-                    execution_time = time.perf_counter() - start_time
-                    self.timeout_tasks += 1
+            except TimeoutError:
+                execution_time = time.perf_counter() - start_time
+                self.timeout_tasks += 1
 
-                    logger.warning(
-                        f"Signal processing task timed out after {timeout}s, "
-                        f"priority: {priority}"
-                    )
+                logger.warning(
+                    f"Signal processing task timed out after {timeout}s, "
+                    f"priority: {priority}"
+                )
 
-                    return {
-                        "result": None,
-                        "execution_time_seconds": execution_time,
-                        "status": "timeout",
-                        "priority": priority,
-                        "task_type": "signal_processing",
-                        "timeout_seconds": timeout,
-                    }
+                return {
+                    "result": None,
+                    "execution_time_seconds": execution_time,
+                    "status": "timeout",
+                    "priority": priority,
+                    "task_type": "signal_processing",
+                    "timeout_seconds": timeout,
+                }
 
-                except Exception as e:
-                    execution_time = time.perf_counter() - start_time
-                    self.failed_tasks += 1
+            except Exception as e:
+                execution_time = time.perf_counter() - start_time
+                self.failed_tasks += 1
 
-                    logger.error(
-                        f"Signal processing task failed after {execution_time:.3f}s: {e}, "
-                        f"priority: {priority}"
-                    )
+                logger.error(
+                    f"Signal processing task failed after {execution_time:.3f}s: {e}, "
+                    f"priority: {priority}"
+                )
 
-                    return {
-                        "result": None,
-                        "execution_time_seconds": execution_time,
-                        "status": "failed",
-                        "priority": priority,
-                        "task_type": "signal_processing",
-                        "error": str(e),
-                    }
+                return {
+                    "result": None,
+                    "execution_time_seconds": execution_time,
+                    "status": "failed",
+                    "priority": priority,
+                    "task_type": "signal_processing",
+                    "error": str(e),
+                }
 
     async def schedule_batch_coordination_tasks(
         self, tasks: list[dict[str, Any]], max_concurrent_batch: int | None = None
@@ -3107,10 +3178,8 @@ class AsyncTaskScheduler:
         self._scheduler_running = False
         if self._scheduler_task:
             self._scheduler_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._scheduler_task
-            except asyncio.CancelledError:
-                pass
 
         logger.info("Priority task scheduler stopped")
 
@@ -3122,24 +3191,18 @@ class AsyncTaskScheduler:
                 task_info = None
 
                 # High priority first
-                try:
+                with contextlib.suppress(asyncio.QueueEmpty):
                     task_info = self.high_priority_queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    pass
 
                 # Normal priority second
                 if not task_info:
-                    try:
+                    with contextlib.suppress(asyncio.QueueEmpty):
                         task_info = self.normal_priority_queue.get_nowait()
-                    except asyncio.QueueEmpty:
-                        pass
 
                 # Low priority last
                 if not task_info:
-                    try:
+                    with contextlib.suppress(asyncio.QueueEmpty):
                         task_info = self.low_priority_queue.get_nowait()
-                    except asyncio.QueueEmpty:
-                        pass
 
                 if task_info:
                     # Execute task based on type
@@ -4883,10 +4946,8 @@ class NetworkBandwidthMonitor:
         # Cancel metrics collection task
         if hasattr(self, "_metrics_collection_task") and self._metrics_collection_task:
             self._metrics_collection_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._metrics_collection_task
-            except asyncio.CancelledError:
-                pass
 
         logger.info("Real-time bandwidth metrics collection stopped")
 
@@ -5065,8 +5126,8 @@ class NetworkBandwidthMonitor:
     def create_adaptive_rate_controller(
         self,
         base_frequency_hz: float = 10.0,
-        packet_loss_thresholds: list[float] = None,
-        rate_reduction_levels: list[float] = None,
+        packet_loss_thresholds: list[float] | None = None,
+        rate_reduction_levels: list[float] | None = None,
     ) -> "AdaptiveRateController":
         """
         SUBTASK-5.6.2.3 [8e3] - Create adaptive transmission rate controller.
@@ -5089,8 +5150,8 @@ class NetworkBandwidthMonitor:
     # SUBTASK-5.6.2.3 [8e4] - Congestion severity classification
     def create_congestion_classifier(
         self,
-        packet_loss_thresholds: list[float] = None,
-        latency_thresholds_ms: list[float] = None,
+        packet_loss_thresholds: list[float] | None = None,
+        latency_thresholds_ms: list[float] | None = None,
         enable_automatic_fallback: bool = True,
     ) -> "CongestionClassifier":
         """
@@ -5544,6 +5605,7 @@ class BandwidthThrottle:
         update_interval_ms: int = 100,
         congestion_threshold_ratio: float = 0.8,
         enable_congestion_detection: bool = True,
+        network_config: "NetworkConfig | None" = None,
     ) -> None:
         """
         Initialize bandwidth throttling with sliding window rate limiting.
@@ -5554,6 +5616,7 @@ class BandwidthThrottle:
             update_interval_ms: Update frequency for throttling decisions
             congestion_threshold_ratio: Ratio at which to begin throttling (0.0-1.0)
             enable_congestion_detection: Enable network congestion monitoring
+            network_config: Optional NetworkConfig for configurable thresholds
         """
         # SUBTASK-5.6.2.3 [8d1] - Sliding window configuration
         self.window_size_seconds = window_size_seconds
@@ -5561,6 +5624,9 @@ class BandwidthThrottle:
         self.update_interval_ms = update_interval_ms
         self.congestion_threshold_ratio = congestion_threshold_ratio
         self.enable_congestion_detection = enable_congestion_detection
+
+        # [8e6d] - Store network configuration for configurable thresholds
+        self._network_config = network_config
 
         # SUBTASK-5.6.2.3 [8d1] - Sliding window data structure using deque
         self._bandwidth_window: deque[tuple[float, int]] = (
@@ -5570,7 +5636,11 @@ class BandwidthThrottle:
 
         # SUBTASK-5.6.2.3 [8d3] - Congestion detection state
         self._congestion_detector = None
-        if enable_congestion_detection:
+        congestion_enabled = enable_congestion_detection
+        if network_config:
+            congestion_enabled = network_config.NETWORK_CONGESTION_DETECTOR_ENABLED
+
+        if congestion_enabled:
             self._congestion_detector = self._initialize_congestion_detector()
 
         logger.info(
@@ -5579,13 +5649,60 @@ class BandwidthThrottle:
         )
 
     def _initialize_congestion_detector(self) -> dict[str, Any]:
-        """Initialize congestion detection monitoring."""
+        """
+        Initialize congestion detection monitoring with configurable thresholds.
+
+        [8e6d] - Uses values from NetworkConfig if available, with fallback defaults.
+        """
+        # Default fallback values
+        packet_loss_threshold = 0.05  # 5% packet loss threshold
+        baseline_latency_ms = 0.0
+        latency_threshold_ms = 100.0
+        enabled = True
+
+        # Use config values if available
+        if self._network_config:
+            packet_loss_threshold = (
+                self._network_config.NETWORK_PACKET_LOSS_LOW_THRESHOLD
+            )
+            baseline_latency_ms = self._network_config.NETWORK_BASELINE_LATENCY_MS
+            latency_threshold_ms = self._network_config.NETWORK_LATENCY_THRESHOLD_MS
+            enabled = self._network_config.NETWORK_CONGESTION_DETECTOR_ENABLED
+
         return {
-            "enabled": True,
-            "baseline_latency_ms": 0.0,
-            "packet_loss_threshold": 0.05,  # 5% packet loss threshold
-            "latency_threshold_ms": 100.0,  # 100ms latency threshold
+            "enabled": enabled,
+            "baseline_latency_ms": baseline_latency_ms,
+            "packet_loss_threshold": packet_loss_threshold,
+            "latency_threshold_ms": latency_threshold_ms,
         }
+
+    def update_config(self, network_config: "NetworkConfig") -> None:
+        """
+        Update network configuration and refresh congestion detector settings.
+
+        [8e6d] - Enables runtime configuration updates for operator control.
+        """
+        self._network_config = network_config
+
+        # Refresh congestion detector with new config
+        if network_config.NETWORK_CONGESTION_DETECTOR_ENABLED:
+            self._congestion_detector = self._initialize_congestion_detector()
+        else:
+            self._congestion_detector = None
+
+    def get_threshold_for_severity(self, severity: str) -> float:
+        """Get packet loss threshold for specified severity level."""
+        if not self._network_config:
+            # Return default value for requested severity
+            severity_defaults = {
+                "low": 0.01,
+                "medium": 0.05,
+                "high": 0.10,
+                "critical": 0.20,
+            }
+            return severity_defaults.get(severity, 0.05)
+
+        return self._network_config.get_threshold_by_severity(severity)
 
     def get_sliding_window_stats(self) -> dict[str, Any]:
         """
@@ -5834,3 +5951,180 @@ class BandwidthThrottle:
             }
 
         return result
+
+
+class EndToEndLatencyMeasurementFramework:
+    """
+    TASK-5.6-[8f] - End-to-End Latency Measurement Framework.
+
+    Integrates SDR processing, bandwidth controls, and coordination components to validate
+    that bandwidth optimization maintains PRD-NFR2 <100ms latency requirements.
+
+    Components Integration:
+    - NetworkBandwidthMonitor: Real network monitoring with psutil
+    - BandwidthThrottle: Rate limiting and congestion detection
+    - SignalProcessor: Authentic RSSI computation pipeline
+    - CoordinationLatencyTracker: High-precision latency measurement
+    """
+
+    def __init__(
+        self,
+        network_monitor: "NetworkBandwidthMonitor",
+        bandwidth_throttle: "BandwidthThrottle",
+        signal_processor: Any,
+        latency_tracker: Any,
+    ):
+        """
+        Initialize end-to-end latency measurement framework.
+
+        Args:
+            network_monitor: NetworkBandwidthMonitor for bandwidth monitoring
+            bandwidth_throttle: BandwidthThrottle for rate limiting control
+            signal_processor: SignalProcessor for authentic RSSI computation
+            latency_tracker: CoordinationLatencyTracker for latency measurement
+        """
+        self.network_monitor = network_monitor
+        self.bandwidth_throttle = bandwidth_throttle
+        self.signal_processor = signal_processor
+        self.latency_tracker = latency_tracker
+
+        # Framework state
+        self._measurement_active = False
+        self._baseline_captured = False
+
+        logger.info(
+            "EndToEndLatencyMeasurementFramework initialized with component integration"
+        )
+
+    def start_measurement_session(self) -> None:
+        """
+        Start end-to-end latency measurement session.
+
+        Initializes all components and begins coordinated monitoring.
+        """
+        if self._measurement_active:
+            logger.warning("Measurement session already active")
+            return
+
+        # Initialize network monitoring baseline
+        self.network_monitor.get_baseline_network_stats()
+        self.network_monitor.start_rssi_streaming_analysis()
+
+        # Mark session as active
+        self._measurement_active = True
+        self._baseline_captured = True
+
+        logger.info("End-to-end latency measurement session started")
+
+    def measure_rssi_processing_latency(self, iq_samples: Any) -> float:
+        """
+        Measure RSSI processing latency with authentic signal processing.
+
+        Args:
+            iq_samples: Complex IQ samples for processing
+
+        Returns:
+            Processing latency in milliseconds
+        """
+        if not self._measurement_active:
+            raise RuntimeError(
+                "Measurement session not active - call start_measurement_session() first"
+            )
+
+        import time
+
+        start_time = time.perf_counter()
+
+        # Authentic RSSI computation using SignalProcessor
+        rssi_result = self.signal_processor.compute_rssi(iq_samples)
+
+        end_time = time.perf_counter()
+        latency_ms = (end_time - start_time) * 1000.0
+
+        # Record latency for tracking
+        self.latency_tracker.record_latency(latency_ms)
+
+        # Extract RSSI value for logging (handle both float and complex result types)
+        if hasattr(rssi_result, "rssi_dbm"):
+            rssi_value = rssi_result.rssi_dbm
+        elif hasattr(rssi_result, "value"):
+            rssi_value = rssi_result.value
+        else:
+            rssi_value = (
+                float(rssi_result) if isinstance(rssi_result, int | float) else 0.0
+            )
+
+        logger.debug(
+            f"RSSI processing latency: {latency_ms:.2f}ms, RSSI: {rssi_value:.1f}dBm"
+        )
+        return latency_ms
+
+    def validate_latency_requirement(self, max_latency_ms: float = 100.0) -> bool:
+        """
+        Validate that current latency measurements meet PRD-NFR2 requirements.
+
+        Args:
+            max_latency_ms: Maximum allowed latency (default 100ms per PRD-NFR2)
+
+        Returns:
+            True if latency requirements are met, False otherwise
+        """
+        if not self.latency_tracker.latencies:
+            logger.warning("No latency measurements available for validation")
+            return False
+
+        # Get recent statistics
+        recent_latencies = self.latency_tracker.latencies[-10:]  # Last 10 measurements
+        avg_latency = sum(recent_latencies) / len(recent_latencies)
+        max_recent_latency = max(recent_latencies)
+
+        # Check PRD-NFR2 compliance
+        avg_compliant = avg_latency < max_latency_ms
+        max_compliant = max_recent_latency < max_latency_ms
+
+        logger.info(
+            f"Latency validation: avg={avg_latency:.2f}ms (req: <{max_latency_ms}ms), "
+            f"max={max_recent_latency:.2f}ms, compliant={avg_compliant and max_compliant}"
+        )
+
+        return avg_compliant and max_compliant
+
+    def stop_measurement_session(self) -> dict:
+        """
+        Stop measurement session and return summary statistics.
+
+        Returns:
+            Dictionary with measurement summary and compliance status
+        """
+        if not self._measurement_active:
+            logger.warning("No active measurement session to stop")
+            return {}
+
+        # Gather final statistics
+        summary = {
+            "total_measurements": len(self.latency_tracker.latencies),
+            "avg_latency_ms": (
+                sum(self.latency_tracker.latencies)
+                / len(self.latency_tracker.latencies)
+                if self.latency_tracker.latencies
+                else 0.0
+            ),
+            "max_latency_ms": (
+                max(self.latency_tracker.latencies)
+                if self.latency_tracker.latencies
+                else 0.0
+            ),
+            "min_latency_ms": (
+                min(self.latency_tracker.latencies)
+                if self.latency_tracker.latencies
+                else 0.0
+            ),
+            "prd_nfr2_compliant": self.validate_latency_requirement(),
+            "bandwidth_usage": self.network_monitor.get_current_bandwidth_usage(),
+        }
+
+        # Reset session state
+        self._measurement_active = False
+
+        logger.info(f"Measurement session completed: {summary}")
+        return summary
