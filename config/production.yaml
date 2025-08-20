@@ -1,0 +1,105 @@
+# PISAD Production Configuration Profile
+# Optimized for production deployment with performance and safety focus
+
+# Application settings - Production
+APP_NAME: "PISAD"
+APP_VERSION: "1.0.0"
+APP_ENV: "production"
+APP_HOST: "0.0.0.0"
+APP_PORT: 8080
+
+# SDR Configuration - Production (Operational settings)
+SDR_FREQUENCY: 3200000000 # 3.2 GHz default
+SDR_SAMPLE_RATE: 20000000 # 20 MHz for high performance
+SDR_GAIN: 30 # Optimal gain for field operations
+SDR_PPM_CORRECTION: 0
+SDR_DEVICE_INDEX: 0
+SDR_BUFFER_SIZE: 16384 # Optimal buffer size
+
+# Signal Processing - Production (Operational thresholds)
+SIGNAL_RSSI_THRESHOLD: -70 # Production threshold per PRD
+SIGNAL_AVERAGING_WINDOW: 10 # Stable averaging
+SIGNAL_MIN_DURATION_MS: 100 # Production minimum per PRD
+SIGNAL_MAX_GAP_MS: 50 # Production gap per PRD
+
+# Interferometry Configuration - Ready for production
+INTERFEROMETRY_ENABLED: false # Disabled unless specifically needed
+INTERFEROMETRY_BASELINE_MM: 200
+INTERFEROMETRY_CALIBRATION_FILE: "config/calibration.yaml"
+
+# Database Configuration - Production
+DB_PATH: "data/pisad.db" # Production database
+DB_CONNECTION_POOL_SIZE: 5 # Production pool size
+DB_ENABLE_WAL: true # WAL mode for performance
+
+# Logging Configuration - Production level
+LOG_LEVEL: "INFO" # Production log level
+LOG_FORMAT: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_FILE_PATH: "logs/pisad.log" # Production log file
+LOG_FILE_MAX_BYTES: 10485760 # 10 MB per PRD requirement
+LOG_FILE_BACKUP_COUNT: 7 # 7 days retention
+LOG_ENABLE_CONSOLE: false # Disable console in production
+LOG_ENABLE_FILE: true
+LOG_ENABLE_JOURNAL: true # Enable systemd journal
+
+# WebSocket Configuration - Production
+WS_RSSI_UPDATE_INTERVAL_MS: 100 # Fast updates per PRD (10Hz minimum)
+WS_HEARTBEAT_INTERVAL_S: 30 # Standard heartbeat
+WS_MAX_CONNECTIONS: 10 # Production connection limit
+
+# Safety Configuration - Production (Strict)
+SAFETY_VELOCITY_MAX_MPS: 2.0 # Per PRD safety limit
+SAFETY_INTERLOCK_ENABLED: true # Always enabled in production
+SAFETY_EMERGENCY_STOP_GPIO: 23
+
+# Performance Configuration - Production
+PERF_WORKER_THREADS: 4 # Full CPU utilization
+PERF_ENABLE_PROFILING: false # Disable profiling in production
+PERF_CACHE_SIZE_MB: 100 # Production cache size
+
+# API Configuration - Production
+API_RATE_LIMIT_ENABLED: true # Enable rate limiting
+API_RATE_LIMIT_REQUESTS: 100 # Conservative rate limit
+API_CORS_ENABLED: true
+API_CORS_ORIGINS: ["https://pisad.local", "https://ground-control.local"] # Specific origins
+API_KEY_ENABLED: true # Enable API key security
+API_KEY: "" # Set via environment variable PISAD_API_KEY
+
+# System Monitoring - Production
+MONITORING_ENABLED: true # Monitor in production
+MONITORING_PORT: 9090 # Standard Prometheus port
+MONITORING_INTERVAL_S: 60 # Standard monitoring interval
+
+# Development Settings - All disabled for production
+DEV_HOT_RELOAD: false # Disabled in production
+DEV_DEBUG_MODE: false # Disabled in production
+DEV_MOCK_SDR: false # Use real hardware in production
+
+# Homing Algorithm Configuration - Production (Per PRD specifications)
+HOMING_FORWARD_VELOCITY_MAX: 5.0 # Per PRD max velocity (5-10 m/s range)
+HOMING_YAW_RATE_MAX: 0.5 # Production yaw rate
+HOMING_APPROACH_VELOCITY: 1.0 # Conservative approach
+HOMING_SIGNAL_LOSS_TIMEOUT: 5.0 # Per PRD timeout
+HOMING_ALGORITHM_MODE: "GRADIENT" # Production algorithm
+HOMING_GRADIENT_WINDOW_SIZE: 10 # Production window size
+HOMING_GRADIENT_MIN_SNR: 10.0 # Production SNR requirement
+HOMING_SAMPLING_TURN_RADIUS: 10.0 # Production turn radius
+HOMING_SAMPLING_DURATION: 5.0 # Production sampling duration
+HOMING_APPROACH_THRESHOLD: -50.0 # Production approach threshold
+HOMING_PLATEAU_VARIANCE: 2.0 # Production variance tolerance
+HOMING_VELOCITY_SCALE_FACTOR: 0.1 # Production velocity scaling
+
+# Network Configuration - Production (Per PRD NFR1 requirements)
+NETWORK_PACKET_LOSS_LOW_THRESHOLD: 0.01 # 1% per PRD <1% packet loss requirement
+NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD: 0.05 # 5%
+NETWORK_PACKET_LOSS_HIGH_THRESHOLD: 0.10 # 10%
+NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD: 0.20 # 20%
+NETWORK_CONGESTION_DETECTOR_ENABLED: true
+NETWORK_BASELINE_LATENCY_MS: 0.0
+NETWORK_LATENCY_THRESHOLD_MS: 100.0 # Per PRD NFR2 <100ms latency
+
+# Network Runtime Adjustment Configuration - Production
+NETWORK_RUNTIME_ADJUSTMENT_ENABLED: true
+NETWORK_OPERATOR_OVERRIDE_ENABLED: true
+NETWORK_MONITORING_INTERVAL_MS: 1000 # 1 second monitoring
+NETWORK_ADAPTIVE_RATE_ENABLED: true

@@ -1,0 +1,96 @@
+# PISAD Advanced Logging Configuration
+# Controls log rotation, disk monitoring, and module-specific log levels
+
+# Global logging settings
+global:
+  level: "INFO"  # Global log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# File logging configuration
+file:
+  enabled: true
+  path: "logs/pisad.log"
+  max_bytes: 10485760  # 10 MB maximum file size
+  backup_count: 7      # Keep 7 days of logs
+  daily_rotation: true # Enable daily rotation at midnight
+  min_free_space_mb: 100  # Minimum free disk space (MB)
+
+# Console logging configuration  
+console:
+  enabled: true
+  level: "INFO"  # Can override global level for console
+
+# SystemD journal logging configuration
+journal:
+  enabled: true
+  identifier: "rf-homing"
+
+# Module-specific log levels
+# Override global level for specific modules
+module_levels:
+  "src.backend.services.sdr_service": "DEBUG"          # SDR operations need detailed logging
+  "src.backend.services.mavlink_service": "INFO"      # MAVLink communication
+  "src.backend.services.signal_processor": "INFO"     # Signal processing 
+  "src.backend.services.homing_algorithm": "INFO"     # Homing behavior
+  "src.backend.services.safety_manager": "WARNING"    # Safety events are important
+  "src.backend.services.state_machine": "INFO"        # State transitions
+  "src.backend.api": "WARNING"                         # API requests (reduce noise)
+  "src.backend.utils.performance_monitor": "DEBUG"    # Performance metrics
+  "urllib3": "WARNING"                                 # Reduce HTTP library noise
+  "asyncio": "WARNING"                                 # Reduce asyncio noise
+
+# Performance logging configuration
+performance:
+  enabled: true
+  log_level: "INFO"
+  operations_to_track:
+    - "signal_processing"
+    - "rssi_calculation" 
+    - "homing_computation"
+    - "mavlink_communication"
+    - "state_transition"
+    - "configuration_load"
+
+# Log correlation configuration
+correlation:
+  enabled: true
+  auto_generate: true  # Auto-generate correlation IDs for requests
+
+# Emergency cleanup configuration
+emergency_cleanup:
+  enabled: true
+  trigger_threshold_mb: 50    # Trigger cleanup when less than 50MB free
+  min_backups_to_keep: 1      # Always keep at least 1 backup file
+  
+# Development overrides (when PISAD_CONFIG_PROFILE=development)
+development:
+  global:
+    level: "DEBUG"
+  console:
+    enabled: true
+    level: "DEBUG"
+  file:
+    max_bytes: 5242880     # 5 MB for development
+    backup_count: 3        # Keep fewer backups in development
+  journal:
+    enabled: false         # Disable journal in development
+  module_levels:
+    "src.backend": "DEBUG"  # All backend modules at DEBUG level
+
+# Production overrides (when PISAD_CONFIG_PROFILE=production)  
+production:
+  global:
+    level: "INFO"
+  console:
+    enabled: false         # Disable console in production
+    level: "ERROR"
+  file:
+    max_bytes: 10485760    # 10 MB for production
+    backup_count: 7        # Keep 7 days of logs
+  journal:
+    enabled: true          # Enable systemd journal
+  module_levels:
+    "src.backend.api": "ERROR"              # Reduce API noise in production
+    "src.backend.utils": "WARNING"          # Reduce utility noise
+    "urllib3": "ERROR"                      # Minimal HTTP library logging
+    "asyncio": "ERROR"                      # Minimal asyncio logging

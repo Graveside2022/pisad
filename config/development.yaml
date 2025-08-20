@@ -1,0 +1,105 @@
+# PISAD Development Configuration Profile
+# Optimized for development workflow with debug features enabled
+
+# Application settings - Development
+APP_NAME: "PISAD"
+APP_VERSION: "1.0.0"
+APP_ENV: "development"
+APP_HOST: "0.0.0.0"
+APP_PORT: 8000
+
+# SDR Configuration - Development (Safe defaults)
+SDR_FREQUENCY: 3200000000 # 3.2 GHz (safe for testing)
+SDR_SAMPLE_RATE: 2048000 # 2.048 MHz (moderate rate for debugging)
+SDR_GAIN: 20 # Lower gain for development safety
+SDR_PPM_CORRECTION: 0
+SDR_DEVICE_INDEX: 0
+SDR_BUFFER_SIZE: 8192 # Smaller buffer for faster iteration
+
+# Signal Processing - Development (Relaxed thresholds)
+SIGNAL_RSSI_THRESHOLD: -80 # More sensitive for easier testing
+SIGNAL_AVERAGING_WINDOW: 5 # Smaller window for faster response
+SIGNAL_MIN_DURATION_MS: 50 # Shorter duration for testing
+SIGNAL_MAX_GAP_MS: 100 # Longer gap tolerance
+
+# Interferometry Configuration - Disabled in development
+INTERFEROMETRY_ENABLED: false
+INTERFEROMETRY_BASELINE_MM: 200
+INTERFEROMETRY_CALIBRATION_FILE: "config/calibration.yaml"
+
+# Database Configuration - Development
+DB_PATH: "data/dev_pisad.db" # Separate dev database
+DB_CONNECTION_POOL_SIZE: 2 # Smaller pool for development
+DB_ENABLE_WAL: true
+
+# Logging Configuration - Debug level for development
+LOG_LEVEL: "DEBUG" # Verbose logging for development
+LOG_FORMAT: "%(asctime)s - %(name)s - %(levelname)s - [%(correlation_id)s] - %(message)s"
+LOG_FILE_PATH: "logs/dev_pisad.log" # Separate dev log file
+LOG_FILE_MAX_BYTES: 5242880 # 5 MB (smaller for dev)
+LOG_FILE_BACKUP_COUNT: 3 # Fewer backups in dev
+LOG_ENABLE_CONSOLE: true # Always enable console in dev
+LOG_ENABLE_FILE: true
+LOG_ENABLE_JOURNAL: false # Disable journal for dev simplicity
+
+# WebSocket Configuration - Development
+WS_RSSI_UPDATE_INTERVAL_MS: 200 # Slower updates for debugging
+WS_HEARTBEAT_INTERVAL_S: 10 # More frequent heartbeats
+WS_MAX_CONNECTIONS: 5 # Fewer connections for testing
+
+# Safety Configuration - Development (Permissive)
+SAFETY_VELOCITY_MAX_MPS: 1.0 # Very low speed for safety
+SAFETY_INTERLOCK_ENABLED: true # Always enabled for safety
+SAFETY_EMERGENCY_STOP_GPIO: 23
+
+# Performance Configuration - Development
+PERF_WORKER_THREADS: 2 # Fewer threads for simpler debugging
+PERF_ENABLE_PROFILING: true # Enable profiling in development
+PERF_CACHE_SIZE_MB: 50 # Smaller cache
+
+# API Configuration - Development
+API_RATE_LIMIT_ENABLED: false # Disable rate limiting for testing
+API_RATE_LIMIT_REQUESTS: 1000
+API_CORS_ENABLED: true # Enable CORS for frontend development
+API_CORS_ORIGINS: ["http://localhost:3000", "http://localhost:8080", "*"] # Dev frontend
+API_KEY_ENABLED: false # Disable API key for easier development
+API_KEY: ""
+
+# System Monitoring - Development
+MONITORING_ENABLED: true # Enable monitoring for development
+MONITORING_PORT: 9091 # Different port for dev
+MONITORING_INTERVAL_S: 30 # More frequent monitoring
+
+# Development Settings - All enabled
+DEV_HOT_RELOAD: true # Hot reload for development
+DEV_DEBUG_MODE: true # Debug mode enabled
+DEV_MOCK_SDR: true # Use mock SDR by default in development
+
+# Homing Algorithm Configuration - Development (Conservative)
+HOMING_FORWARD_VELOCITY_MAX: 1.0 # Very slow for safety
+HOMING_YAW_RATE_MAX: 0.2 # Slow yaw rate
+HOMING_APPROACH_VELOCITY: 0.5 # Very slow approach
+HOMING_SIGNAL_LOSS_TIMEOUT: 2.0 # Quick timeout for testing
+HOMING_ALGORITHM_MODE: "SIMPLE" # Use simple algorithm for development
+HOMING_GRADIENT_WINDOW_SIZE: 5 # Smaller window
+HOMING_GRADIENT_MIN_SNR: 5.0 # Lower SNR requirement
+HOMING_SAMPLING_TURN_RADIUS: 5.0 # Smaller turn radius
+HOMING_SAMPLING_DURATION: 2.0 # Shorter sampling
+HOMING_APPROACH_THRESHOLD: -40.0 # Higher threshold for easier testing
+HOMING_PLATEAU_VARIANCE: 5.0 # More tolerance
+HOMING_VELOCITY_SCALE_FACTOR: 0.05 # Very conservative scaling
+
+# Network Configuration - Development (Relaxed)
+NETWORK_PACKET_LOSS_LOW_THRESHOLD: 0.05 # 5% - Higher tolerance in dev
+NETWORK_PACKET_LOSS_MEDIUM_THRESHOLD: 0.10 # 10%
+NETWORK_PACKET_LOSS_HIGH_THRESHOLD: 0.20 # 20%
+NETWORK_PACKET_LOSS_CRITICAL_THRESHOLD: 0.30 # 30%
+NETWORK_CONGESTION_DETECTOR_ENABLED: true
+NETWORK_BASELINE_LATENCY_MS: 0.0
+NETWORK_LATENCY_THRESHOLD_MS: 200.0 # Higher latency tolerance
+
+# Network Runtime Adjustment Configuration - Development
+NETWORK_RUNTIME_ADJUSTMENT_ENABLED: true
+NETWORK_OPERATOR_OVERRIDE_ENABLED: true # Always allow override in dev
+NETWORK_MONITORING_INTERVAL_MS: 2000 # Slower monitoring for dev
+NETWORK_ADAPTIVE_RATE_ENABLED: true

@@ -63,6 +63,7 @@ dependencies = [
   "py-spy>=0.4.1",
   "pytest-asyncio-cooperative>=0.40.0",
   "pythonnet>=3.0.5",
+  "jsonschema>=4.25.0",
 ]
 
 [project.optional-dependencies]
