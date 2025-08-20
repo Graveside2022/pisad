@@ -273,3 +273,146 @@ class InterferenceRejectionResult:
     gradient_data: dict[str, Any]  # Gradient calculations using filtered signals
     processing_time_ms: float = 0.0  # Processing latency
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass
+class ClassificationFilteringResult:
+    """Result from classification-based filtering for target signal identification.
+
+    TASK-6.2.1.3 [23c3] - Create classification-based filtering to identify and isolate
+    target signals based on professional signal classification algorithms.
+    """
+
+    target_signals: list[
+        RSSIReading
+    ]  # Identified target signals (FM_CHIRP, FSK_BEACON, etc.)
+    rejected_signals: list[
+        RSSIReading
+    ]  # Rejected signals (NOISE, INTERFERENCE, UNKNOWN, etc.)
+    classification_stats: dict[str, Any]  # Comprehensive classification statistics
+    target_analysis: dict[str, Any]  # Professional-grade target signal analysis
+    processing_time_ms: float = 0.0  # Processing latency
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass
+class EnhancedRSSIReading(RSSIReading):
+    """Enhanced RSSI reading with classification confidence metrics for detection scoring.
+
+    TASK-6.2.1.3 [23c4] - Add signal classification confidence metrics to detection confidence scoring
+    for enhanced detection reliability and accuracy assessment.
+    """
+
+    classification_confidence: float = 0.0  # Signal classification confidence (0.0-1.0)
+    overall_detection_confidence: float = (
+        0.0  # Overall detection confidence integrating all factors
+    )
+    confidence_breakdown: dict[str, Any] = field(
+        default_factory=dict
+    )  # Detailed confidence component analysis
+    detection_quality_metrics: dict[str, Any] = field(
+        default_factory=dict
+    )  # Professional detection quality assessment
+    processing_time_ms: float = 0.0  # Processing latency for confidence scoring
+
+
+@dataclass
+class DetectedSignal:
+    """Individual detected signal in multi-signal tracking.
+
+    TASK-6.2.1.3 [23d1] - Individual signal detection with tracking attributes
+    for multi-signal environments encountered in SAR operations.
+    """
+
+    signal_id: int  # Unique identifier for this detected signal
+    bearing_estimate: float  # Estimated bearing in degrees (0-360)
+    confidence_score: float  # Detection confidence (0.0-1.0)
+    signal_classification: str  # Signal type classification
+    tracking_quality: float  # Quality of tracking for this signal (0.0-1.0)
+    rssi_dbm: float  # Signal strength in dBm
+    snr_db: float  # Signal-to-noise ratio in dB
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass
+class MultiSignalTrackingResult:
+    """Result from multi-signal detection tracking in enhanced signal processor.
+
+    TASK-6.2.1.3 [23d1] - Implement multi-signal detection tracking to simultaneously
+    track multiple signal sources with individual confidence metrics and bearing calculations.
+    """
+
+    detected_signals: list[DetectedSignal]  # List of individually tracked signals
+    tracking_metrics: dict[str, Any]  # Comprehensive tracking performance metrics
+    bearing_estimates: list[float]  # Bearing estimates for all detected signals
+    signal_separation_quality: dict[str, Any]  # Quality assessment of signal separation
+    processing_time_ms: float = 0.0  # Processing latency for multi-signal tracking
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass
+class ConfidenceWeightedBearingResult:
+    """Result from confidence-weighted bearing averaging algorithm.
+
+    TASK-6.2.1.3 [23d2] - Create confidence-weighted bearing averaging algorithm for multiple detections
+    to compute weighted average bearings prioritizing high-confidence signals.
+    """
+
+    weighted_bearing: float  # Confidence-weighted average bearing in degrees (0-360)
+    confidence_weights: list[float]  # Normalized confidence weights for each detection
+    bearing_statistics: dict[str, Any]  # Comprehensive bearing analysis statistics
+    averaging_quality: dict[str, Any]  # Quality assessment of the averaging process
+    processing_time_ms: float = 0.0  # Processing latency for bearing averaging
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass
+class BearingFusionConflictResult:
+    """Result from bearing fusion conflict resolution for signals from different directions.
+
+    TASK-6.2.1.3 [23d3] - Add bearing fusion conflict resolution when signals from different directions detected
+    to intelligently resolve conflicting bearing estimates and provide robust directional guidance.
+    """
+
+    resolved_bearing: float  # Final resolved bearing after conflict resolution (0-360)
+    conflict_detected: bool  # Whether conflicting bearings were detected and resolved
+    conflict_analysis: dict[
+        str, Any
+    ]  # Comprehensive conflict analysis and resolution details
+    bearing_clusters: list[
+        dict[str, Any]
+    ]  # Identified bearing clusters with statistics
+    resolution_strategy: (
+        str  # Strategy used for conflict resolution (clustering, confidence, etc.)
+    )
+    resolution_confidence: float = (
+        0.0  # Confidence in the conflict resolution (0.0-1.0)
+    )
+    processing_time_ms: float = 0.0  # Processing latency for conflict resolution
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass
+class GradientVector:
+    """Gradient vector for homing algorithm integration."""
+
+    magnitude: float  # Gradient magnitude
+    direction: float  # Direction in degrees (0-360)
+    confidence: float  # Confidence score (0.0-1.0)
+
+
+@dataclass
+class FusedBearingGradientIntegrationResult:
+    """Result from integrating fused bearing calculations with homing gradient computation.
+
+    TASK-6.2.1.3 [23d4] - Integrate fused bearing calculations with existing homing gradient computation
+    to provide unified directional guidance combining confidence-weighted averaging and conflict resolution.
+    """
+
+    fused_bearing: float  # Final fused bearing from all algorithms (0-360 degrees)
+    gradient_vector: GradientVector  # Gradient vector for homing algorithm integration
+    integration_confidence: float  # Overall integration confidence (0.0-1.0)
+    fusion_quality_metrics: dict[str, Any]  # Comprehensive fusion quality assessment
+    homing_guidance: dict[str, Any]  # Guidance parameters for homing system
+    processing_time_ms: float = 0.0  # Total processing latency for integration pipeline
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
