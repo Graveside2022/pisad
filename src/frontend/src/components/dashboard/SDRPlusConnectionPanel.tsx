@@ -155,14 +155,14 @@ function SDRPlusConnectionPanel({ onFrequencySync, onModeToggle }: SDRPlusConnec
           </Grid>
         </Grid>
 
-        {/* Signal Comparison */}
+        {/* TCP Bridge Signal Monitoring */}
         <Typography variant="subtitle2" gutterBottom>
-          Dual-System Signal Validation
+          TCP Bridge Signal Monitoring
         </Typography>
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={6}>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">Ground SDR++</Typography>
+              <Typography variant="body2" color="text.secondary">Ground Station Monitor</Typography>
               <Chip
                 label={signalData.groundRssi ? `${signalData.groundRssi} dBm` : 'No Signal'}
                 color={getSignalStrengthColor(signalData.groundRssi)}
@@ -172,7 +172,7 @@ function SDRPlusConnectionPanel({ onFrequencySync, onModeToggle }: SDRPlusConnec
           </Grid>
           <Grid item xs={6}>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">Drone ASV</Typography>
+              <Typography variant="body2" color="text.secondary">HackRF Signal (Drone)</Typography>
               <Chip
                 label={signalData.droneRssi ? `${signalData.droneRssi} dBm` : 'No Signal'}
                 color={getSignalStrengthColor(signalData.droneRssi)}
