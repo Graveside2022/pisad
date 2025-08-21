@@ -15,7 +15,7 @@ file:
   daily_rotation: true # Enable daily rotation at midnight
   min_free_space_mb: 100  # Minimum free disk space (MB)
 
-# Console logging configuration  
+# Console logging configuration
 console:
   enabled: true
   level: "INFO"  # Can override global level for console
@@ -30,7 +30,7 @@ journal:
 module_levels:
   "src.backend.services.sdr_service": "DEBUG"          # SDR operations need detailed logging
   "src.backend.services.mavlink_service": "INFO"      # MAVLink communication
-  "src.backend.services.signal_processor": "INFO"     # Signal processing 
+  "src.backend.services.signal_processor": "INFO"     # Signal processing
   "src.backend.services.homing_algorithm": "INFO"     # Homing behavior
   "src.backend.services.safety_manager": "WARNING"    # Safety events are important
   "src.backend.services.state_machine": "INFO"        # State transitions
@@ -45,7 +45,7 @@ performance:
   log_level: "INFO"
   operations_to_track:
     - "signal_processing"
-    - "rssi_calculation" 
+    - "rssi_calculation"
     - "homing_computation"
     - "mavlink_communication"
     - "state_transition"
@@ -61,7 +61,7 @@ emergency_cleanup:
   enabled: true
   trigger_threshold_mb: 50    # Trigger cleanup when less than 50MB free
   min_backups_to_keep: 1      # Always keep at least 1 backup file
-  
+
 # Development overrides (when PISAD_CONFIG_PROFILE=development)
 development:
   global:
@@ -77,7 +77,7 @@ development:
   module_levels:
     "src.backend": "DEBUG"  # All backend modules at DEBUG level
 
-# Production overrides (when PISAD_CONFIG_PROFILE=production)  
+# Production overrides (when PISAD_CONFIG_PROFILE=production)
 production:
   global:
     level: "INFO"

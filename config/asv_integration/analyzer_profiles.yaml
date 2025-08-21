@@ -28,6 +28,7 @@ emergency_analyzer:
   frequency_profiles:
   - emergency_beacon_406
   - aviation_emergency
+  - maritime_sar_162
   hardware_config:
     antenna_gain_db: 0
     lna_enabled: true

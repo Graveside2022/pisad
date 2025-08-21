@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "last_updated": 1755729845.5109076,
+  "parameters": {
+    "PISAD_RF_FREQ": {
+      "value": 162025000,
+      "last_modified": 1755729845.5037272,
+      "source": "validation",
+      "validation_status": "valid",
+      "backup_count": 0
+    },
+    "PISAD_RF_PROFILE": {
+      "value": 2,
+      "last_modified": 1755729845.5109076,
+      "source": "validation",
+      "validation_status": "valid",
+      "backup_count": 0
+    }
+  },
+  "metadata": {
+    "save_count": 2,
+    "backup_count": 1,
+    "source": "validation"
+  }
+}

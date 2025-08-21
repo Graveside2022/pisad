@@ -3,7 +3,6 @@ Configuration validation for PISAD application.
 Provides JSON schema validation for YAML configuration files.
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Dict
@@ -32,20 +31,51 @@ class ConfigValidator:
                 # Application settings
                 "APP_NAME": {"type": "string", "minLength": 1},
                 "APP_VERSION": {"type": "string", "pattern": r"^\d+\.\d+\.\d+$"},
-                "APP_ENV": {"type": "string", "enum": ["development", "production", "testing"]},
+                "APP_ENV": {
+                    "type": "string",
+                    "enum": ["development", "production", "testing"],
+                },
                 "APP_HOST": {"type": "string", "format": "ipv4"},
                 "APP_PORT": {"type": "integer", "minimum": 1, "maximum": 65535},
                 # SDR Configuration
-                "SDR_FREQUENCY": {"type": "integer", "minimum": 850000000, "maximum": 6500000000},
-                "SDR_SAMPLE_RATE": {"type": "integer", "minimum": 1000000, "maximum": 50000000},
+                "SDR_FREQUENCY": {
+                    "type": "integer",
+                    "minimum": 850000000,
+                    "maximum": 6500000000,
+                },
+                "SDR_SAMPLE_RATE": {
+                    "type": "integer",
+                    "minimum": 1000000,
+                    "maximum": 50000000,
+                },
                 "SDR_GAIN": {"type": "integer", "minimum": 0, "maximum": 100},
-                "SDR_PPM_CORRECTION": {"type": "integer", "minimum": -100, "maximum": 100},
+                "SDR_PPM_CORRECTION": {
+                    "type": "integer",
+                    "minimum": -100,
+                    "maximum": 100,
+                },
                 "SDR_DEVICE_INDEX": {"type": "integer", "minimum": 0, "maximum": 10},
-                "SDR_BUFFER_SIZE": {"type": "integer", "minimum": 1024, "maximum": 1048576},
+                "SDR_BUFFER_SIZE": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 1048576,
+                },
                 # Signal Processing
-                "SIGNAL_RSSI_THRESHOLD": {"type": "number", "minimum": -120, "maximum": 0},
-                "SIGNAL_AVERAGING_WINDOW": {"type": "integer", "minimum": 1, "maximum": 100},
-                "SIGNAL_MIN_DURATION_MS": {"type": "integer", "minimum": 1, "maximum": 10000},
+                "SIGNAL_RSSI_THRESHOLD": {
+                    "type": "number",
+                    "minimum": -120,
+                    "maximum": 0,
+                },
+                "SIGNAL_AVERAGING_WINDOW": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                },
+                "SIGNAL_MIN_DURATION_MS": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000,
+                },
                 "SIGNAL_MAX_GAP_MS": {"type": "integer", "minimum": 1, "maximum": 1000},
                 # Logging Configuration
                 "LOG_LEVEL": {
@@ -59,14 +89,26 @@ class ConfigValidator:
                     "minimum": 1048576,
                     "maximum": 1073741824,
                 },
-                "LOG_FILE_BACKUP_COUNT": {"type": "integer", "minimum": 1, "maximum": 50},
+                "LOG_FILE_BACKUP_COUNT": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                },
                 "LOG_ENABLE_CONSOLE": {"type": "boolean"},
                 "LOG_ENABLE_FILE": {"type": "boolean"},
                 "LOG_ENABLE_JOURNAL": {"type": "boolean"},
                 # Safety Configuration
-                "SAFETY_VELOCITY_MAX_MPS": {"type": "number", "minimum": 0.1, "maximum": 15.0},
+                "SAFETY_VELOCITY_MAX_MPS": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 15.0,
+                },
                 "SAFETY_INTERLOCK_ENABLED": {"type": "boolean"},
-                "SAFETY_EMERGENCY_STOP_GPIO": {"type": "integer", "minimum": 1, "maximum": 40},
+                "SAFETY_EMERGENCY_STOP_GPIO": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 40,
+                },
                 # Network Configuration
                 "NETWORK_PACKET_LOSS_LOW_THRESHOLD": {
                     "type": "number",
@@ -94,13 +136,40 @@ class ConfigValidator:
                     "maximum": 10000.0,
                 },
                 # Homing Algorithm Configuration
-                "HOMING_FORWARD_VELOCITY_MAX": {"type": "number", "minimum": 0.1, "maximum": 15.0},
-                "HOMING_YAW_RATE_MAX": {"type": "number", "minimum": 0.1, "maximum": 2.0},
-                "HOMING_APPROACH_VELOCITY": {"type": "number", "minimum": 0.1, "maximum": 5.0},
-                "HOMING_SIGNAL_LOSS_TIMEOUT": {"type": "number", "minimum": 1.0, "maximum": 60.0},
-                "HOMING_ALGORITHM_MODE": {"type": "string", "enum": ["SIMPLE", "GRADIENT"]},
-                "HOMING_GRADIENT_WINDOW_SIZE": {"type": "integer", "minimum": 3, "maximum": 100},
-                "HOMING_GRADIENT_MIN_SNR": {"type": "number", "minimum": 1.0, "maximum": 50.0},
+                "HOMING_FORWARD_VELOCITY_MAX": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 15.0,
+                },
+                "HOMING_YAW_RATE_MAX": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 2.0,
+                },
+                "HOMING_APPROACH_VELOCITY": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 5.0,
+                },
+                "HOMING_SIGNAL_LOSS_TIMEOUT": {
+                    "type": "number",
+                    "minimum": 1.0,
+                    "maximum": 60.0,
+                },
+                "HOMING_ALGORITHM_MODE": {
+                    "type": "string",
+                    "enum": ["SIMPLE", "GRADIENT"],
+                },
+                "HOMING_GRADIENT_WINDOW_SIZE": {
+                    "type": "integer",
+                    "minimum": 3,
+                    "maximum": 100,
+                },
+                "HOMING_GRADIENT_MIN_SNR": {
+                    "type": "number",
+                    "minimum": 1.0,
+                    "maximum": 50.0,
+                },
             },
             "required": [
                 "APP_NAME",
@@ -158,7 +227,9 @@ class ConfigValidator:
 
             except jsonschema.ValidationError as e:
                 error_path = (
-                    " -> ".join(str(p) for p in e.absolute_path) if e.absolute_path else "root"
+                    " -> ".join(str(p) for p in e.absolute_path)
+                    if e.absolute_path
+                    else "root"
                 )
                 errors.append(f"Validation error at {error_path}: {e.message}")
                 return False, errors
@@ -171,7 +242,9 @@ class ConfigValidator:
             errors.append(f"Unexpected error validating configuration: {str(e)}")
             return False, errors
 
-    def validate_config_dict(self, config_data: Dict[str, Any]) -> tuple[bool, list[str]]:
+    def validate_config_dict(
+        self, config_data: Dict[str, Any]
+    ) -> tuple[bool, list[str]]:
         """
         Validate configuration data dictionary against schema.
 
@@ -189,7 +262,11 @@ class ConfigValidator:
             return True, []
 
         except jsonschema.ValidationError as e:
-            error_path = " -> ".join(str(p) for p in e.absolute_path) if e.absolute_path else "root"
+            error_path = (
+                " -> ".join(str(p) for p in e.absolute_path)
+                if e.absolute_path
+                else "root"
+            )
             errors.append(f"Validation error at {error_path}: {e.message}")
             return False, errors
 
@@ -197,7 +274,9 @@ class ConfigValidator:
             errors.append(f"Schema error: {e.message}")
             return False, errors
 
-    def validate_parameter_ranges(self, config_data: Dict[str, Any]) -> tuple[bool, list[str]]:
+    def validate_parameter_ranges(
+        self, config_data: Dict[str, Any]
+    ) -> tuple[bool, list[str]]:
         """
         Perform additional parameter range validation beyond schema.
 
@@ -238,7 +317,10 @@ class ConfigValidator:
             "HOMING_APPROACH_VELOCITY" in config_data
             and "HOMING_FORWARD_VELOCITY_MAX" in config_data
         ):
-            if config_data["HOMING_APPROACH_VELOCITY"] > config_data["HOMING_FORWARD_VELOCITY_MAX"]:
+            if (
+                config_data["HOMING_APPROACH_VELOCITY"]
+                > config_data["HOMING_FORWARD_VELOCITY_MAX"]
+            ):
                 errors.append(
                     "HOMING_APPROACH_VELOCITY must not exceed HOMING_FORWARD_VELOCITY_MAX"
                 )
@@ -248,8 +330,13 @@ class ConfigValidator:
             "SAFETY_VELOCITY_MAX_MPS" in config_data
             and "HOMING_FORWARD_VELOCITY_MAX" in config_data
         ):
-            if config_data["HOMING_FORWARD_VELOCITY_MAX"] > config_data["SAFETY_VELOCITY_MAX_MPS"]:
-                errors.append("HOMING_FORWARD_VELOCITY_MAX must not exceed SAFETY_VELOCITY_MAX_MPS")
+            if (
+                config_data["HOMING_FORWARD_VELOCITY_MAX"]
+                > config_data["SAFETY_VELOCITY_MAX_MPS"]
+            ):
+                errors.append(
+                    "HOMING_FORWARD_VELOCITY_MAX must not exceed SAFETY_VELOCITY_MAX_MPS"
+                )
 
         return len(errors) == 0, errors
 

@@ -10,7 +10,7 @@ import logging
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 import yaml
 
@@ -225,6 +225,19 @@ class ASVConfigurationManager:
             priority=1,
         )
 
+        # Maritime SAR emergency frequency (TASK-6.3.1 [28c3])
+        profiles["maritime_sar_162"] = ASVFrequencyProfile(
+            name="maritime_sar_162",
+            description="Search and Rescue Maritime Emergency",
+            center_frequency_hz=162_025_000,  # 162.025 MHz maritime emergency
+            bandwidth_hz=25_000,  # 25 kHz for maritime beacon compatibility
+            analyzer_type="GP",
+            ref_power_dbm=-115.0,  # Maritime signals typically weaker
+            calibration_enabled=True,
+            processing_timeout_ms=50,  # Fast processing for SAR operations
+            priority=1,  # High priority for search and rescue
+        )
+
         return profiles
 
     def _get_default_analyzer_profiles(self) -> dict[str, ASVAnalyzerProfile]:
@@ -239,6 +252,7 @@ class ASVConfigurationManager:
             frequency_profiles=[
                 self._frequency_profiles["emergency_beacon_406"],
                 self._frequency_profiles["aviation_emergency"],
+                self._frequency_profiles["maritime_sar_162"],  # TASK-6.3.1 [28c3]
             ],
             hardware_config={
                 "sdr_device": "hackrf",
@@ -622,3 +636,281 @@ class ASVConfigurationManager:
         except Exception as e:
             logger.warning(f"Failed to get .NET runtime path: {e}")
             return None
+
+    def get_frequency_optimization(self, profile_name: str) -> Dict[str, Any]:
+        """
+        Get frequency optimization recommendations for a profile.
+
+        Args:
+            profile_name: Name of frequency profile to optimize
+
+        Returns:
+            Dict containing optimization recommendations
+        """
+        if profile_name not in self._frequency_profiles:
+            return {
+                "recommended_frequency": None,
+                "optimal_bandwidth": None,
+                "confidence": 0.0,
+                "error": f"Profile '{profile_name}' not found",
+            }
+
+        profile = self._frequency_profiles[profile_name]
+
+        # For emergency profiles, confidence is high since they're standardized
+        if profile_name in [
+            "emergency_beacon_406",
+            "maritime_sar_162",
+            "aviation_emergency",
+        ]:
+            return {
+                "recommended_frequency": profile.center_frequency_hz,
+                "optimal_bandwidth": profile.bandwidth_hz,
+                "confidence": 0.95,
+                "notes": f"Standardized emergency frequency for {profile.description}",
+                "optimization_basis": "regulatory_standard",
+            }
+
+        # For other profiles, provide moderate confidence
+        return {
+            "recommended_frequency": profile.center_frequency_hz,
+            "optimal_bandwidth": profile.bandwidth_hz,
+            "confidence": 0.8,
+            "notes": f"Profile-based recommendation for {profile.description}",
+            "optimization_basis": "profile_configuration",
+        }
+
+    def get_frequency_optimization_for_frequency(
+        self, frequency_hz: int
+    ) -> Dict[str, Any]:
+        """
+        Get optimization recommendations for a specific frequency.
+
+        Args:
+            frequency_hz: Frequency to analyze in Hz
+
+        Returns:
+            Dict containing optimization analysis and alternatives
+        """
+        from ...utils.frequency_conflict_detector import FrequencyConflictDetector
+        from ..rf_regulation_validator import RFRegulationValidator
+
+        validator = RFRegulationValidator()
+        detector = FrequencyConflictDetector()
+
+        # Get clear frequency alternatives
+        clear_freqs = detector.find_clear_frequencies(
+            25_000,  # 25 kHz bandwidth
+            (24_000_000, 1_750_000_000),  # HackRF effective range
+        )
+
+        # Get emergency frequency recommendations
+        emergency_freqs = validator.get_recommended_frequencies("emergency")
+
+        return {
+            "analyzed_frequency": frequency_hz,
+            "analyzed_frequency_mhz": frequency_hz / 1e6,
+            "alternative_frequencies": [
+                {
+                    "frequency_hz": freq["frequency_hz"],
+                    "frequency_mhz": freq["frequency_mhz"],
+                    "quality_score": freq["quality_score"],
+                    "reason": "Clear of major conflicts",
+                }
+                for freq in clear_freqs[:5]  # Top 5 alternatives
+            ],
+            "emergency_alternatives": [
+                {
+                    "frequency_hz": freq["frequency_hz"],
+                    "frequency_mhz": freq["frequency_mhz"],
+                    "allocation": freq["allocation"],
+                    "reason": f"Emergency use in {freq['service']} band",
+                }
+                for freq in emergency_freqs[:3]  # Top 3 emergency alternatives
+            ],
+            "recommendation": "Consider emergency-allocated frequencies for SAR operations",
+        }
+
+    def validate_frequency_complete(
+        self, frequency_hz: int, use_case: str
+    ) -> Dict[str, Any]:
+        """
+        Complete frequency validation pipeline with all checks.
+
+        Args:
+            frequency_hz: Frequency to validate in Hz
+            use_case: Intended use case for the frequency
+
+        Returns:
+            Dict containing complete validation results
+        """
+        from ...utils.frequency_conflict_detector import FrequencyConflictDetector
+        from ..rf_regulation_validator import RFRegulationValidator
+
+        validator = RFRegulationValidator()
+        detector = FrequencyConflictDetector()
+
+        # Run all validation checks
+        hackrf_validation = validator.validate_hackrf_range(frequency_hz)
+        us_compliance = validator.validate_us_compliance(frequency_hz, use_case)
+        conflict_detection = detector.detect_conflicts(
+            frequency_hz, 25_000
+        )  # 25 kHz bandwidth
+
+        # Get optimization if it's a known profile
+        optimization = None
+        for profile_name, profile in self._frequency_profiles.items():
+            if abs(profile.center_frequency_hz - frequency_hz) < 1000:  # Within 1 kHz
+                optimization = self.get_frequency_optimization(profile_name)
+                break
+
+        if not optimization:
+            optimization = {"confidence": 0.5, "notes": "Unknown profile"}
+
+        # Determine overall status
+        overall_status = "approved"
+        warnings = []
+
+        if not hackrf_validation["valid"]:
+            overall_status = "rejected"
+            warnings.append("Frequency outside HackRF capabilities")
+
+        if not us_compliance["compliant"]:
+            overall_status = "rejected"
+            warnings.append("Not compliant with US frequency regulations")
+
+        if conflict_detection["conflicts"] and conflict_detection["severity"] in [
+            "critical",
+            "high",
+        ]:
+            # Check if this is an authorized emergency frequency
+            if self._is_authorized_emergency_frequency(
+                frequency_hz, use_case, conflict_detection
+            ):
+                overall_status = "conditional"
+                warnings.append(
+                    "Authorized emergency use in protected radio services band"
+                )
+            else:
+                overall_status = "rejected"
+                warnings.append("Critical conflicts with protected radio services")
+
+        if conflict_detection["conflicts"] and overall_status == "approved":
+            overall_status = "conditional"
+            warnings.append("Minor conflicts detected - use with caution")
+
+        if hackrf_validation.get("performance") == "reduced":
+            warnings.append("Reduced performance outside HackRF effective range")
+
+        return {
+            "frequency_hz": frequency_hz,
+            "frequency_mhz": frequency_hz / 1e6,
+            "use_case": use_case,
+            "hackrf_validation": hackrf_validation,
+            "regulation_compliance": us_compliance,
+            "conflict_detection": conflict_detection,
+            "optimization": optimization,
+            "overall_status": overall_status,
+            "warnings": warnings,
+            "recommendations": self._generate_validation_recommendations(
+                hackrf_validation, us_compliance, conflict_detection, optimization
+            ),
+        }
+
+    def _generate_validation_recommendations(
+        self,
+        hackrf_result: Dict[str, Any],
+        compliance_result: Dict[str, Any],
+        conflict_result: Dict[str, Any],
+        optimization_result: Dict[str, Any],
+    ) -> List[str]:
+        """Generate recommendations based on validation results."""
+        recommendations = []
+
+        if hackrf_result["valid"] and hackrf_result["range"] == "effective":
+            recommendations.append("Frequency is within HackRF optimal range")
+        elif hackrf_result["valid"] and hackrf_result["range"] == "extended":
+            recommendations.append(
+                "Consider moving to 24 MHz - 1.75 GHz range for better performance"
+            )
+
+        if compliance_result["compliant"]:
+            recommendations.append(
+                f"Compliant for {compliance_result['allocation']} use"
+            )
+        else:
+            recommendations.append(
+                "Consider emergency-allocated frequencies for better compliance"
+            )
+
+        if not conflict_result["conflicts"]:
+            recommendations.append("No major frequency conflicts detected")
+        elif conflict_result["severity"] == "low":
+            recommendations.append("Monitor for interference with nearby services")
+        else:
+            recommendations.append(
+                "Strong interference risk - consider alternative frequencies"
+            )
+
+        if optimization_result and optimization_result.get("confidence", 0) > 0.8:
+            recommendations.append(
+                "Frequency selection is well-optimized for intended use"
+            )
+
+        return recommendations
+
+    def _is_authorized_emergency_frequency(
+        self, frequency_hz: int, use_case: str, conflict_result: Dict[str, Any]
+    ) -> bool:
+        """
+        Check if frequency is authorized for emergency use despite conflicts.
+
+        Args:
+            frequency_hz: Frequency being validated
+            use_case: Intended use case
+            conflict_result: Result from conflict detection
+
+        Returns:
+            True if frequency is authorized for emergency use
+        """
+        # Emergency and SAR use cases have special authorization
+        if not any(
+            term in use_case.lower() for term in ["emergency", "sar", "maritime"]
+        ):
+            return False
+
+        # Check for specific authorized emergency frequencies
+        emergency_frequencies = {
+            162_025_000: [
+                "maritime",
+                "maritime_sar",
+                "maritime_emergency",
+            ],  # Maritime SAR
+            121_500_000: ["aviation", "aviation_emergency"],  # Aviation emergency
+            406_000_000: ["emergency", "emergency_beacon", "sar"],  # COSPAS-SARSAT
+        }
+
+        # Check if this is a known emergency frequency
+        for freq, authorized_uses in emergency_frequencies.items():
+            if abs(frequency_hz - freq) < 1000:  # Within 1 kHz
+                if any(auth_use in use_case.lower() for auth_use in authorized_uses):
+                    return True
+
+        # Check if conflicts are only with same-service types (e.g., maritime SAR in maritime band)
+        conflicting_services = conflict_result.get("direct_conflicts", [])
+        for conflict in conflicting_services:
+            service_type = conflict.get("service_type", "")
+            # Maritime SAR is authorized in maritime bands
+            if "maritime" in use_case.lower() and service_type == "maritime":
+                return True
+            # Aviation emergency is authorized in aviation bands
+            if "aviation" in use_case.lower() and service_type in [
+                "aviation",
+                "aviation_navigation",
+            ]:
+                return True
+            # Emergency beacons are authorized in emergency bands
+            if "emergency" in use_case.lower() and service_type == "emergency":
+                return True
+
+        return False

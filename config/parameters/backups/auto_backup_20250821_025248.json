@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "last_updated": 1755737568.5918083,
+  "parameters": {
+    "PISAD_RF_FREQ": {
+      "value": 162025000.0,
+      "last_modified": 1755737568.5918083,
+      "source": "mission_planner",
+      "validation_status": "valid",
+      "backup_count": 0
+    },
+    "PISAD_RF_PROFILE": {
+      "value": 2.0,
+      "last_modified": 1755732811.1021936,
+      "source": "validation",
+      "validation_status": "valid",
+      "backup_count": 0
+    }
+  },
+  "metadata": {
+    "save_count": 1,
+    "backup_count": 1,
+    "source": "mission_planner"
+  }
+}

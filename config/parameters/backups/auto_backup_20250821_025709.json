@@ -1,0 +1,39 @@
+{
+  "version": "1.0.0",
+  "last_updated": 1755737829.7867165,
+  "parameters": {
+    "PISAD_RF_FREQ": {
+      "value": 406000000.0,
+      "last_modified": 1755737829.777774,
+      "source": "mission_planner",
+      "validation_status": "valid",
+      "backup_count": 0
+    },
+    "PISAD_RF_PROFILE": {
+      "value": 0.0,
+      "last_modified": 1755737829.7809153,
+      "source": "mission_planner",
+      "validation_status": "valid",
+      "backup_count": 0
+    },
+    "PISAD_RF_BW": {
+      "value": 25000.0,
+      "last_modified": 1755737829.7825572,
+      "source": "mission_planner",
+      "validation_status": "valid",
+      "backup_count": 0
+    },
+    "PISAD_HOMING_EN": {
+      "value": 1.0,
+      "last_modified": 1755737829.7867165,
+      "source": "mission_planner",
+      "validation_status": "valid",
+      "backup_count": 0
+    }
+  },
+  "metadata": {
+    "save_count": 4,
+    "backup_count": 1,
+    "source": "mission_planner"
+  }
+}

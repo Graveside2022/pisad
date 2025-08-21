@@ -369,12 +369,23 @@ class ConfigLoader:
         Initialize configuration loader.
 
         Args:
-            config_path: Path to configuration file. Defaults to config/default.yaml
+            config_path: Path to configuration file. Defaults to profile-based selection.
         """
         if config_path is None:
             # Get project root (3 levels up from this file)
             project_root = Path(__file__).parent.parent.parent.parent
-            self.config_path = project_root / "config" / "default.yaml"
+
+            # Select configuration profile based on environment
+            profile = os.getenv("PISAD_CONFIG_PROFILE", "default")
+            if profile in ["development", "dev"]:
+                config_file = "development.yaml"
+            elif profile in ["production", "prod"]:
+                config_file = "production.yaml"
+            else:
+                config_file = "default.yaml"
+
+            self.config_path = project_root / "config" / config_file
+            logger.info(f"Selected configuration profile: {profile} -> {config_file}")
         else:
             self.config_path = Path(config_path)
         self.config = Config()
@@ -388,18 +399,32 @@ class ConfigLoader:
         Returns:
             Loaded configuration object
         """
-        # Load from YAML file if it exists
-        if self.config_path.exists():
+        # Load configuration with inheritance support
+        config_data = self._load_with_inheritance()
+
+        if config_data:
             try:
-                with open(self.config_path) as f:
-                    yaml_config = yaml.safe_load(f)
-                    self._apply_yaml_config(yaml_config)
-                    logger.info(f"Loaded configuration from {self.config_path}")
-            except ConfigurationError as e:
+                # Validate merged configuration data
+                from src.backend.core.config_validator import ConfigValidator
+
+                validator = ConfigValidator()
+                is_valid, errors = validator.validate_config_dict(config_data)
+                if not is_valid:
+                    error_msg = "Configuration validation failed:\n" + "\n".join(
+                        f"  - {error}" for error in errors
+                    )
+                    raise ValueError(error_msg)
+
+                # Apply validated configuration
+                self._apply_yaml_config(config_data)
+                logger.info(
+                    f"Loaded and validated configuration from {self.config_path}"
+                )
+            except (ConfigurationError, ValueError) as e:
                 logger.error(
                     f"Failed to load configuration from {self.config_path}: {e}"
                 )
-                raise
+                raise ConfigurationError(str(e))
         else:
             logger.warning(
                 f"Configuration file {self.config_path} not found, using defaults"
@@ -418,6 +443,42 @@ class ConfigLoader:
         self._validate_config()
 
         return self.config
+
+    def _load_with_inheritance(self) -> dict[str, Any] | None:
+        """
+        Load configuration with inheritance from base configuration.
+
+        Returns:
+            Merged configuration dictionary or None if file not found
+        """
+        if not self.config_path.exists():
+            return None
+
+        # Load the specific configuration file
+        with open(self.config_path) as f:
+            config_data = yaml.safe_load(f) or {}
+
+        # Check if this is a profile-specific config (not default.yaml)
+        if self.config_path.name != "default.yaml":
+            # Load base configuration for inheritance
+            base_config_path = self.config_path.parent / "default.yaml"
+            if base_config_path.exists():
+                try:
+                    with open(base_config_path) as f:
+                        base_config = yaml.safe_load(f) or {}
+
+                    # Merge base config with profile-specific config
+                    # Profile-specific settings override base settings
+                    merged_config = {**base_config, **config_data}
+                    logger.info(f"Inherited base configuration from {base_config_path}")
+                    return merged_config
+
+                except Exception as e:
+                    logger.warning(f"Failed to load base configuration: {e}")
+                    # Fall back to profile-only configuration
+                    return config_data
+
+        return config_data
 
     def _load_hardware_config(self) -> None:
         """Load hardware configuration with fallback to mock configuration."""

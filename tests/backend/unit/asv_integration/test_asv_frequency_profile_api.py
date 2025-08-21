@@ -56,6 +56,15 @@ class TestASVFrequencyProfileAPI:
                 ref_power_dbm=-110.0,
                 priority=2,
             ),
+            "maritime_sar_162": ASVFrequencyProfile(
+                name="maritime_sar_162",
+                description="Search and Rescue Maritime Emergency",
+                center_frequency_hz=162_025_000,  # 162.025 MHz
+                bandwidth_hz=25_000,  # 25 kHz
+                analyzer_type="GP",
+                ref_power_dbm=-115.0,
+                priority=1,  # High priority for SAR operations
+            ),
             "custom_frequency": ASVFrequencyProfile(
                 name="custom_frequency",
                 description="Custom User-Defined Frequency",
@@ -99,7 +108,7 @@ class TestASVFrequencyProfileAPI:
             data = response.json()
 
             assert "profiles" in data
-            assert len(data["profiles"]) == 3
+            assert len(data["profiles"]) == 4  # Emergency, Aviation, Maritime SAR, Custom
 
             # Verify emergency beacon profile
             emergency_profile = next(
@@ -108,6 +117,13 @@ class TestASVFrequencyProfileAPI:
             assert emergency_profile["center_frequency_hz"] == 406_000_000
             assert emergency_profile["description"] == "Emergency Beacon Detection at 406 MHz"
             assert emergency_profile["analyzer_type"] == "GP"
+
+            # Verify maritime SAR profile (TASK-6.3.1 [28c3])
+            maritime_profile = next(p for p in data["profiles"] if p["name"] == "maritime_sar_162")
+            assert maritime_profile["center_frequency_hz"] == 162_025_000
+            assert maritime_profile["description"] == "Search and Rescue Maritime Emergency"
+            assert maritime_profile["bandwidth_hz"] == 25_000
+            assert maritime_profile["priority"] == 1  # High priority for SAR
 
     def test_switch_frequency_profile_endpoint_exists(self):
         """Test that POST /api/asv/switch-frequency endpoint exists."""
@@ -238,3 +254,30 @@ class TestASVFrequencyProfileAPI:
             assert (
                 data["switch_time_ms"] < 50
             ), f"Frequency switching took {data['switch_time_ms']}ms, must be <50ms"
+
+    def test_maritime_sar_profile_switching(self, mock_config_manager, mock_coordinator):
+        """Test switching to Maritime SAR frequency profile (TASK-6.3.1 [28c3])."""
+        with (
+            patch("src.backend.api.routes.asv_integration.asv_config_manager", mock_config_manager),
+            patch("src.backend.api.routes.asv_integration.asv_coordinator", mock_coordinator),
+        ):
+            response = client.post(
+                "/api/asv/switch-frequency", json={"profile_name": "maritime_sar_162"}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["success"] is True
+            assert data["profile_name"] == "maritime_sar_162"
+            assert data["frequency_hz"] == 162_025_000  # 162.025 MHz
+            assert "switch_time_ms" in data
+            assert data["switch_time_ms"] < 50  # Performance requirement
+
+    def test_maritime_sar_frequency_range_validation(self):
+        """Test Maritime SAR frequency is within valid range for HackRF."""
+        # 162.025 MHz should be valid for HackRF (24 MHz - 1.75 GHz effective range)
+        frequency_hz = 162_025_000
+        assert (
+            24_000_000 <= frequency_hz <= 1_750_000_000
+        ), "Maritime SAR frequency must be within HackRF effective range"

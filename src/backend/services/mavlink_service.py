@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import math
 import time
 from collections.abc import Callable
 from enum import Enum
@@ -127,7 +128,13 @@ class MAVLinkService:
         self._parameters: dict[str, float] = {}
         self._parameter_callbacks: list[Callable[[str, float], None]] = []
 
-        # Initialize frequency control parameters
+        # Parameter persistence system for TASK-6.3.1 completion
+        from src.backend.services.parameter_storage import ParameterStorage
+
+        self._parameter_storage = ParameterStorage()
+
+        # Load persisted parameters first, then initialize any missing ones
+        self._load_persisted_parameters()
         self._initialize_frequency_parameters()
 
         # Telemetry streaming tasks
@@ -144,6 +151,65 @@ class MAVLinkService:
         }
         self._last_detection_time = 0.0
         self._last_state_sent = ""
+
+        # Enhanced telemetry for SUBTASK-6.3.2.1
+        self._enhanced_telemetry_config = {
+            "rssi_rate_hz": 10.0,  # High-frequency RSSI (10Hz)
+            "status_rate_hz": 2.0,  # Medium-frequency status (2Hz)
+            "health_rate_hz": 0.5,  # Low-frequency health (0.5Hz)
+            "enable_adaptive_rates": True,  # Adaptive rate control
+            "bandwidth_monitoring": True,  # Monitor telemetry bandwidth
+            "priority_system": True,  # Priority-based telemetry
+            "compression_enabled": False,  # Telemetry compression
+            "message_validation": True,  # SUBTASK-6.3.2.2: Message validation
+            "reliability_buffering": True,  # SUBTASK-6.3.2.2: Message buffering
+            "mission_planner_optimization": True,  # SUBTASK-6.3.2.2: MP optimization
+        }
+        self._telemetry_bandwidth_usage = 0.0  # Current bandwidth usage
+        self._max_telemetry_bandwidth = 5000.0  # Max bytes/second
+        self._telemetry_priorities = {
+            "critical": 1,  # Emergency data
+            "high": 2,  # Signal quality, bearing
+            "medium": 3,  # Classification, interference
+            "low": 4,  # Health, diagnostics
+        }
+        self._last_telemetry_times = {
+            "rssi": 0.0,
+            "status": 0.0,
+            "health": 0.0,
+            "bearing": 0.0,
+            "classification": 0.0,
+        }
+
+        # SUBTASK-6.3.2.2: Mission Planner visualization optimization
+        self._telemetry_buffer: list[dict[str, Any]] = (
+            []
+        )  # Message buffer for reliability
+        self._buffer_max_size = 100  # Maximum buffered messages
+        self._failed_message_retry_count = 3  # Retry attempts for failed messages
+        self._message_validation_rules = {
+            "PISAD_RSSI": {"min": -120.0, "max": 0.0, "type": float},
+            "PISAD_SNR": {"min": -30.0, "max": 30.0, "type": float},
+            "PISAD_QUAL": {"min": 0.0, "max": 100.0, "type": float},
+            "PISAD_BRG": {"min": 0.0, "max": 360.0, "type": float},
+            "PISAD_BCONF": {"min": 0.0, "max": 100.0, "type": float},
+            "PISAD_FREQ": {"min": 400000000.0, "max": 470000000.0, "type": float},
+            "PISAD_PROF": {"min": 0.0, "max": 10.0, "type": float},
+            "PISAD_HOME": {"min": 0.0, "max": 1.0, "type": float},
+            "PISAD_CLS": {"min": 0.0, "max": 10.0, "type": float},
+            "PISAD_HLTH": {"min": 0.0, "max": 1.0, "type": float},
+            "PISAD_HW": {"min": 0.0, "max": 1.0, "type": float},
+            "PISAD_LOAD": {"min": 0.0, "max": 100.0, "type": float},
+            "PISAD_THRU": {"min": 0.0, "max": 1000000.0, "type": float},
+            "PISAD_BWTH": {"min": 0.0, "max": 100.0, "type": float},
+        }
+        self._telemetry_statistics = {
+            "messages_sent": 0,
+            "messages_failed": 0,
+            "messages_validated": 0,
+            "messages_buffered": 0,
+            "validation_failures": 0,
+        }
 
     async def telemetry_sender(self) -> None:
         """Send telemetry messages to GCS at configured rates."""
@@ -185,6 +251,71 @@ class MAVLinkService:
                 )
                 await asyncio.sleep(1.0)
 
+    async def enhanced_telemetry_sender(self) -> None:
+        """Enhanced telemetry sender with adaptive rates and priority system.
+
+        SUBTASK-6.3.2.1: Enhanced telemetry message implementation with:
+        - Adaptive rate control (10Hz RSSI, 2Hz status, 0.5Hz health)
+        - Bandwidth monitoring and overflow protection
+        - Priority-based telemetry system
+        - Mission Planner optimization
+
+        SUBTASK-6.3.2.2: Mission Planner visualization optimization with:
+        - Message validation and buffering
+        - Reliability and retry mechanisms
+        - Performance monitoring and statistics
+        """
+        last_bandwidth_check = 0.0
+        bandwidth_check_interval = 1.0  # Check bandwidth every second
+        last_buffer_process = 0.0
+        buffer_process_interval = 2.0  # Process buffered messages every 2 seconds
+
+        while self._running:
+            try:
+                current_time = time.time()
+
+                # Connection state handling
+                if not self.is_connected() or not self.connection:
+                    # Process buffered messages even when disconnected to manage buffer
+                    if current_time - last_buffer_process >= buffer_process_interval:
+                        if self._telemetry_buffer:
+                            logger.debug(
+                                f"Connection down, maintaining buffer with {len(self._telemetry_buffer)} messages"
+                            )
+                        last_buffer_process = current_time
+                    await asyncio.sleep(0.1)
+                    continue
+
+                # SUBTASK-6.3.2.2: Process buffered messages when connection is restored
+                if current_time - last_buffer_process >= buffer_process_interval:
+                    await self._process_buffered_messages()
+                    last_buffer_process = current_time
+
+                # Bandwidth monitoring (SUBTASK-6.3.2.1)
+                if current_time - last_bandwidth_check >= bandwidth_check_interval:
+                    self._monitor_telemetry_bandwidth()
+                    last_bandwidth_check = current_time
+
+                # High-frequency telemetry (10Hz) - SUBTASK-6.3.2.1
+                await self._send_high_frequency_telemetry(current_time)
+
+                # Medium-frequency telemetry (2Hz) - Status and signal data
+                await self._send_medium_frequency_telemetry(current_time)
+
+                # Low-frequency telemetry (0.5Hz) - Health and diagnostics
+                await self._send_low_frequency_telemetry(current_time)
+
+                await asyncio.sleep(0.05)  # 20Hz loop rate for responsiveness
+
+            except asyncio.CancelledError:
+                break
+            except (ConnectionError, TimeoutError, AttributeError) as e:
+                logger.error(
+                    f"Error in enhanced telemetry sender: {e}",
+                    extra={"connection_state": self.connection_state.value},
+                )
+                await asyncio.sleep(1.0)
+
     def send_named_value_float(
         self,
         name: str,
@@ -192,18 +323,32 @@ class MAVLinkService:
         timestamp: float | None = None,
         time_ms: int | None = None,
     ) -> bool:
-        """Send NAMED_VALUE_FLOAT message for continuous telemetry.
+        """Send NAMED_VALUE_FLOAT message for continuous telemetry with validation and buffering.
+
+        SUBTASK-6.3.2.2: Enhanced with Mission Planner optimization features:
+        - Message validation against defined rules
+        - Reliability buffering for failed sends
+        - Statistics tracking for monitoring
 
         Args:
             name: Parameter name (max 10 chars)
             value: Float value to send
             timestamp: Optional timestamp (uses current time if not provided)
+            time_ms: Optional time in milliseconds (overrides timestamp)
 
         Returns:
             True if sent successfully, False otherwise
         """
         if not self.is_connected() or not self.connection:
+            # Buffer the message for retry when connection is restored
+            if self._enhanced_telemetry_config.get("reliability_buffering", False):
+                self._buffer_telemetry_message(name, value, timestamp, time_ms)
             return False
+
+        # SUBTASK-6.3.2.2: Message validation
+        if self._enhanced_telemetry_config.get("message_validation", False):
+            if not self._validate_telemetry_message(name, value):
+                return False
 
         try:
             # Truncate name to 10 characters
@@ -221,17 +366,46 @@ class MAVLinkService:
                 assert timestamp is not None
                 time_boot_ms = int((timestamp % 86400) * 1000)
 
+            # Send the message
             self.connection.mav.named_value_float_send(
                 time_boot_ms, name.encode("utf-8"), value
             )
 
-            logger.debug(f"NAMED_VALUE_FLOAT sent: {name}={value:.2f}")
+            # Update statistics
+            self._telemetry_statistics["messages_sent"] += 1
+
+            # [31d] Update enhanced performance statistics for TASK-2.1.7
+            self._update_telemetry_stats(success=True, bytes_sent=39)
+
+            # Mission Planner optimization: Enhanced logging for critical parameters
+            if self._enhanced_telemetry_config.get(
+                "mission_planner_optimization", False
+            ):
+                if name.startswith("PISAD_"):
+                    logger.debug(f"MP Telemetry: {name}={value:.3f} @{time_boot_ms}ms")
+                else:
+                    logger.debug(f"NAMED_VALUE_FLOAT sent: {name}={value:.2f}")
+            else:
+                logger.debug(f"NAMED_VALUE_FLOAT sent: {name}={value:.2f}")
+
             return True
+
         except (AttributeError, ConnectionError, ValueError) as e:
             logger.error(
                 f"Failed to send NAMED_VALUE_FLOAT: {e}",
                 extra={"name": name, "value": value},
             )
+
+            # Update failure statistics
+            self._telemetry_statistics["messages_failed"] += 1
+
+            # [31d] Update enhanced performance statistics for TASK-2.1.7
+            self._update_telemetry_stats(success=False)
+
+            # Buffer failed message for retry
+            if self._enhanced_telemetry_config.get("reliability_buffering", False):
+                self._buffer_telemetry_message(name, value, timestamp, time_ms)
+
             return False
 
     def send_state_change(self, state: str) -> bool:
@@ -278,6 +452,723 @@ class MAVLinkService:
             self._last_detection_time = current_time
 
         return success
+
+    def send_enhanced_detection_event(self, event_data: dict[str, Any]) -> bool:
+        """Send enhanced detection event with filtering and formatting.
+
+        TASK-6.3.2 [31c1-31c4] - Detection event system implementation.
+
+        Args:
+            event_data: Enhanced detection event with classification and metadata
+
+        Returns:
+            True if sent successfully
+        """
+        try:
+            # Apply event filtering to prevent message flooding
+            if not self._should_send_detection_event(event_data):
+                return False
+
+            # Classify event severity for Mission Planner display
+            severity = self._classify_event_severity(event_data)
+
+            # Format enhanced detection message
+            message = self._format_detection_message(event_data)
+
+            # Send with appropriate severity classification
+            success = self.send_statustext(message, severity=severity)
+
+            if success:
+                # Update detection event parameter for telemetry
+                event_value = self._encode_detection_event(event_data)
+                self._parameters["PISAD_DETECT_EVENT"] = event_value
+
+                # Log event to flight logs
+                self._log_detection_event_to_flight_logs(event_data)
+
+                # Update event tracking for filtering
+                self._update_detection_event_tracking(event_data)
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Failed to send enhanced detection event: {e}")
+            return False
+
+    def _should_send_detection_event(self, event_data: dict[str, Any]) -> bool:
+        """Determine if detection event should be sent to prevent flooding.
+
+        TASK-6.3.2 [31c2] - Detection event filtering implementation.
+        """
+        current_time = time.time()
+        event_type = event_data.get("event_type", "unknown")
+        confidence = event_data.get("confidence", 0.0)
+
+        # Initialize event tracking if not exists
+        if not hasattr(self, "_detection_event_tracking"):
+            self._detection_event_tracking = {
+                "last_events": {},  # event_type -> last_time
+                "event_counts": {},  # event_type -> count
+                "confidence_threshold": 50.0,  # Minimum confidence to send
+                "rate_limits": {
+                    "target_detection": 2.0,  # Max 1 every 2 seconds
+                    "signal_lost": 5.0,  # Max 1 every 5 seconds
+                    "interference": 10.0,  # Max 1 every 10 seconds
+                    "default": 1.0,  # Default 1 per second
+                },
+            }
+
+        tracking = self._detection_event_tracking
+
+        # Check confidence threshold (except for critical events)
+        critical_events = ["emergency", "system_failure", "safety_override"]
+        if (
+            event_type not in critical_events
+            and confidence < tracking["confidence_threshold"]
+        ):
+            return False
+
+        # Check rate limiting
+        rate_limit = tracking["rate_limits"].get(
+            event_type, tracking["rate_limits"]["default"]
+        )
+        last_event_time = tracking["last_events"].get(event_type, 0.0)
+
+        if current_time - last_event_time < rate_limit:
+            return False
+
+        # Check for duplicate events (same type, similar confidence)
+        if event_type in tracking["last_events"]:
+            last_confidence = getattr(self, f"_last_{event_type}_confidence", 0.0)
+            confidence_diff = abs(confidence - last_confidence)
+
+            # Skip if confidence hasn't changed significantly
+            if (
+                confidence_diff < 5.0
+                and current_time - last_event_time < rate_limit * 2
+            ):
+                return False
+
+        return True
+
+    def _classify_event_severity(self, event_data: dict[str, Any]) -> int:
+        """Classify detection event severity for Mission Planner display.
+
+        Returns MAVLink STATUSTEXT severity level.
+        """
+        event_type = event_data.get("event_type", "unknown")
+        confidence = event_data.get("confidence", 0.0)
+
+        # Critical events (severity 1 = CRITICAL)
+        if event_type in ["emergency", "system_failure", "safety_override"]:
+            return 1
+
+        # Error events (severity 2 = ERROR)
+        if event_type in ["signal_lost", "interference_critical"]:
+            return 2
+
+        # Warning events (severity 3 = WARNING)
+        if event_type in ["interference", "low_confidence"] or confidence < 30.0:
+            return 3
+
+        # Notice events (severity 5 = NOTICE)
+        if event_type in ["target_detection", "signal_acquired"] and confidence >= 70.0:
+            return 5
+
+        # Info events (severity 6 = INFO)
+        return 6
+
+    def _format_detection_message(self, event_data: dict[str, Any]) -> str:
+        """Format detection event message for Mission Planner display.
+
+        TASK-6.3.2 [31c1] - RF detection event STATUSTEXT notifications.
+        """
+        event_type = event_data.get("event_type", "UNKNOWN")
+        confidence = event_data.get("confidence", 0.0)
+        rssi = event_data.get("rssi", -100.0)
+        bearing = event_data.get("bearing", 0.0)
+        frequency_mhz = event_data.get("frequency_hz", 0) / 1_000_000
+
+        # Format based on event type
+        if event_type == "target_detection":
+            return f"PISAD: Target detected {confidence:.0f}% @ {bearing:.0f}° ({rssi:.0f}dBm)"
+        elif event_type == "signal_lost":
+            return f"PISAD: Signal lost @ {frequency_mhz:.1f}MHz"
+        elif event_type == "interference":
+            interference_type = event_data.get("interference_type", "unknown")
+            return f"PISAD: Interference ({interference_type}) @ {bearing:.0f}°"
+        elif event_type == "homing_started":
+            return (
+                f"PISAD: Homing started - target @ {bearing:.0f}° ({confidence:.0f}%)"
+            )
+        elif event_type == "homing_stopped":
+            reason = event_data.get("reason", "operator")
+            return f"PISAD: Homing stopped ({reason})"
+        elif event_type == "frequency_changed":
+            return f"PISAD: Frequency → {frequency_mhz:.1f}MHz"
+        else:
+            return f"PISAD: {event_type.title()} - {confidence:.0f}% conf"
+
+    def _log_detection_event_to_flight_logs(self, event_data: dict[str, Any]) -> None:
+        """Log detection event to Mission Planner flight logs.
+
+        TASK-6.3.2 [31c4] - Detection event logging integration.
+        """
+        try:
+            # Create structured log entry
+            log_entry = {
+                "timestamp": time.time(),
+                "event_type": event_data.get("event_type", "unknown"),
+                "confidence": event_data.get("confidence", 0.0),
+                "rssi": event_data.get("rssi", -100.0),
+                "bearing": event_data.get("bearing", 0.0),
+                "frequency_hz": event_data.get("frequency_hz", 0),
+                "metadata": event_data.get("metadata", {}),
+            }
+
+            # Add to internal event log
+            if not hasattr(self, "_detection_event_log"):
+                self._detection_event_log = []
+
+            self._detection_event_log.append(log_entry)
+
+            # Keep only last 1000 events in memory
+            if len(self._detection_event_log) > 1000:
+                self._detection_event_log.pop(0)
+
+            # Write to log file if configured
+            if hasattr(self, "_log_file_path") and self._log_file_path:
+                self._write_event_to_log_file(log_entry)
+
+        except Exception as e:
+            logger.error(f"Failed to log detection event: {e}")
+
+    def _update_detection_event_tracking(self, event_data: dict[str, Any]) -> None:
+        """Update detection event tracking for filtering."""
+        current_time = time.time()
+        event_type = event_data.get("event_type", "unknown")
+        confidence = event_data.get("confidence", 0.0)
+
+        if hasattr(self, "_detection_event_tracking"):
+            tracking = self._detection_event_tracking
+            tracking["last_events"][event_type] = current_time
+            tracking["event_counts"][event_type] = (
+                tracking["event_counts"].get(event_type, 0) + 1
+            )
+            setattr(self, f"_last_{event_type}_confidence", confidence)
+
+    def acknowledge_detection_event(self, event_id: str) -> bool:
+        """Acknowledge detection event for operator awareness confirmation.
+
+        TASK-6.3.2 [31c3] - Detection event acknowledgment system.
+
+        Args:
+            event_id: Unique event identifier
+
+        Returns:
+            True if acknowledged successfully
+        """
+        try:
+            # Find event in log
+            if hasattr(self, "_detection_event_log"):
+                for event in reversed(self._detection_event_log):
+                    if str(event.get("timestamp", "")) == event_id:
+                        event["acknowledged"] = True
+                        event["ack_time"] = time.time()
+
+                        # Send acknowledgment confirmation
+                        ack_message = f"PISAD: Event {event_id[-4:]} acknowledged"
+                        self.send_statustext(ack_message, severity=6)
+
+                        logger.info(f"Detection event acknowledged: {event_id}")
+                        return True
+
+            logger.warning(f"Detection event not found for acknowledgment: {event_id}")
+            return False
+
+        except Exception as e:
+            logger.error(f"Failed to acknowledge detection event: {e}")
+            return False
+
+    def get_detection_event_statistics(self) -> dict[str, Any]:
+        """Get detection event system statistics."""
+        if not hasattr(self, "_detection_event_tracking"):
+            return {"events_sent": 0, "types": {}}
+
+        tracking = self._detection_event_tracking
+        total_events = sum(tracking["event_counts"].values())
+
+        return {
+            "total_events": total_events,
+            "event_types": tracking["event_counts"].copy(),
+            "confidence_threshold": tracking["confidence_threshold"],
+            "rate_limits": tracking["rate_limits"].copy(),
+            "events_in_log": len(getattr(self, "_detection_event_log", [])),
+            "acknowledged_events": len(
+                [
+                    e
+                    for e in getattr(self, "_detection_event_log", [])
+                    if e.get("acknowledged", False)
+                ]
+            ),
+        }
+
+    def enable_mission_planner_visualization_features(self) -> None:
+        """Enable enhanced Mission Planner visualization features.
+
+        TASK-6.3.2 [31b1-31d4] - Mission Planner visualization integration.
+        """
+        try:
+            # Initialize RSSI trend data formatting
+            self._initialize_rssi_trend_system()
+
+            # Initialize signal quality HUD indicators
+            self._initialize_signal_quality_hud()
+
+            # Configure telemetry compression if not already done
+            if not hasattr(self, "_telemetry_compression_enabled"):
+                self._configure_telemetry_compression()
+
+            logger.info("Mission Planner visualization features enabled")
+
+        except Exception as e:
+            logger.error(f"Failed to enable visualization features: {e}")
+
+    def _initialize_rssi_trend_system(self) -> None:
+        """Initialize RSSI trend data formatting for Mission Planner time-series graphing.
+
+        TASK-6.3.2 [31b1-31b4] - RSSI visualization implementation.
+        """
+        self._rssi_trend_data = {
+            "values": [],  # (timestamp, rssi) tuples
+            "smoothed_values": [],  # Smoothed RSSI for stable visualization
+            "trend_markers": [],  # Threshold markers for alerts
+            "gradient_data": [],  # Signal strength direction changes
+            "max_samples": 1000,  # Keep last 1000 samples
+            "smoothing_alpha": 0.3,  # Exponential smoothing factor
+            "threshold_markers": {
+                "weak": -100.0,  # Red zone
+                "poor": -85.0,  # Yellow zone
+                "good": -70.0,  # Green zone
+                "excellent": -50.0,  # Blue zone
+            },
+        }
+
+        logger.debug("RSSI trend system initialized")
+
+    def update_rssi_for_mission_planner_visualization(self, rssi: float) -> None:
+        """Update RSSI with Mission Planner visualization enhancements.
+
+        TASK-6.3.2 [31b1-31b4] - Enhanced RSSI trend formatting.
+
+        Args:
+            rssi: Current RSSI value in dBm
+        """
+        try:
+            current_time = time.time()
+
+            # Update base RSSI value
+            self.update_rssi_value(rssi)
+
+            # Add to trend data
+            if hasattr(self, "_rssi_trend_data"):
+                trend_data = self._rssi_trend_data
+
+                # Add raw sample
+                trend_data["values"].append((current_time, rssi))
+
+                # Apply smoothing filter for stable visualization
+                smoothed_rssi = self._apply_rssi_smoothing(rssi)
+                trend_data["smoothed_values"].append((current_time, smoothed_rssi))
+
+                # Calculate gradient for direction changes
+                gradient = self._calculate_rssi_gradient()
+                trend_data["gradient_data"].append((current_time, gradient))
+
+                # Trim old data
+                self._trim_rssi_trend_data()
+
+                # Update visualization parameters
+                self._update_rssi_visualization_parameters(
+                    rssi, smoothed_rssi, gradient
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to update RSSI for visualization: {e}")
+
+    def _apply_rssi_smoothing(self, current_rssi: float) -> float:
+        """Apply exponential smoothing to RSSI for stable visualization.
+
+        TASK-6.3.2 [31b2] - RSSI smoothing and filtering implementation.
+        """
+        if not hasattr(self, "_last_smoothed_rssi"):
+            self._last_smoothed_rssi = current_rssi
+            return current_rssi
+
+        alpha = self._rssi_trend_data["smoothing_alpha"]
+        smoothed = alpha * current_rssi + (1 - alpha) * self._last_smoothed_rssi
+        self._last_smoothed_rssi = smoothed
+
+        return smoothed
+
+    def _calculate_rssi_gradient(self) -> float:
+        """Calculate RSSI gradient for signal strength direction visualization.
+
+        TASK-6.3.2 [31b4] - RSSI gradient visualization data.
+        """
+        if (
+            not hasattr(self, "_rssi_trend_data")
+            or len(self._rssi_trend_data["values"]) < 2
+        ):
+            return 0.0
+
+        values = self._rssi_trend_data["values"]
+
+        # Use last 5 samples for gradient calculation
+        recent_samples = values[-5:] if len(values) >= 5 else values
+
+        if len(recent_samples) < 2:
+            return 0.0
+
+        # Calculate linear gradient (dBm per second)
+        time_span = recent_samples[-1][0] - recent_samples[0][0]
+        rssi_change = recent_samples[-1][1] - recent_samples[0][1]
+
+        if time_span > 0:
+            gradient = rssi_change / time_span  # dBm/s
+            # Clamp to reasonable range for visualization
+            return max(-10.0, min(10.0, gradient))
+
+        return 0.0
+
+    def _trim_rssi_trend_data(self) -> None:
+        """Trim old RSSI trend data to maintain performance."""
+        if not hasattr(self, "_rssi_trend_data"):
+            return
+
+        trend_data = self._rssi_trend_data
+        max_samples = trend_data["max_samples"]
+
+        for data_key in ["values", "smoothed_values", "gradient_data"]:
+            data_list = trend_data[data_key]
+            if len(data_list) > max_samples:
+                # Remove oldest samples
+                trend_data[data_key] = data_list[-max_samples:]
+
+    def _update_rssi_visualization_parameters(
+        self, raw_rssi: float, smoothed_rssi: float, gradient: float
+    ) -> None:
+        """Update Mission Planner parameters for RSSI visualization.
+
+        TASK-6.3.2 [31b3-31b4] - RSSI threshold markers and gradient visualization.
+        """
+        try:
+            # Update smoothed RSSI parameter for Mission Planner display
+            if "PISAD_RSSI_SMOOTH" not in self._parameters:
+                self._register_parameter(
+                    "PISAD_RSSI_SMOOTH", 0.0, self._handle_readonly_parameter
+                )
+            self._parameters["PISAD_RSSI_SMOOTH"] = smoothed_rssi
+
+            # Update gradient parameter for direction indication
+            if "PISAD_RSSI_GRAD" not in self._parameters:
+                self._register_parameter(
+                    "PISAD_RSSI_GRAD", 0.0, self._handle_readonly_parameter
+                )
+            self._parameters["PISAD_RSSI_GRAD"] = gradient
+
+            # Update quality zone indicator
+            quality_zone = self._classify_rssi_quality_zone(smoothed_rssi)
+            if "PISAD_RSSI_ZONE" not in self._parameters:
+                self._register_parameter(
+                    "PISAD_RSSI_ZONE", 0.0, self._handle_readonly_parameter
+                )
+            self._parameters["PISAD_RSSI_ZONE"] = float(quality_zone)
+
+            # Check for threshold alerts
+            self._check_rssi_threshold_alerts(smoothed_rssi)
+
+        except Exception as e:
+            logger.error(f"Failed to update RSSI visualization parameters: {e}")
+
+    def _classify_rssi_quality_zone(self, rssi: float) -> int:
+        """Classify RSSI into quality zones for color-coded visualization.
+
+        TASK-6.3.2 [31d2] - Color-coded signal strength visualization.
+
+        Returns:
+            Quality zone: 0=Red (weak), 1=Yellow (poor), 2=Green (good), 3=Blue (excellent)
+        """
+        thresholds = self._rssi_trend_data["threshold_markers"]
+
+        if rssi >= thresholds["excellent"]:
+            return 3  # Blue - Excellent
+        elif rssi >= thresholds["good"]:
+            return 2  # Green - Good
+        elif rssi >= thresholds["poor"]:
+            return 1  # Yellow - Poor
+        else:
+            return 0  # Red - Weak
+
+    def _check_rssi_threshold_alerts(self, rssi: float) -> None:
+        """Check RSSI thresholds and generate alerts for operator decision support.
+
+        TASK-6.3.2 [31b3] - RSSI threshold markers and alerts.
+        """
+        thresholds = self._rssi_trend_data["threshold_markers"]
+
+        # Check for threshold crossings
+        if not hasattr(self, "_last_rssi_zone"):
+            self._last_rssi_zone = self._classify_rssi_quality_zone(rssi)
+            return
+
+        current_zone = self._classify_rssi_quality_zone(rssi)
+
+        if current_zone != self._last_rssi_zone:
+            # Zone change detected - send alert
+            zone_names = ["WEAK", "POOR", "GOOD", "EXCELLENT"]
+            zone_name = (
+                zone_names[current_zone]
+                if current_zone < len(zone_names)
+                else "UNKNOWN"
+            )
+
+            # Send threshold crossing alert
+            alert_data = {
+                "event_type": "rssi_threshold_crossing",
+                "confidence": 100.0,  # Threshold crossings are certain
+                "rssi": rssi,
+                "metadata": {
+                    "previous_zone": self._last_rssi_zone,
+                    "current_zone": current_zone,
+                    "zone_name": zone_name,
+                },
+            }
+
+            self.send_enhanced_detection_event(alert_data)
+            self._last_rssi_zone = current_zone
+
+    def _initialize_signal_quality_hud(self) -> None:
+        """Initialize signal quality HUD indicators for Mission Planner overlay.
+
+        TASK-6.3.2 [31d1-31d4] - Signal quality HUD implementation.
+        """
+        try:
+            # Register HUD indicator parameters
+            if "PISAD_HUD_QUAL" not in self._parameters:
+                self._register_parameter(
+                    "PISAD_HUD_QUAL", 0.0, self._handle_readonly_parameter
+                )
+
+            if "PISAD_HUD_TREND" not in self._parameters:
+                self._register_parameter(
+                    "PISAD_HUD_TREND", 0.0, self._handle_readonly_parameter
+                )
+
+            if "PISAD_HUD_ALERT" not in self._parameters:
+                self._register_parameter(
+                    "PISAD_HUD_ALERT", 0.0, self._handle_readonly_parameter
+                )
+
+            # Initialize alert system configuration
+            self._signal_quality_alerts = {
+                "enabled": True,
+                "thresholds": {
+                    "signal_lost": -110.0,  # Critical alert
+                    "signal_weak": -95.0,  # Warning alert
+                    "confidence_low": 30.0,  # Low confidence alert
+                    "interference_high": 80.0,  # High interference alert
+                },
+                "alert_cooldown": 30.0,  # Seconds between similar alerts
+            }
+
+            logger.debug("Signal quality HUD system initialized")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize signal quality HUD: {e}")
+
+    def update_signal_quality_hud(self, signal_data: dict[str, Any]) -> None:
+        """Update signal quality HUD indicators for Mission Planner display.
+
+        TASK-6.3.2 [31d1-31d4] - Signal quality HUD and alerts.
+
+        Args:
+            signal_data: Dictionary with signal quality metrics
+        """
+        try:
+            # Calculate overall signal quality score
+            quality_score = self._calculate_overall_signal_quality(signal_data)
+            self._parameters["PISAD_HUD_QUAL"] = quality_score
+
+            # Update trend arrow indicator
+            trend_direction = self._calculate_signal_quality_trend(quality_score)
+            self._parameters["PISAD_HUD_TREND"] = trend_direction
+
+            # Check for quality alerts
+            alert_level = self._check_signal_quality_alerts(signal_data)
+            self._parameters["PISAD_HUD_ALERT"] = float(alert_level)
+
+        except Exception as e:
+            logger.error(f"Failed to update signal quality HUD: {e}")
+
+    def _calculate_overall_signal_quality(self, signal_data: dict[str, Any]) -> float:
+        """Calculate overall signal quality score for HUD display."""
+        rssi = signal_data.get("rssi", -100.0)
+        confidence = signal_data.get("confidence", 0.0)
+        interference = signal_data.get("interference_level", 0.0)
+
+        # Normalize RSSI to 0-100 scale (assuming -120 to -30 dBm range)
+        rssi_score = max(0, min(100, ((rssi + 120) / 90) * 100))
+
+        # Weight the components
+        overall_score = (
+            rssi_score * 0.4  # 40% RSSI
+            + confidence * 0.4  # 40% confidence
+            + (100 - interference) * 0.2  # 20% interference (inverted)
+        )
+
+        return max(0.0, min(100.0, overall_score))
+
+    def _calculate_signal_quality_trend(self, current_quality: float) -> float:
+        """Calculate signal quality trend direction for HUD arrows.
+
+        TASK-6.3.2 [31d3] - Signal quality trend arrows and indicators.
+
+        Returns:
+            Trend direction: -1=Down, 0=Stable, 1=Up
+        """
+        if not hasattr(self, "_quality_history"):
+            self._quality_history = []
+
+        self._quality_history.append(current_quality)
+
+        # Keep only last 10 samples
+        if len(self._quality_history) > 10:
+            self._quality_history.pop(0)
+
+        if len(self._quality_history) < 3:
+            return 0.0  # Stable (insufficient data)
+
+        # Calculate trend from recent samples
+        recent = self._quality_history[-3:]
+        trend = (recent[-1] - recent[0]) / len(recent)
+
+        # Classify trend direction
+        if trend > 5.0:
+            return 1.0  # Improving
+        elif trend < -5.0:
+            return -1.0  # Declining
+        else:
+            return 0.0  # Stable
+
+    def _check_signal_quality_alerts(self, signal_data: dict[str, Any]) -> int:
+        """Check signal quality for alerts and return alert level.
+
+        TASK-6.3.2 [31d4] - Signal quality alert system with configurable thresholds.
+
+        Returns:
+            Alert level: 0=None, 1=Info, 2=Warning, 3=Critical
+        """
+        if not hasattr(self, "_signal_quality_alerts"):
+            return 0
+
+        alerts = self._signal_quality_alerts
+        thresholds = alerts["thresholds"]
+
+        rssi = signal_data.get("rssi", -100.0)
+        confidence = signal_data.get("confidence", 0.0)
+        interference = signal_data.get("interference_level", 0.0)
+
+        # Check critical conditions
+        if rssi < thresholds["signal_lost"]:
+            self._send_quality_alert("Signal critically weak", 3)
+            return 3
+
+        # Check warning conditions
+        if rssi < thresholds["signal_weak"]:
+            self._send_quality_alert("Signal strength low", 2)
+            return 2
+
+        if confidence < thresholds["confidence_low"]:
+            self._send_quality_alert("Detection confidence low", 2)
+            return 2
+
+        if interference > thresholds["interference_high"]:
+            self._send_quality_alert("High interference detected", 2)
+            return 2
+
+        return 0  # No alerts
+
+    def _send_quality_alert(self, message: str, severity: int) -> None:
+        """Send signal quality alert with cooldown protection."""
+        current_time = time.time()
+
+        if not hasattr(self, "_last_quality_alert"):
+            self._last_quality_alert = {}
+
+        # Check cooldown
+        cooldown = self._signal_quality_alerts["alert_cooldown"]
+        last_alert_time = self._last_quality_alert.get(message, 0.0)
+
+        if current_time - last_alert_time > cooldown:
+            alert_data = {
+                "event_type": "signal_quality_alert",
+                "confidence": 100.0,
+                "metadata": {"alert_message": message, "severity": severity},
+            }
+
+            self.send_enhanced_detection_event(alert_data)
+            self._last_quality_alert[message] = current_time
+
+    def _configure_telemetry_compression(self) -> None:
+        """Configure telemetry compression for enhanced data transmission efficiency.
+
+        TASK-6.3.2 [31a3] - Telemetry compression implementation.
+        """
+        try:
+            self._telemetry_compression_config = {
+                "enabled": True,
+                "compression_ratio": 0.3,  # Reduce data size by 30%
+                "priority_parameters": [  # High priority parameters (never compress)
+                    "PISAD_RSSI",
+                    "PISAD_SIG_CONF",
+                    "PISAD_BEARING",
+                    "PISAD_HOMING_STATE",
+                ],
+                "low_priority_parameters": [  # Can be compressed/throttled
+                    "PISAD_SIG_CHAR",
+                    "PISAD_DETECT_EVENT",
+                    "PISAD_CONF_TREND",
+                    "PISAD_BEAR_RATE",
+                ],
+            }
+
+            self._telemetry_compression_enabled = True
+            logger.debug("Telemetry compression configured")
+
+        except Exception as e:
+            logger.error(f"Failed to configure telemetry compression: {e}")
+
+    def get_mission_planner_visualization_status(self) -> dict[str, Any]:
+        """Get Mission Planner visualization system status."""
+        return {
+            "rssi_trend_enabled": hasattr(self, "_rssi_trend_data"),
+            "rssi_samples": len(
+                getattr(self, "_rssi_trend_data", {}).get("values", [])
+            ),
+            "hud_enabled": hasattr(self, "_signal_quality_alerts"),
+            "compression_enabled": getattr(
+                self, "_telemetry_compression_enabled", False
+            ),
+            "quality_zone": self._parameters.get("PISAD_RSSI_ZONE", 0),
+            "trend_direction": self._parameters.get("PISAD_HUD_TREND", 0),
+            "alert_level": self._parameters.get("PISAD_HUD_ALERT", 0),
+            "visualization_parameters": {
+                "PISAD_RSSI_SMOOTH": self._parameters.get("PISAD_RSSI_SMOOTH", 0.0),
+                "PISAD_RSSI_GRAD": self._parameters.get("PISAD_RSSI_GRAD", 0.0),
+                "PISAD_HUD_QUAL": self._parameters.get("PISAD_HUD_QUAL", 0.0),
+            },
+        }
 
     async def _send_health_status(self) -> None:
         """Send system health status via STATUSTEXT."""
@@ -336,6 +1227,169 @@ class MAVLinkService:
         self._rssi_value = rssi
         self._current_rssi = rssi  # For backwards compatibility
 
+    def update_enhanced_signal_telemetry(self, signal_data: dict[str, Any]) -> None:
+        """Update enhanced signal telemetry parameters for TASK-6.3.2.
+
+        Args:
+            signal_data: Dictionary with enhanced signal characteristics
+        """
+        try:
+            # [30a3] Signal type characteristics
+            if "signal_characteristics" in signal_data:
+                characteristics = signal_data["signal_characteristics"]
+                # Encode characteristics as numeric value for Mission Planner
+                char_value = self._encode_signal_characteristics(characteristics)
+                self._parameters["PISAD_SIG_CHAR"] = char_value
+
+            # [30a4] Signal detection event
+            if "detection_event" in signal_data:
+                event_data = signal_data["detection_event"]
+                # Encode detection event with timestamp and classification
+                event_value = self._encode_detection_event(event_data)
+                self._parameters["PISAD_DETECT_EVENT"] = event_value
+
+            # [30b2] Confidence trend calculation
+            if "confidence" in signal_data:
+                confidence = signal_data["confidence"]
+                trend = self._calculate_confidence_trend(confidence)
+                self._parameters["PISAD_CONF_TREND"] = trend
+
+            # [30b3] Confidence threshold status
+            if "confidence_status" in signal_data:
+                status = signal_data["confidence_status"]
+                # 0=Below threshold, 1=Above threshold, 2=Critical
+                self._parameters["PISAD_CONF_STATUS"] = float(status)
+
+            # [30c3] Bearing precision
+            if "bearing_precision" in signal_data:
+                precision = signal_data["bearing_precision"]
+                self._parameters["PISAD_BEAR_PREC"] = precision
+
+            # [30c4] Bearing rate of change
+            if "bearing" in signal_data:
+                bearing = signal_data["bearing"]
+                rate = self._calculate_bearing_rate(bearing)
+                self._parameters["PISAD_BEAR_RATE"] = rate
+
+            # [30d2] Interference source classification
+            if "interference_type" in signal_data:
+                interference_type = signal_data["interference_type"]
+                # 0=None, 1=Radio, 2=Digital, 3=Environmental, 4=Unknown
+                type_value = self._encode_interference_type(interference_type)
+                self._parameters["PISAD_INTERF_TYPE"] = type_value
+
+            # [30d3] Interference location estimation
+            if "interference_bearing" in signal_data:
+                interference_bearing = signal_data["interference_bearing"]
+                self._parameters["PISAD_INTERF_BEAR"] = interference_bearing
+
+            # [30d4] Interference rejection status
+            if "rejection_effectiveness" in signal_data:
+                effectiveness = signal_data["rejection_effectiveness"]
+                self._parameters["PISAD_REJECT_STATUS"] = effectiveness
+
+            logger.debug("Enhanced signal telemetry updated")
+
+        except Exception as e:
+            logger.error(f"Failed to update enhanced signal telemetry: {e}")
+
+    def _encode_signal_characteristics(self, characteristics: str) -> float:
+        """Encode signal characteristics for Mission Planner display."""
+        characteristic_map = {
+            "fm_chirp": 1.0,
+            "continuous_tone": 2.0,
+            "pulsed": 3.0,
+            "digital": 4.0,
+            "noise": 5.0,
+            "unknown": 0.0,
+        }
+        return characteristic_map.get(characteristics.lower(), 0.0)
+
+    def _encode_detection_event(self, event_data: dict[str, Any]) -> float:
+        """Encode detection event for Mission Planner display."""
+        # Encode as: HHMMSS.ss (time) + classification offset
+        import time
+
+        current_time = time.time()
+        time_component = (current_time % 86400) / 86400 * 100  # Scale to 0-100
+
+        classification = event_data.get("classification", "unknown")
+        classification_offset = {
+            "target": 0.1,
+            "interference": 0.2,
+            "noise": 0.3,
+            "unknown": 0.0,
+        }.get(classification, 0.0)
+
+        return time_component + classification_offset
+
+    def _calculate_confidence_trend(self, current_confidence: float) -> float:
+        """Calculate confidence trend (rate of change)."""
+        if not hasattr(self, "_confidence_history"):
+            self._confidence_history = []
+
+        self._confidence_history.append(current_confidence)
+
+        # Keep only last 10 samples for trend calculation
+        if len(self._confidence_history) > 10:
+            self._confidence_history.pop(0)
+
+        if len(self._confidence_history) < 2:
+            return 0.0
+
+        # Calculate linear trend (slope)
+        recent = self._confidence_history[-3:]
+        if len(recent) >= 2:
+            trend = (recent[-1] - recent[0]) / len(recent)
+            return max(-10.0, min(10.0, trend * 10))  # Scale and clamp
+
+        return 0.0
+
+    def _calculate_bearing_rate(self, current_bearing: float) -> float:
+        """Calculate bearing rate of change (degrees per second)."""
+        current_time = time.time()
+
+        if not hasattr(self, "_bearing_history"):
+            self._bearing_history = []
+
+        self._bearing_history.append((current_time, current_bearing))
+
+        # Keep only last 5 seconds of data
+        cutoff_time = current_time - 5.0
+        self._bearing_history = [
+            (t, b) for t, b in self._bearing_history if t > cutoff_time
+        ]
+
+        if len(self._bearing_history) < 2:
+            return 0.0
+
+        # Calculate rate from oldest to newest sample
+        time_diff = self._bearing_history[-1][0] - self._bearing_history[0][0]
+        bearing_diff = self._bearing_history[-1][1] - self._bearing_history[0][1]
+
+        # Handle bearing wraparound (0/360 degree boundary)
+        if bearing_diff > 180:
+            bearing_diff -= 360
+        elif bearing_diff < -180:
+            bearing_diff += 360
+
+        if time_diff > 0:
+            rate = bearing_diff / time_diff  # degrees per second
+            return max(-180.0, min(180.0, rate))  # Clamp to reasonable range
+
+        return 0.0
+
+    def _encode_interference_type(self, interference_type: str) -> float:
+        """Encode interference type for Mission Planner display."""
+        type_map = {
+            "none": 0.0,
+            "radio": 1.0,
+            "digital": 2.0,
+            "environmental": 3.0,
+            "unknown": 4.0,
+        }
+        return type_map.get(interference_type.lower(), 4.0)
+
     def update_telemetry_config(self, config: dict[str, Any]) -> None:
         """Update telemetry configuration.
 
@@ -367,6 +1421,511 @@ class MAVLinkService:
     def get_telemetry_config(self) -> dict[str, Any]:
         """Get current telemetry configuration."""
         return self._telemetry_config.copy()
+
+    async def _send_high_frequency_telemetry(self, current_time: float) -> None:
+        """Send high-frequency telemetry data (10Hz) - SUBTASK-6.3.2.1.
+
+        High-priority data: RSSI, signal bearing, emergency states
+        """
+        if not self._enhanced_telemetry_config["enable_adaptive_rates"]:
+            return
+
+        rssi_interval = 1.0 / self._enhanced_telemetry_config["rssi_rate_hz"]
+
+        # Send RSSI telemetry at 10Hz
+        if current_time - self._last_telemetry_times["rssi"] >= rssi_interval:
+            if self._check_telemetry_bandwidth("high"):
+                self.send_named_value_float(
+                    "PISAD_RSSI", self._rssi_value, current_time
+                )
+
+                # Enhanced signal quality metrics for Mission Planner
+                if self._asv_service and hasattr(
+                    self._asv_service, "get_signal_quality"
+                ):
+                    try:
+                        quality_data = self._asv_service.get_signal_quality()
+                        if quality_data:
+                            self.send_named_value_float(
+                                "PISAD_SNR", quality_data.get("snr", 0.0), current_time
+                            )
+                            self.send_named_value_float(
+                                "PISAD_QUAL",
+                                quality_data.get("quality_score", 0.0),
+                                current_time,
+                            )
+                    except Exception as e:
+                        logger.debug(f"Error getting signal quality: {e}")
+
+                self._last_telemetry_times["rssi"] = current_time
+
+        # Send bearing data if available
+        bearing_interval = (
+            1.0 / self._enhanced_telemetry_config["rssi_rate_hz"]
+        )  # Same as RSSI
+        if current_time - self._last_telemetry_times["bearing"] >= bearing_interval:
+            if self._check_telemetry_bandwidth("high") and self._asv_service:
+                try:
+                    if hasattr(self._asv_service, "get_current_bearing"):
+                        bearing = self._asv_service.get_current_bearing()
+                        if bearing is not None:
+                            self.send_named_value_float(
+                                "PISAD_BRG", float(bearing), current_time
+                            )
+                            # Confidence metric for bearing accuracy
+                            if hasattr(self._asv_service, "get_bearing_confidence"):
+                                confidence = self._asv_service.get_bearing_confidence()
+                                if confidence is not None:
+                                    self.send_named_value_float(
+                                        "PISAD_BCONF", float(confidence), current_time
+                                    )
+                except Exception as e:
+                    logger.debug(f"Error getting bearing data: {e}")
+
+                self._last_telemetry_times["bearing"] = current_time
+
+    async def _send_medium_frequency_telemetry(self, current_time: float) -> None:
+        """Send medium-frequency telemetry data (2Hz) - SUBTASK-6.3.2.1.
+
+        Medium-priority data: RF status, classification, interference levels
+        """
+        if not self._enhanced_telemetry_config["enable_adaptive_rates"]:
+            return
+
+        status_interval = 1.0 / self._enhanced_telemetry_config["status_rate_hz"]
+
+        # Send RF system status at 2Hz
+        if current_time - self._last_telemetry_times["status"] >= status_interval:
+            if self._check_telemetry_bandwidth("medium"):
+                # RF frequency and profile status
+                current_freq = 406000000.0  # Default
+                if self._asv_service and hasattr(
+                    self._asv_service, "get_current_frequency"
+                ):
+                    try:
+                        freq = self._asv_service.get_current_frequency()
+                        if freq is not None:
+                            current_freq = float(freq)
+                    except Exception:
+                        pass
+
+                self.send_named_value_float("PISAD_FREQ", current_freq, current_time)
+
+                # RF profile status
+                current_profile = self._parameters.get("PISAD_RF_PROFILE", 0.0)
+                self.send_named_value_float("PISAD_PROF", current_profile, current_time)
+
+                # Homing system state
+                homing_state = float(self._parameters.get("PISAD_HOMING_ENABLE", 0.0))
+                self.send_named_value_float("PISAD_HOME", homing_state, current_time)
+
+                # Detection classification if available
+                if self._asv_service and hasattr(
+                    self._asv_service, "get_classification"
+                ):
+                    try:
+                        classification = self._asv_service.get_classification()
+                        if classification is not None:
+                            # Convert classification to numeric code for telemetry
+                            class_code = self._classification_to_code(classification)
+                            self.send_named_value_float(
+                                "PISAD_CLS", float(class_code), current_time
+                            )
+                    except Exception as e:
+                        logger.debug(f"Error getting classification: {e}")
+
+                self._last_telemetry_times["status"] = current_time
+
+    async def _send_low_frequency_telemetry(self, current_time: float) -> None:
+        """Send low-frequency telemetry data (0.5Hz) - SUBTASK-6.3.2.1.
+
+        Low-priority data: System health, diagnostics, statistics
+        """
+        if not self._enhanced_telemetry_config["enable_adaptive_rates"]:
+            return
+
+        health_interval = 1.0 / self._enhanced_telemetry_config["health_rate_hz"]
+
+        # Send system health at 0.5Hz
+        if current_time - self._last_telemetry_times["health"] >= health_interval:
+            if self._check_telemetry_bandwidth("low"):
+                # System health indicators
+                self.send_named_value_float(
+                    "PISAD_HLTH", 1.0 if self.is_connected() else 0.0, current_time
+                )
+
+                # RF system diagnostics
+                if self._asv_service:
+                    try:
+                        # Hardware status
+                        if hasattr(self._asv_service, "get_hardware_status"):
+                            hw_status = self._asv_service.get_hardware_status()
+                            if hw_status:
+                                self.send_named_value_float(
+                                    "PISAD_HW",
+                                    1.0 if hw_status.get("operational", False) else 0.0,
+                                    current_time,
+                                )
+
+                        # Processing load
+                        if hasattr(self._asv_service, "get_processing_load"):
+                            load = self._asv_service.get_processing_load()
+                            if load is not None:
+                                self.send_named_value_float(
+                                    "PISAD_LOAD", float(load), current_time
+                                )
+
+                        # Data throughput (samples/sec)
+                        if hasattr(self._asv_service, "get_throughput"):
+                            throughput = self._asv_service.get_throughput()
+                            if throughput is not None:
+                                self.send_named_value_float(
+                                    "PISAD_THRU", float(throughput), current_time
+                                )
+                    except Exception as e:
+                        logger.debug(f"Error getting system health: {e}")
+
+                # Telemetry bandwidth usage
+                bandwidth_percent = (
+                    self._telemetry_bandwidth_usage / self._max_telemetry_bandwidth
+                ) * 100.0
+                self.send_named_value_float(
+                    "PISAD_BWTH", bandwidth_percent, current_time
+                )
+
+                self._last_telemetry_times["health"] = current_time
+
+    def _monitor_telemetry_bandwidth(self) -> None:
+        """Monitor and manage telemetry bandwidth usage - SUBTASK-6.3.2.1."""
+        if not self._enhanced_telemetry_config["bandwidth_monitoring"]:
+            return
+
+        # Estimate current bandwidth usage based on message rates and sizes
+        # Each NAMED_VALUE_FLOAT is approximately 39 bytes
+        message_size = 39.0  # bytes
+
+        total_rate = 0.0
+        if self._enhanced_telemetry_config["enable_adaptive_rates"]:
+            total_rate += (
+                self._enhanced_telemetry_config["rssi_rate_hz"] * 3
+            )  # RSSI, SNR, QUAL
+            total_rate += (
+                self._enhanced_telemetry_config["rssi_rate_hz"] * 2
+            )  # Bearing, confidence
+            total_rate += (
+                self._enhanced_telemetry_config["status_rate_hz"] * 4
+            )  # Freq, profile, home, class
+            total_rate += (
+                self._enhanced_telemetry_config["health_rate_hz"] * 5
+            )  # Health metrics
+        else:
+            # Fallback to basic rate
+            total_rate = self._telemetry_config.get("rssi_rate_hz", 2.0)
+
+        self._telemetry_bandwidth_usage = total_rate * message_size
+
+        # Adaptive rate control if bandwidth exceeds limits
+        if (
+            self._telemetry_bandwidth_usage > self._max_telemetry_bandwidth * 0.8
+        ):  # 80% threshold
+            logger.warning(
+                f"Telemetry bandwidth near limit: {self._telemetry_bandwidth_usage:.1f} bytes/sec"
+            )
+            self._adaptive_rate_control()
+
+    def _check_telemetry_bandwidth(self, priority: str) -> bool:
+        """Check if telemetry can be sent based on bandwidth and priority.
+
+        Args:
+            priority: Telemetry priority level ("critical", "high", "medium", "low")
+
+        Returns:
+            True if telemetry should be sent, False if throttled
+        """
+        if not self._enhanced_telemetry_config["priority_system"]:
+            return True
+
+        # Always allow critical messages
+        if priority == "critical":
+            return True
+
+        # Check bandwidth threshold based on priority
+        threshold_multiplier = {
+            "high": 0.9,  # Allow up to 90% usage
+            "medium": 0.7,  # Allow up to 70% usage
+            "low": 0.5,  # Allow up to 50% usage
+        }
+
+        threshold = self._max_telemetry_bandwidth * threshold_multiplier.get(
+            priority, 0.5
+        )
+        return self._telemetry_bandwidth_usage <= threshold
+
+    def _adaptive_rate_control(self) -> None:
+        """Implement adaptive rate control to manage bandwidth - SUBTASK-6.3.2.1."""
+        if not self._enhanced_telemetry_config["enable_adaptive_rates"]:
+            return
+
+        # Reduce rates when bandwidth is high
+        reduction_factor = 0.8  # Reduce by 20%
+
+        # Scale back non-critical rates
+        if self._enhanced_telemetry_config["status_rate_hz"] > 1.0:
+            self._enhanced_telemetry_config["status_rate_hz"] *= reduction_factor
+            logger.info(
+                f"Reduced status telemetry rate to {self._enhanced_telemetry_config['status_rate_hz']:.1f} Hz"
+            )
+
+        if self._enhanced_telemetry_config["health_rate_hz"] > 0.2:
+            self._enhanced_telemetry_config["health_rate_hz"] *= reduction_factor
+            logger.info(
+                f"Reduced health telemetry rate to {self._enhanced_telemetry_config['health_rate_hz']:.1f} Hz"
+            )
+
+    def _classification_to_code(self, classification: Any) -> int:
+        """Convert classification result to numeric code for telemetry.
+
+        Args:
+            classification: Classification result from ASV service
+
+        Returns:
+            Numeric code representing classification
+        """
+        if classification is None:
+            return 0  # No classification
+
+        # Map common classifications to codes
+        classification_codes = {
+            "beacon": 1,
+            "distress": 2,
+            "emergency": 2,
+            "wildlife": 3,
+            "vessel": 4,
+            "interference": 5,
+            "noise": 6,
+            "unknown": 7,
+        }
+
+        if isinstance(classification, str):
+            return classification_codes.get(
+                classification.lower(), 7
+            )  # Default to unknown
+        elif isinstance(classification, dict) and "type" in classification:
+            return classification_codes.get(classification["type"].lower(), 7)
+        else:
+            return 7  # Unknown classification format
+
+    def _validate_telemetry_message(self, name: str, value: float) -> bool:
+        """Validate telemetry message against defined rules - SUBTASK-6.3.2.2.
+
+        Args:
+            name: Parameter name to validate
+            value: Parameter value to validate
+
+        Returns:
+            True if validation passes, False otherwise
+        """
+        if not self._enhanced_telemetry_config.get("message_validation", False):
+            return True
+
+        # Check if validation rule exists for this parameter
+        if name not in self._message_validation_rules:
+            # Allow parameters without specific rules
+            self._telemetry_statistics["messages_validated"] += 1
+            return True
+
+        rule = self._message_validation_rules[name]
+
+        try:
+            # Type validation
+            expected_type = rule.get("type", float)
+            if not isinstance(value, expected_type):
+                try:
+                    # Try to convert to expected type
+                    value = expected_type(value)
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Telemetry validation failed: {name} type mismatch, expected {expected_type.__name__}"
+                    )
+                    self._telemetry_statistics["validation_failures"] += 1
+                    return False
+
+            # Range validation
+            min_val = rule.get("min")
+            max_val = rule.get("max")
+
+            if min_val is not None and value < min_val:
+                logger.warning(
+                    f"Telemetry validation failed: {name}={value} below minimum {min_val}"
+                )
+                self._telemetry_statistics["validation_failures"] += 1
+                return False
+
+            if max_val is not None and value > max_val:
+                logger.warning(
+                    f"Telemetry validation failed: {name}={value} above maximum {max_val}"
+                )
+                self._telemetry_statistics["validation_failures"] += 1
+                return False
+
+            # Additional custom validations
+            if name == "PISAD_BRG" and value == 360.0:
+                # Normalize 360 degrees to 0 degrees for bearing
+                value = 0.0
+
+            self._telemetry_statistics["messages_validated"] += 1
+            return True
+
+        except Exception as e:
+            logger.error(f"Error during telemetry validation for {name}: {e}")
+            self._telemetry_statistics["validation_failures"] += 1
+            return False
+
+    def _buffer_telemetry_message(
+        self,
+        name: str,
+        value: float,
+        timestamp: float | None = None,
+        time_ms: int | None = None,
+    ) -> None:
+        """Buffer telemetry message for retry when connection is restored - SUBTASK-6.3.2.2.
+
+        Args:
+            name: Parameter name
+            value: Parameter value
+            timestamp: Optional timestamp
+            time_ms: Optional time in milliseconds
+        """
+        if not self._enhanced_telemetry_config.get("reliability_buffering", False):
+            return
+
+        # Create buffered message
+        buffered_message = {
+            "name": name,
+            "value": value,
+            "timestamp": timestamp or time.time(),
+            "time_ms": time_ms,
+            "retry_count": 0,
+            "created_at": time.time(),
+        }
+
+        # Add to buffer with size management
+        self._telemetry_buffer.append(buffered_message)
+        self._telemetry_statistics["messages_buffered"] += 1
+
+        # Maintain buffer size limit
+        while len(self._telemetry_buffer) > self._buffer_max_size:
+            oldest_message = self._telemetry_buffer.pop(0)
+            logger.debug(f"Removed oldest buffered message: {oldest_message['name']}")
+
+        logger.debug(
+            f"Buffered telemetry message: {name}={value} (buffer size: {len(self._telemetry_buffer)})"
+        )
+
+    async def _process_buffered_messages(self) -> None:
+        """Process and retry buffered telemetry messages - SUBTASK-6.3.2.2."""
+        if not self._enhanced_telemetry_config.get("reliability_buffering", False):
+            return
+
+        if not self.is_connected() or not self._telemetry_buffer:
+            return
+
+        # Process messages in FIFO order
+        messages_to_remove = []
+        current_time = time.time()
+
+        for i, message in enumerate(self._telemetry_buffer):
+            # Skip messages that are too old (>60 seconds)
+            if current_time - message["created_at"] > 60.0:
+                messages_to_remove.append(i)
+                logger.debug(f"Discarding expired buffered message: {message['name']}")
+                continue
+
+            # Retry the message
+            success = self.send_named_value_float(
+                message["name"],
+                message["value"],
+                message["timestamp"],
+                message["time_ms"],
+            )
+
+            if success:
+                messages_to_remove.append(i)
+                logger.debug(
+                    f"Successfully retried buffered message: {message['name']}"
+                )
+            else:
+                message["retry_count"] += 1
+                if message["retry_count"] >= self._failed_message_retry_count:
+                    messages_to_remove.append(i)
+                    logger.warning(
+                        f"Gave up retrying buffered message: {message['name']} after {message['retry_count']} attempts"
+                    )
+
+        # Remove processed messages (in reverse order to maintain indices)
+        for i in reversed(messages_to_remove):
+            del self._telemetry_buffer[i]
+
+    def get_telemetry_statistics(self) -> dict[str, Any]:
+        """Get comprehensive telemetry statistics for monitoring - SUBTASK-6.3.2.2.
+
+        Returns:
+            Dictionary containing telemetry performance metrics
+        """
+        stats = self._telemetry_statistics.copy()
+
+        # Add derived metrics
+        total_messages = stats["messages_sent"] + stats["messages_failed"]
+        stats["success_rate"] = (
+            (stats["messages_sent"] / total_messages * 100.0)
+            if total_messages > 0
+            else 0.0
+        )
+        stats["failure_rate"] = (
+            (stats["messages_failed"] / total_messages * 100.0)
+            if total_messages > 0
+            else 0.0
+        )
+        stats["validation_pass_rate"] = (
+            (
+                stats["messages_validated"]
+                / (stats["messages_validated"] + stats["validation_failures"])
+                * 100.0
+            )
+            if (stats["messages_validated"] + stats["validation_failures"]) > 0
+            else 0.0
+        )
+
+        # Add current buffer state
+        stats["current_buffer_size"] = len(self._telemetry_buffer)
+        stats["bandwidth_usage_bytes_per_sec"] = self._telemetry_bandwidth_usage
+        stats["bandwidth_usage_percent"] = (
+            self._telemetry_bandwidth_usage / self._max_telemetry_bandwidth
+        ) * 100.0
+
+        # Add configuration status
+        stats["enhanced_features_enabled"] = {
+            "adaptive_rates": self._enhanced_telemetry_config.get(
+                "enable_adaptive_rates", False
+            ),
+            "bandwidth_monitoring": self._enhanced_telemetry_config.get(
+                "bandwidth_monitoring", False
+            ),
+            "priority_system": self._enhanced_telemetry_config.get(
+                "priority_system", False
+            ),
+            "message_validation": self._enhanced_telemetry_config.get(
+                "message_validation", False
+            ),
+            "reliability_buffering": self._enhanced_telemetry_config.get(
+                "reliability_buffering", False
+            ),
+            "mission_planner_optimization": self._enhanced_telemetry_config.get(
+                "mission_planner_optimization", False
+            ),
+        }
+
+        return stats
 
     def add_state_callback(self, callback: Callable[[ConnectionState], None]) -> None:
         """Add callback for connection state changes."""
@@ -423,7 +1982,9 @@ class MAVLinkService:
             asyncio.create_task(self._heartbeat_sender()),
             asyncio.create_task(self._message_receiver()),
             asyncio.create_task(self._connection_monitor()),
-            asyncio.create_task(self.telemetry_sender()),
+            asyncio.create_task(
+                self.enhanced_telemetry_sender()
+            ),  # SUBTASK-6.3.2.1: Enhanced telemetry
         ]
 
     async def stop(self) -> None:
@@ -1457,6 +3018,33 @@ class MAVLinkService:
         except Exception as e:
             logger.error(f"Failed to send signal lost telemetry: {e}")
 
+    def _load_persisted_parameters(self) -> None:
+        """Load parameters from persistent storage on startup.
+
+        TASK-6.3.1 [28a4] - Parameter persistence mechanism implementation.
+        Loads saved parameters and validates them for Mission Planner compatibility.
+        """
+        try:
+            # Load parameters from storage
+            persisted_params = self._parameter_storage.load_parameters()
+
+            # Update current parameters with loaded values
+            self._parameters.update(persisted_params)
+
+            logger.info(f"Loaded {len(persisted_params)} persisted parameters")
+
+            # Log parameter load statistics
+            stats = self._parameter_storage.get_storage_statistics()
+            logger.debug(
+                f"Parameter storage: {stats['total_parameters']} params, "
+                f"load time: {stats['load_time_ms']:.1f}ms, "
+                f"validation: {stats['validation_summary']}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to load persisted parameters: {e}")
+            logger.info("Continuing with default parameters")
+
     def _initialize_frequency_parameters(self) -> None:
         """Initialize comprehensive MAVLink parameters for Mission Planner RF control.
 
@@ -1510,6 +3098,62 @@ class MAVLinkService:
             )
             self._register_parameter(
                 "PISAD_INTERFERENCE",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+
+            # Enhanced Signal Telemetry Parameters (TASK-6.3.2 Active TODOs)
+            # [30a3] Signal type characteristics telemetry
+            self._register_parameter(
+                "PISAD_SIG_CHAR",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+            # [30a4] Signal detection event telemetry
+            self._register_parameter(
+                "PISAD_DETECT_EVENT",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+            # [30b2] Confidence trend telemetry
+            self._register_parameter(
+                "PISAD_CONF_TREND",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+            # [30b3] Confidence threshold status
+            self._register_parameter(
+                "PISAD_CONF_STATUS",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+            # [30c3] Bearing precision telemetry
+            self._register_parameter(
+                "PISAD_BEAR_PREC",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+            # [30c4] Bearing rate of change telemetry
+            self._register_parameter(
+                "PISAD_BEAR_RATE",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+            # [30d2] Interference source classification
+            self._register_parameter(
+                "PISAD_INTERF_TYPE",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+            # [30d3] Interference location estimation
+            self._register_parameter(
+                "PISAD_INTERF_BEAR",
+                0.0,
+                self._handle_readonly_parameter,  # Read-only
+            )
+            # [30d4] Interference rejection status
+            self._register_parameter(
+                "PISAD_REJECT_STATUS",
                 0.0,
                 self._handle_readonly_parameter,  # Read-only
             )
@@ -1573,6 +3217,15 @@ class MAVLinkService:
             if handler(value):
                 self._parameters[param_name] = value
 
+                # Persist parameter change for TASK-6.3.1 [28a4] completion
+                try:
+                    self._parameter_storage.set_parameter(
+                        param_name, value, "mission_planner"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to persist parameter {param_name}: {e}")
+                    # Continue anyway - persistence failure shouldn't block operation
+
                 # Notify callbacks of parameter change
                 for callback in self._parameter_callbacks:
                     try:
@@ -1589,6 +3242,151 @@ class MAVLinkService:
         except Exception as e:
             logger.error(f"Error setting parameter {param_name}: {e}")
             return False
+
+    def validate_frequency_parameter(
+        self, param_name: str, frequency_hz: float
+    ) -> dict[str, Any]:
+        """
+        Validate frequency parameter with range checking and conflict resolution.
+
+        TASK-6.3.1 [28b2] - Parameter validation pipeline implementation
+
+        Args:
+            param_name: Parameter name to validate
+            frequency_hz: Frequency value in Hz
+
+        Returns:
+            Dict containing validation results
+        """
+        import time
+
+        from ..services.rf_regulation_validator import RFRegulationValidator
+        from ..utils.frequency_conflict_detector import FrequencyConflictDetector
+
+        start_time = time.perf_counter()
+
+        try:
+            # Validate parameter name
+            if param_name not in ["PISAD_RF_FREQ"]:
+                return {
+                    "valid": False,
+                    "error": f"Unknown parameter: {param_name}",
+                    "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                }
+
+            # Validate data type
+            try:
+                freq_int = int(frequency_hz)
+            except (ValueError, TypeError):
+                return {
+                    "valid": False,
+                    "error": "Invalid type: frequency must be numeric",
+                    "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                }
+
+            # Initialize validators
+            rf_validator = RFRegulationValidator()
+            conflict_detector = FrequencyConflictDetector()
+
+            # Validate HackRF range
+            hackrf_result = rf_validator.validate_hackrf_range(freq_int)
+            if not hackrf_result["valid"]:
+                return {
+                    "valid": False,
+                    "error": f"Frequency range error: {hackrf_result.get('error', 'Out of range')}",
+                    "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                }
+
+            # Check for conflicts
+            conflict_result = conflict_detector.detect_conflicts(
+                freq_int, 25_000
+            )  # 25kHz bandwidth
+
+            # Determine if conflicts are authorized for emergency use
+            authorized = False
+            authorization_reason = ""
+
+            if conflict_result["conflicts"]:
+                # Check for emergency frequency authorization
+                emergency_frequencies = {
+                    162_025_000: "Maritime SAR emergency frequency",
+                    121_500_000: "Aviation emergency frequency",
+                    406_000_000: "Emergency beacon frequency",
+                }
+
+                for freq, reason in emergency_frequencies.items():
+                    if abs(freq_int - freq) < 1000:  # Within 1kHz
+                        authorized = True
+                        authorization_reason = reason
+                        break
+
+            # Generate recommendations
+            recommendations = []
+            if conflict_result["conflicts"] and not authorized:
+                recommendations.extend(conflict_result.get("recommendations", []))
+                # Add alternative frequency suggestions
+                recommendations.append(
+                    "Consider emergency-allocated frequencies (162.025MHz, 121.5MHz, 406MHz)"
+                )
+                recommendations.append(
+                    "Review frequency conflicts before use in operational scenarios"
+                )
+            elif conflict_result["conflicts"] and authorized:
+                recommendations.append(
+                    f"Authorized for emergency use: {authorization_reason}"
+                )
+            else:
+                recommendations.append("Frequency appears clear for operational use")
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "valid": True,
+                "conflicts": conflict_result["conflicts"],
+                "authorized": authorized,
+                "authorization_reason": authorization_reason,
+                "severity": conflict_result.get("severity", "none"),
+                "conflicting_services": conflict_result.get("conflicting_services", []),
+                "recommendations": recommendations,
+                "hackrf_range": hackrf_result["range"],
+                "response_time_ms": response_time_ms,
+            }
+
+        except Exception as e:
+            logger.error(f"Parameter validation error: {e}")
+            return {
+                "valid": False,
+                "error": f"Validation error: {e!s}",
+                "response_time_ms": (time.perf_counter() - start_time) * 1000,
+            }
+
+    def validate_parameter_set(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        """
+        Validate a set of parameters together.
+
+        Args:
+            parameters: Dictionary of parameter names and values
+
+        Returns:
+            Dict containing validation results for the entire set
+        """
+        validation_results = {}
+        all_valid = True
+
+        for param_name, value in parameters.items():
+            if param_name == "PISAD_RF_FREQ":
+                result = self.validate_frequency_parameter(param_name, value)
+                validation_results[param_name] = result
+                if not result["valid"]:
+                    all_valid = False
+            else:
+                # Basic validation for other parameters
+                validation_results[param_name] = {
+                    "valid": True,
+                    "message": "Basic validation passed",
+                }
+
+        return {"valid": all_valid, "validation_results": validation_results}
 
     def get_parameter(self, param_name: str) -> float | None:
         """Get a MAVLink parameter value.
@@ -1622,6 +3420,94 @@ class MAVLinkService:
         except Exception as e:
             logger.error(f"Error requesting parameter {param_name}: {e}")
             return False
+
+    def backup_parameters(self, backup_name: str | None = None) -> str | None:
+        """Create manual backup of current parameters.
+
+        TASK-6.3.1 [29d2] - Parameter backup functionality implementation.
+
+        Args:
+            backup_name: Optional backup name
+
+        Returns:
+            Backup file path or None if failed
+        """
+        try:
+            backup_path = self._parameter_storage.create_backup(backup_name)
+            if backup_path:
+                logger.info(f"Created parameter backup: {backup_path}")
+            return backup_path
+        except Exception as e:
+            logger.error(f"Failed to create parameter backup: {e}")
+            return None
+
+    def restore_parameters(self, backup_path: str) -> bool:
+        """Restore parameters from backup file.
+
+        TASK-6.3.1 [29d2] - Parameter restore functionality implementation.
+
+        Args:
+            backup_path: Path to backup file
+
+        Returns:
+            True if restored successfully
+        """
+        try:
+            success = self._parameter_storage.restore_backup(backup_path)
+            if success:
+                # Reload parameters into current instance
+                self._parameters = self._parameter_storage.load_parameters()
+                logger.info("Parameters restored and reloaded successfully")
+            return success
+        except Exception as e:
+            logger.error(f"Failed to restore parameters: {e}")
+            return False
+
+    def validate_parameters_on_startup(self) -> bool:
+        """Validate all parameters on system startup with automatic correction.
+
+        TASK-6.3.1 [29d3] - Parameter validation on startup implementation.
+
+        Returns:
+            True if validation passed or corrections were applied
+        """
+        try:
+            # Get validation statistics
+            stats = self._parameter_storage.get_storage_statistics()
+            validation_summary = stats.get("validation_summary", {})
+
+            corrected_count = validation_summary.get("corrected", 0)
+            invalid_count = validation_summary.get("invalid", 0)
+
+            if corrected_count > 0:
+                logger.warning(
+                    f"Auto-corrected {corrected_count} out-of-range parameters"
+                )
+
+            if invalid_count > 0:
+                logger.error(
+                    f"Found {invalid_count} invalid parameters that could not be corrected"
+                )
+                return False
+
+            logger.info("Parameter validation completed successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Parameter validation failed: {e}")
+            return False
+
+    def get_parameter_storage_status(self) -> dict[str, Any]:
+        """Get parameter storage system status and statistics.
+
+        Returns:
+            Dictionary with storage status information
+        """
+        try:
+            return self._parameter_storage.get_storage_statistics()
+        except Exception as e:
+            logger.error(f"Failed to get parameter storage status: {e}")
+            return {"error": str(e)}
 
     def _handle_param_set(self, msg: Any) -> bool:
         """Handle PARAM_SET message from Mission Planner.
@@ -2250,6 +4136,215 @@ class MAVLinkService:
         except Exception as e:
             logger.error(f"Error updating homing state parameter: {e}")
 
+    def update_homing_substage_parameter(self, homing_substage: int) -> None:
+        """Update homing substage parameter for Mission Planner display.
+
+        SUBTASK-6.3.1.2 [29b3]: Homing substage reporting (APPROACH, SPIRAL_SEARCH, S_TURN, RETURN_TO_PEAK).
+
+        Args:
+            homing_substage: Homing substage (0=INACTIVE, 1=APPROACH, 2=SPIRAL_SEARCH, 3=S_TURN, 4=RETURN_TO_PEAK)
+        """
+        try:
+            if 0 <= homing_substage <= 4:
+                self._parameters["PISAD_HOMING_SUBSTAGE"] = float(homing_substage)
+                substage_names = [
+                    "INACTIVE",
+                    "APPROACH",
+                    "SPIRAL_SEARCH",
+                    "S_TURN",
+                    "RETURN_TO_PEAK",
+                ]
+                logger.debug(
+                    f"Homing substage updated: {substage_names[homing_substage]}"
+                )
+            else:
+                logger.warning(f"Invalid homing substage: {homing_substage}")
+        except Exception as e:
+            logger.error(f"Error updating homing substage parameter: {e}")
+
+    def update_homing_success_rate_parameter(self, success_rate: float) -> None:
+        """Update homing success rate parameter for Mission Planner display.
+
+        SUBTASK-6.3.1.2 [29b4]: Homing performance metrics - success rate tracking.
+
+        Args:
+            success_rate: Homing success rate percentage (0.0-100.0)
+        """
+        try:
+            if 0.0 <= success_rate <= 100.0:
+                self._parameters["PISAD_HOMING_SUCCESS_RATE"] = float(success_rate)
+                logger.debug(f"Homing success rate updated: {success_rate:.1f}%")
+            else:
+                # Clamp to valid range
+                clamped_rate = max(0.0, min(100.0, success_rate))
+                self._parameters["PISAD_HOMING_SUCCESS_RATE"] = float(clamped_rate)
+                logger.warning(
+                    f"Invalid success rate {success_rate}, clamped to {clamped_rate}"
+                )
+        except Exception as e:
+            logger.error(f"Error updating homing success rate parameter: {e}")
+
+    def update_homing_average_time_parameter(self, average_time: float) -> None:
+        """Update homing average time parameter for Mission Planner display.
+
+        SUBTASK-6.3.1.2 [29b4]: Homing performance metrics - average time tracking.
+
+        Args:
+            average_time: Average homing completion time in seconds (>=0.0)
+        """
+        try:
+            if average_time >= 0.0:
+                self._parameters["PISAD_HOMING_AVG_TIME"] = float(average_time)
+                logger.debug(f"Homing average time updated: {average_time:.1f}s")
+            else:
+                # Clamp to valid range (non-negative)
+                self._parameters["PISAD_HOMING_AVG_TIME"] = 0.0
+                logger.warning(f"Invalid average time {average_time}, clamped to 0.0")
+        except Exception as e:
+            logger.error(f"Error updating homing average time parameter: {e}")
+
+    def update_homing_confidence_level_parameter(self, confidence_level: float) -> None:
+        """Update homing confidence level parameter for Mission Planner display.
+
+        SUBTASK-6.3.1.2 [29b4]: Homing performance metrics - confidence level tracking.
+
+        Args:
+            confidence_level: Homing algorithm confidence percentage (0.0-100.0)
+        """
+        try:
+            if 0.0 <= confidence_level <= 100.0:
+                self._parameters["PISAD_HOMING_CONFIDENCE"] = float(confidence_level)
+                logger.debug(
+                    f"Homing confidence level updated: {confidence_level:.1f}%"
+                )
+            else:
+                # Clamp to valid range
+                clamped_confidence = max(0.0, min(100.0, confidence_level))
+                self._parameters["PISAD_HOMING_CONFIDENCE"] = float(clamped_confidence)
+                logger.warning(
+                    f"Invalid confidence level {confidence_level}, clamped to {clamped_confidence}"
+                )
+        except Exception as e:
+            logger.error(f"Error updating homing confidence level parameter: {e}")
+
+    def get_confidence_color_coding_recommendation(
+        self, confidence_level: float
+    ) -> dict[str, Any]:
+        """Get confidence-based color coding recommendations for Mission Planner visualization.
+
+        SUBTASK-6.3.2.1 [30b4]: Confidence-based color coding recommendations for Mission Planner visualization.
+
+        Args:
+            confidence_level: Confidence percentage (0.0-100.0)
+
+        Returns:
+            Dictionary with color coding recommendations including:
+            - color_zone: String identifier (RED, YELLOW, GREEN, BLUE)
+            - color_rgb: RGB values for display
+            - priority: Display priority level (1=highest, 4=lowest)
+            - recommendation: Text recommendation for operator
+            - threshold_status: Which threshold zone the confidence falls into
+        """
+        try:
+            # Clamp confidence to valid range
+            confidence = max(0.0, min(100.0, confidence_level))
+
+            # Define confidence thresholds and corresponding color zones
+            # Based on operational requirements and Mission Planner best practices
+            if confidence >= 85.0:
+                # BLUE zone - Excellent confidence, high reliability
+                color_zone = "BLUE"
+                color_rgb = {"r": 0, "g": 100, "b": 255}  # Blue
+                priority = 4  # Lowest priority (good news)
+                recommendation = "Excellent signal confidence - proceed with confidence"
+                threshold_status = "EXCELLENT"
+            elif confidence >= 70.0:
+                # GREEN zone - Good confidence, reliable operation
+                color_zone = "GREEN"
+                color_rgb = {"r": 0, "g": 200, "b": 0}  # Green
+                priority = 3  # Low priority (normal operation)
+                recommendation = "Good signal confidence - normal operation"
+                threshold_status = "GOOD"
+            elif confidence >= 50.0:
+                # YELLOW zone - Moderate confidence, caution advised
+                color_zone = "YELLOW"
+                color_rgb = {"r": 255, "g": 255, "b": 0}  # Yellow
+                priority = 2  # Medium priority (attention needed)
+                recommendation = "Moderate confidence - monitor signal quality"
+                threshold_status = "MODERATE"
+            else:
+                # RED zone - Low confidence, immediate attention required
+                color_zone = "RED"
+                color_rgb = {"r": 255, "g": 0, "b": 0}  # Red
+                priority = 1  # Highest priority (critical attention)
+                recommendation = (
+                    "Low confidence - verify signal and consider alternative approach"
+                )
+                threshold_status = "LOW"
+
+            # Additional metadata for Mission Planner integration
+            return {
+                "color_zone": color_zone,
+                "color_rgb": color_rgb,
+                "priority": priority,
+                "recommendation": recommendation,
+                "threshold_status": threshold_status,
+                "confidence_value": confidence,
+                "timestamp": time.time(),
+                "parameter_name": "PISAD_CONF_COLOR",  # For Mission Planner parameter display
+                "zone_numeric": {  # Numeric encoding for telemetry
+                    "RED": 1,
+                    "YELLOW": 2,
+                    "GREEN": 3,
+                    "BLUE": 4,
+                }[color_zone],
+            }
+
+        except Exception as e:
+            logger.error(f"Error calculating confidence color coding: {e}")
+            # Return safe default (RED zone with error indication)
+            return {
+                "color_zone": "RED",
+                "color_rgb": {"r": 255, "g": 0, "b": 0},
+                "priority": 1,
+                "recommendation": "Error in confidence calculation - manual verification required",
+                "threshold_status": "ERROR",
+                "confidence_value": 0.0,
+                "timestamp": time.time(),
+                "parameter_name": "PISAD_CONF_COLOR",
+                "zone_numeric": 1,
+            }
+
+    def update_confidence_color_coding_parameter(self, confidence_level: float) -> None:
+        """Update confidence-based color coding parameter for Mission Planner display.
+
+        SUBTASK-6.3.2.1 [30b4]: Confidence-based color coding recommendations integration.
+
+        Args:
+            confidence_level: Confidence percentage (0.0-100.0)
+        """
+        try:
+            color_recommendation = self.get_confidence_color_coding_recommendation(
+                confidence_level
+            )
+
+            # Update Mission Planner parameter with numeric zone for telemetry
+            self._parameters["PISAD_CONF_COLOR"] = float(
+                color_recommendation["zone_numeric"]
+            )
+
+            # Store detailed color information for local access
+            if not hasattr(self, "_confidence_color_data"):
+                self._confidence_color_data = {}
+            self._confidence_color_data = color_recommendation
+
+            logger.debug(
+                f"Confidence color coding updated: {color_recommendation['color_zone']} zone for {confidence_level:.1f}% confidence"
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating confidence color coding parameter: {e}")
+
     def update_response_time_parameter(self, response_time_ms: float) -> None:
         """Update response time parameter for performance monitoring.
 
@@ -2490,3 +4585,324 @@ class MAVLinkService:
             "HYBRID_ASV": 5,
         }
         return analyzer_map.get(analyzer_source, 0)
+
+    # TASK-2.1.7 Enhanced Telemetry Methods
+
+    def send_enhanced_telemetry_data(self, telemetry_data: dict) -> bool:
+        """
+        [30c, 30d] Send enhanced telemetry data including noise floor, SNR, and confidence metrics.
+
+        Implements SUBTASK-2.1.7.1 for comprehensive RSSI telemetry streaming.
+
+        Args:
+            telemetry_data: Dictionary containing telemetry values
+                - rssi: RSSI value in dBm
+                - noise_floor: Noise floor in dBm
+                - snr: Signal-to-noise ratio in dB
+                - confidence_score: Signal confidence (0.0-1.0)
+                - signal_quality: Signal quality metric (0.0-1.0)
+                - classification_confidence: Classification confidence (0.0-1.0)
+                - signal_reading: RSSIReading object with complete data
+
+        Returns:
+            True if all telemetry was sent successfully, False otherwise
+        """
+        if not self.is_connected() or not self.connection:
+            return False
+
+        success_count = 0
+        total_messages = 0
+
+        try:
+            # [30c] Send noise floor and SNR telemetry
+            if "noise_floor" in telemetry_data:
+                total_messages += 1
+                if self.send_named_value_float(
+                    "PISAD_NF", telemetry_data["noise_floor"]
+                ):
+                    success_count += 1
+
+            if "snr" in telemetry_data:
+                total_messages += 1
+                if self.send_named_value_float("PISAD_SNR", telemetry_data["snr"]):
+                    success_count += 1
+
+            # [30d] Send confidence metrics
+            if "confidence_score" in telemetry_data:
+                total_messages += 1
+                if self.send_named_value_float(
+                    "PISAD_CONF", telemetry_data["confidence_score"]
+                ):
+                    success_count += 1
+
+            if "signal_quality" in telemetry_data:
+                total_messages += 1
+                if self.send_named_value_float(
+                    "PISAD_QUAL", telemetry_data["signal_quality"]
+                ):
+                    success_count += 1
+
+            # Send RSSI if provided
+            if "rssi" in telemetry_data:
+                total_messages += 1
+                if self.send_named_value_float("PISAD_RSSI", telemetry_data["rssi"]):
+                    success_count += 1
+
+            logger.debug(
+                f"Enhanced telemetry sent: {success_count}/{total_messages} messages successful"
+            )
+
+            return success_count == total_messages
+
+        except Exception as e:
+            logger.error(
+                f"Failed to send enhanced telemetry data: {e}",
+                extra={"telemetry_keys": list(telemetry_data.keys())},
+            )
+            return False
+
+    def _validate_telemetry_message(self, name: str, value: float) -> bool:
+        """
+        [31a] Validate telemetry message before transmission.
+
+        Implements SUBTASK-2.1.7.2 message validation.
+
+        Args:
+            name: Message parameter name
+            value: Message value
+
+        Returns:
+            True if message is valid, False otherwise
+        """
+        try:
+            # Validate name length (MAVLink limit is 10 characters)
+            if len(name) > 10:
+                logger.warning(f"Telemetry name too long: {name} ({len(name)} chars)")
+                return False
+
+            # Validate value is finite
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                logger.warning(f"Invalid telemetry value: {value}")
+                return False
+
+            # Validate realistic ranges for known parameters
+            if name.startswith("PISAD_"):
+                param_type = name[6:]  # Remove "PISAD_" prefix
+
+                if param_type == "RSSI" and not (-120.0 <= value <= -20.0):
+                    logger.warning(f"RSSI value out of realistic range: {value} dBm")
+                    return False
+
+                elif param_type == "NF" and not (-100.0 <= value <= -50.0):
+                    logger.warning(
+                        f"Noise floor value out of realistic range: {value} dBm"
+                    )
+                    return False
+
+                elif param_type == "SNR" and not (-10.0 <= value <= 50.0):
+                    logger.warning(f"SNR value out of realistic range: {value} dB")
+                    return False
+
+                elif param_type in ["CONF", "QUAL"] and not (0.0 <= value <= 1.0):
+                    logger.warning(f"Confidence/quality value out of range: {value}")
+                    return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error validating telemetry message: {e}")
+            return False
+
+    def _buffer_telemetry_message(
+        self,
+        name: str,
+        value: float,
+        timestamp: float | None = None,
+        time_ms: int | None = None,
+    ) -> None:
+        """
+        [31b] Buffer telemetry message for reliable delivery.
+
+        Implements SUBTASK-2.1.7.2 message buffering.
+        """
+        if not hasattr(self, "_telemetry_buffer"):
+            self._telemetry_buffer = []
+
+        buffer_entry = {
+            "name": name,
+            "value": value,
+            "timestamp": timestamp or time.time(),
+            "time_ms": time_ms,
+            "retry_count": 0,
+            "buffered_at": time.time(),
+        }
+
+        self._telemetry_buffer.append(buffer_entry)
+
+        # Limit buffer size to prevent memory issues
+        if len(self._telemetry_buffer) > 1000:
+            self._telemetry_buffer.pop(0)  # Remove oldest entry
+
+        logger.debug(f"Buffered telemetry message: {name}={value}")
+
+    def _process_buffered_telemetry(self) -> None:
+        """
+        [31b] Process buffered telemetry messages when connection is restored.
+
+        Implements SUBTASK-2.1.7.2 reliable delivery.
+        """
+        if not hasattr(self, "_telemetry_buffer"):
+            return
+
+        if not self.is_connected():
+            return
+
+        processed_count = 0
+        failed_messages = []
+
+        for message in self._telemetry_buffer:
+            try:
+                success = self.send_named_value_float(
+                    message["name"],
+                    message["value"],
+                    message["timestamp"],
+                    message["time_ms"],
+                )
+
+                if success:
+                    processed_count += 1
+                else:
+                    message["retry_count"] += 1
+                    if message["retry_count"] < 3:  # Max 3 retries
+                        failed_messages.append(message)
+
+            except Exception as e:
+                logger.error(f"Error processing buffered telemetry: {e}")
+                message["retry_count"] += 1
+                if message["retry_count"] < 3:
+                    failed_messages.append(message)
+
+        # Update buffer with failed messages only
+        self._telemetry_buffer = failed_messages
+
+        if processed_count > 0:
+            logger.info(f"Processed {processed_count} buffered telemetry messages")
+
+    def send_named_value_float_with_retry(
+        self, name: str, value: float, max_retries: int = 3
+    ) -> bool:
+        """
+        [31c] Send NAMED_VALUE_FLOAT with exponential backoff retry mechanism.
+
+        Implements SUBTASK-2.1.7.2 retry mechanism with exponential backoff.
+
+        Args:
+            name: Parameter name
+            value: Parameter value
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            True if sent successfully, False if all retries failed
+        """
+        for attempt in range(max_retries):
+            try:
+                success = self.send_named_value_float(name, value)
+                if success:
+                    if attempt > 0:
+                        logger.info(
+                            f"Telemetry sent successfully on attempt {attempt + 1}"
+                        )
+                    return True
+
+            except Exception as e:
+                logger.warning(f"Telemetry send attempt {attempt + 1} failed: {e}")
+
+            # Exponential backoff: 0.1s, 0.2s, 0.4s, etc.
+            if attempt < max_retries - 1:
+                backoff_time = 0.1 * (2**attempt)
+                logger.debug(f"Retrying telemetry send in {backoff_time:.1f}s")
+                time.sleep(backoff_time)
+
+        logger.error(
+            f"Failed to send telemetry {name}={value} after {max_retries} attempts"
+        )
+        return False
+
+    def get_telemetry_performance_stats(self) -> dict:
+        """
+        [31d] Get telemetry performance monitoring statistics.
+
+        Implements SUBTASK-2.1.7.2 performance monitoring and bandwidth tracking.
+
+        Returns:
+            Dictionary with performance metrics
+        """
+        if not hasattr(self, "_telemetry_stats_tracking"):
+            self._telemetry_stats_tracking = {
+                "messages_sent": 0,
+                "messages_failed": 0,
+                "total_bytes_sent": 0,
+                "start_time": time.time(),
+                "latency_samples": [],
+            }
+
+        stats = self._telemetry_stats_tracking
+        current_time = time.time()
+        elapsed_time = current_time - stats["start_time"]
+
+        # Calculate performance metrics
+        total_messages = stats["messages_sent"] + stats["messages_failed"]
+        success_rate = (
+            stats["messages_sent"] / total_messages if total_messages > 0 else 0.0
+        )
+
+        # Calculate bandwidth (approximate)
+        # Each NAMED_VALUE_FLOAT is ~39 bytes (time_boot_ms=4, name=10, value=4, plus headers)
+        bandwidth_bps = (
+            (stats["total_bytes_sent"] * 8) / elapsed_time if elapsed_time > 0 else 0.0
+        )
+
+        # Calculate average latency
+        avg_latency_ms = (
+            sum(stats["latency_samples"]) / len(stats["latency_samples"])
+            if stats["latency_samples"]
+            else 0.0
+        )
+
+        return {
+            "messages_sent": stats["messages_sent"],
+            "messages_failed": stats["messages_failed"],
+            "success_rate": success_rate,
+            "bandwidth_usage_bps": bandwidth_bps,
+            "average_latency_ms": avg_latency_ms,
+            "elapsed_time_s": elapsed_time,
+            "buffer_size": len(getattr(self, "_telemetry_buffer", [])),
+            "total_bytes_sent": stats["total_bytes_sent"],
+        }
+
+    def _update_telemetry_stats(
+        self, success: bool, bytes_sent: int = 39, latency_ms: float = 0.0
+    ) -> None:
+        """Update telemetry performance statistics."""
+        if not hasattr(self, "_telemetry_stats_tracking"):
+            self._telemetry_stats_tracking = {
+                "messages_sent": 0,
+                "messages_failed": 0,
+                "total_bytes_sent": 0,
+                "start_time": time.time(),
+                "latency_samples": [],
+            }
+
+        stats = self._telemetry_stats_tracking
+
+        if success:
+            stats["messages_sent"] += 1
+            stats["total_bytes_sent"] += bytes_sent
+        else:
+            stats["messages_failed"] += 1
+
+        # Track latency (keep last 100 samples)
+        if latency_ms > 0:
+            stats["latency_samples"].append(latency_ms)
+            if len(stats["latency_samples"]) > 100:
+                stats["latency_samples"].pop(0)

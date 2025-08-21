@@ -1,6 +1,6 @@
 aviation_emergency:
   analyzer_type: GP
-  bandwidth_hz: 25000
+  bandwidth_hz: 50000
   calibration_enabled: true
   center_frequency_hz: 121500000
   description: Aviation Emergency Frequency
@@ -10,10 +10,10 @@ aviation_emergency:
   ref_power_dbm: -110.0
 emergency_beacon_406:
   analyzer_type: GP
-  bandwidth_hz: 50000
+  bandwidth_hz: 25000
   calibration_enabled: true
   center_frequency_hz: 406000000
-  description: Emergency Beacon Detection at 406 MHz
+  description: Emergency Beacon Detection at 406 MHz (ELT)
   name: emergency_beacon_406
   priority: 1
   processing_timeout_ms: 50
@@ -38,3 +38,13 @@ vor_aviation:
   priority: 2
   processing_timeout_ms: 100
   ref_power_dbm: -100.0
+maritime_sar_162:
+  analyzer_type: GP
+  bandwidth_hz: 25000
+  calibration_enabled: true
+  center_frequency_hz: 162025000
+  description: Search and Rescue Maritime Emergency
+  name: maritime_sar_162
+  priority: 1
+  processing_timeout_ms: 50
+  ref_power_dbm: -115.0
