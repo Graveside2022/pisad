@@ -216,7 +216,7 @@ class NetworkConfig:
     NETWORK_MONITORING_INTERVAL_MS: int = 1000  # 1 second
     NETWORK_ADAPTIVE_RATE_ENABLED: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate packet loss thresholds are within acceptable bounds."""
         thresholds = [
             self.NETWORK_PACKET_LOSS_LOW_THRESHOLD,

@@ -1506,7 +1506,7 @@ class StateMachine:
             # Initialize database if enabled
             if self._enable_persistence:
                 try:
-                    from backend.models.database import StateHistoryDB
+                    from src.backend.models.database import StateHistoryDB
 
                     self._state_db = StateHistoryDB(self._db_path)
                     self._restore_state()

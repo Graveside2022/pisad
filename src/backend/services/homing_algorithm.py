@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from backend.core.config import get_config
+from src.backend.core.config import get_config
 
 # ASV Integration for Task 6.1.16a - Enhanced professional bearing calculation
 from src.backend.services.asv_integration.asv_enhanced_homing_integration import (
@@ -1186,13 +1186,12 @@ class HomingAlgorithm:
             SearchPattern: Generated search pattern with waypoints
         """
         from dataclasses import dataclass
-        from typing import List, Tuple
 
         @dataclass
         class SearchPattern:
             pattern_type: str
             initial_radius: float
-            waypoints: List[Tuple[float, float]]
+            waypoints: list[tuple[float, float]]
             estimated_duration_seconds: float
 
         if gradient.confidence < 30.0:

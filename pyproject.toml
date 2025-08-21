@@ -2,7 +2,7 @@
 name = "pisad"
 version = "1.0.0"
 description = "Portable Interferometric Signal Analysis Device - RF homing payload system for emergency services"
-# readme = "README.md"  # Commented out - file doesn't exist
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "PISAD Team", email = "contact@example.com" }]

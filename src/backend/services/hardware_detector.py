@@ -34,7 +34,7 @@ class HardwareStatus:
 class HardwareDetector:
     """Auto-detect and manage hardware connections"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.hackrf: HackRFInterface | None = None
         self.cube_orange: MAVLinkInterface | None = None
         self.status = HardwareStatus()
@@ -109,15 +109,21 @@ class HardwareDetector:
                 if self.hackrf and not await self._check_sdr_alive():
                     logger.warning("SDR connection lost, attempting reconnect...")
                     if not await self.detect_sdr():
-                        self._retry_delay = min(self._retry_delay * 2, self._max_retry_delay)
+                        self._retry_delay = min(
+                            self._retry_delay * 2, self._max_retry_delay
+                        )
                     else:
                         self._retry_delay = 1.0  # Reset on success
 
                 # Check flight controller connection
                 if self.cube_orange and not await self._check_fc_alive():
-                    logger.warning("Flight controller connection lost, attempting reconnect...")
+                    logger.warning(
+                        "Flight controller connection lost, attempting reconnect..."
+                    )
                     if not await self.detect_flight_controller():
-                        self._retry_delay = min(self._retry_delay * 2, self._max_retry_delay)
+                        self._retry_delay = min(
+                            self._retry_delay * 2, self._max_retry_delay
+                        )
                     else:
                         self._retry_delay = 1.0  # Reset on success
 
