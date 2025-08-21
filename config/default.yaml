@@ -9,7 +9,7 @@ APP_HOST: "0.0.0.0"
 APP_PORT: 8000
 
 # SDR Configuration
-SDR_FREQUENCY: 433920000 # Default frequency in Hz (433.92 MHz)
+SDR_FREQUENCY: 3200000000 # Default frequency in Hz (3.2 GHz)
 SDR_SAMPLE_RATE: 2048000 # Sample rate in Hz (2.048 MHz)
 SDR_GAIN: 30 # Gain in dB
 SDR_PPM_CORRECTION: 0 # Frequency correction in PPM
@@ -21,6 +21,12 @@ SIGNAL_RSSI_THRESHOLD: -70 # RSSI threshold in dBm for signal detection
 SIGNAL_AVERAGING_WINDOW: 10 # Number of samples for moving average
 SIGNAL_MIN_DURATION_MS: 100 # Minimum signal duration in milliseconds
 SIGNAL_MAX_GAP_MS: 50 # Maximum gap in signal to consider continuous
+
+# TASK-2.2.7 [32e] - FR7 Debounced State Transitions
+STATE_MACHINE_TRIGGER_THRESHOLD_DB: 12.0 # FR7: Trigger threshold in dB SNR for SEARCHING->DETECTING
+STATE_MACHINE_DROP_THRESHOLD_DB: 6.0 # FR7: Drop threshold in dB SNR for DETECTING->SEARCHING
+STATE_MACHINE_DEBOUNCE_DETECTION_PERIOD_MS: 300 # Time period for detection debouncing in milliseconds
+STATE_MACHINE_DEBOUNCE_LOSS_PERIOD_MS: 300 # Time period for signal loss debouncing in milliseconds
 
 # Interferometry Configuration
 INTERFEROMETRY_ENABLED: false # Enable interferometric processing

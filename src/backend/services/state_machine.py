@@ -92,12 +92,12 @@ class StateMachine:
         self._pattern_paused_at: datetime | None = None
 
         # Entry/Exit action hooks
-        self._entry_actions: dict[SystemState, list[Callable[[], Coroutine[Any, Any, None]]]] = {
-            state: [] for state in SystemState
-        }
-        self._exit_actions: dict[SystemState, list[Callable[[], Coroutine[Any, Any, None]]]] = {
-            state: [] for state in SystemState
-        }
+        self._entry_actions: dict[
+            SystemState, list[Callable[[], Coroutine[Any, Any, None]]]
+        ] = {state: [] for state in SystemState}
+        self._exit_actions: dict[
+            SystemState, list[Callable[[], Coroutine[Any, Any, None]]]
+        ] = {state: [] for state in SystemState}
 
         # Add default HOMING entry action
         self._entry_actions[SystemState.HOMING] = [self._on_homing_entry]
@@ -114,6 +114,20 @@ class StateMachine:
         self._state_entered_time: float = time.time()
         self._timeout_task: asyncio.Task[None] | None = None
         self._telemetry_task: asyncio.Task[None] | None = None
+
+        # TASK-2.2.7 [32a,32b] - FR7 Debounced State Transitions Configuration
+        self._trigger_threshold_db: float = 12.0  # Default per FR7
+        self._drop_threshold_db: float = 6.0  # Default per FR7
+        self._config_loaded: bool = True  # Will be loaded synchronously for now
+
+        # TASK-2.2.7 [33a,33b] - Time-based Debouncing Configuration
+        self._debounce_detection_period_ms: float = 300.0  # Default per FR7
+        self._debounce_loss_period_ms: float = 300.0  # Default per FR7
+
+        # Debouncing state tracking
+        self._detection_debounce_start: float | None = None
+        self._loss_debounce_start: float | None = None
+        self._current_debounce_state: str = "none"  # "none", "detecting", "losing"
 
         # Telemetry metrics
         self._state_metrics: dict[str, Any] = {
@@ -135,7 +149,8 @@ class StateMachine:
                 self._restore_state()
             except (ImportError, DatabaseError, OSError) as e:
                 logger.error(
-                    f"Failed to initialize state persistence: {e}", extra={"db_path": db_path}
+                    f"Failed to initialize state persistence: {e}",
+                    extra={"db_path": db_path},
                 )
                 self._state_db = None
                 # Continue without persistence - not critical
@@ -249,7 +264,8 @@ class StateMachine:
                 pass  # Placeholder for actual signal processor configuration
             except (AttributeError, ValueError, ConnectionError) as e:
                 logger.error(
-                    f"Failed to enhance signal processing: {e}", extra={"state": "DETECTING"}
+                    f"Failed to enhance signal processing: {e}",
+                    extra={"state": "DETECTING"},
                 )
                 # Continue with default signal processing
 
@@ -266,7 +282,9 @@ class StateMachine:
                 # Set flight mode for homing
                 pass  # Placeholder for MAVLink configuration
             except (AttributeError, ConnectionError, SafetyInterlockError) as e:
-                logger.error(f"Failed to initialize homing mode: {e}", extra={"state": "HOMING"})
+                logger.error(
+                    f"Failed to initialize homing mode: {e}", extra={"state": "HOMING"}
+                )
                 raise StateTransitionError(f"Cannot enter HOMING: {e}") from e
 
     async def _on_homing_exit(self) -> None:
@@ -282,7 +300,9 @@ class StateMachine:
                 # Enable position hold mode
                 pass  # Placeholder for MAVLink position hold
             except (AttributeError, ConnectionError, ValueError) as e:
-                logger.error(f"Failed to enable position hold: {e}", extra={"state": "HOLDING"})
+                logger.error(
+                    f"Failed to enable position hold: {e}", extra={"state": "HOLDING"}
+                )
                 # Continue with current flight mode
 
     async def _on_holding_exit(self) -> None:
@@ -334,7 +354,11 @@ class StateMachine:
                 logger.error(
                     f"Error executing exit action for {state.value}: {e}",
                     extra={
-                        "action": action.__name__ if hasattr(action, "__name__") else str(action)
+                        "action": (
+                            action.__name__
+                            if hasattr(action, "__name__")
+                            else str(action)
+                        )
                     },
                 )
                 # Continue with other exit actions
@@ -404,7 +428,9 @@ class StateMachine:
         self._state_metrics["transition_times"].append(action_duration_ms)
         # Keep only last 100 transition times
         if len(self._state_metrics["transition_times"]) > 100:
-            self._state_metrics["transition_times"] = self._state_metrics["transition_times"][-100:]
+            self._state_metrics["transition_times"] = self._state_metrics[
+                "transition_times"
+            ][-100:]
 
         self._last_metrics_update = current_time
 
@@ -419,7 +445,9 @@ class StateMachine:
         if self._last_metrics_update > 0:
             duration = current_time - self._last_metrics_update
             current_metrics = self._state_metrics.copy()
-            current_metrics["state_durations"] = self._state_metrics["state_durations"].copy()
+            current_metrics["state_durations"] = self._state_metrics[
+                "state_durations"
+            ].copy()
             current_metrics["state_durations"][self._current_state.value] += duration
         else:
             current_metrics = self._state_metrics
@@ -434,7 +462,9 @@ class StateMachine:
         # Add computed metrics
         current_metrics["average_transition_time_ms"] = avg_transition_time
         current_metrics["current_state_duration_s"] = self.get_state_duration()
-        current_metrics["current_state"] = self._current_state.value  # Add for test compatibility
+        current_metrics["current_state"] = (
+            self._current_state.value
+        )  # Add for test compatibility
         current_metrics["state_duration_seconds"] = (
             self.get_state_duration()
         )  # Add for test compatibility
@@ -458,7 +488,9 @@ class StateMachine:
             metrics = self.get_telemetry_metrics()
 
             # Send key metrics via MAVLink
-            self._mavlink_service.send_telemetry("state_transitions", metrics["total_transitions"])
+            self._mavlink_service.send_telemetry(
+                "state_transitions", metrics["total_transitions"]
+            )
             self._mavlink_service.send_telemetry(
                 "state_duration_ms", int(metrics["current_state_duration_s"] * 1000)
             )
@@ -475,7 +507,9 @@ class StateMachine:
         except DatabaseError as e:
             logger.error(f"Failed to send telemetry update: {e}")
 
-    async def transition_to(self, new_state: SystemState | str, reason: str | None = None) -> bool:
+    async def transition_to(
+        self, new_state: SystemState | str, reason: str | None = None
+    ) -> bool:
         """Transition to a new state with validation.
 
         Args:
@@ -527,10 +561,15 @@ class StateMachine:
         # Start timeout task for new state if configured
         timeout = self._state_timeouts.get(new_state, 0)
         if timeout > 0:
-            self._timeout_task = asyncio.create_task(self._handle_state_timeout(new_state, timeout))
+            self._timeout_task = asyncio.create_task(
+                self._handle_state_timeout(new_state, timeout)
+            )
 
         event = StateChangeEvent(
-            from_state=old_state, to_state=new_state, timestamp=datetime.now(UTC), reason=reason
+            from_state=old_state,
+            to_state=new_state,
+            timestamp=datetime.now(UTC),
+            reason=reason,
         )
         self._state_history.append(event)
 
@@ -579,7 +618,9 @@ class StateMachine:
 
         return True
 
-    def _is_valid_transition(self, from_state: SystemState, to_state: SystemState) -> bool:
+    def _is_valid_transition(
+        self, from_state: SystemState, to_state: SystemState
+    ) -> bool:
         """Check if state transition is valid with guard conditions.
 
         Args:
@@ -592,7 +633,11 @@ class StateMachine:
         # Define valid transitions with guard conditions
         valid_transitions = {
             SystemState.IDLE: [SystemState.SEARCHING, SystemState.EMERGENCY],
-            SystemState.SEARCHING: [SystemState.IDLE, SystemState.DETECTING, SystemState.EMERGENCY],
+            SystemState.SEARCHING: [
+                SystemState.IDLE,
+                SystemState.DETECTING,
+                SystemState.EMERGENCY,
+            ],
             SystemState.DETECTING: [
                 SystemState.SEARCHING,
                 SystemState.HOMING,
@@ -611,7 +656,9 @@ class StateMachine:
                 SystemState.IDLE,
                 SystemState.EMERGENCY,
             ],
-            SystemState.EMERGENCY: [SystemState.IDLE],  # Can only return to IDLE from EMERGENCY
+            SystemState.EMERGENCY: [
+                SystemState.IDLE
+            ],  # Can only return to IDLE from EMERGENCY
         }
 
         # Allow transition to same state (no-op)
@@ -661,7 +708,9 @@ class StateMachine:
         """
         return time.time() - self._state_entered_time
 
-    def _check_transition_guards(self, from_state: SystemState, to_state: SystemState) -> bool:
+    def _check_transition_guards(
+        self, from_state: SystemState, to_state: SystemState
+    ) -> bool:
         """Check guard conditions for state transitions.
 
         Args:
@@ -697,7 +746,9 @@ class StateMachine:
             if self._mavlink_service is None:
                 return True  # Allow for test environment
             if not self._mavlink_service:
-                logger.warning("Cannot transition to HOMING: MAVLink service not available")
+                logger.warning(
+                    "Cannot transition to HOMING: MAVLink service not available"
+                )
                 return False
             # Could add additional checks like minimum detection confidence
             return True
@@ -708,7 +759,9 @@ class StateMachine:
             if self._mavlink_service is None:
                 return True  # Allow for test environment
             if not self._mavlink_service:
-                logger.warning("Cannot transition to HOLDING: MAVLink service not available")
+                logger.warning(
+                    "Cannot transition to HOLDING: MAVLink service not available"
+                )
                 return False
             # Could check if drone supports position hold mode
             return True
@@ -735,7 +788,9 @@ class StateMachine:
 
         # Transition to DETECTING if in SEARCHING state
         if self._current_state == SystemState.SEARCHING:
-            await self.transition_to(SystemState.DETECTING, f"Signal detected at {rssi:.1f}dBm")
+            await self.transition_to(
+                SystemState.DETECTING, f"Signal detected at {rssi:.1f}dBm"
+            )
 
         # Send detection telemetry if MAVLink service is available
         if self._mavlink_service:
@@ -783,7 +838,9 @@ class StateMachine:
         self._homing_enabled = False
 
         # Transition to EMERGENCY state from any state
-        result = await self.transition_to(SystemState.EMERGENCY, f"Emergency Stop: {reason}")
+        result = await self.transition_to(
+            SystemState.EMERGENCY, f"Emergency Stop: {reason}"
+        )
 
         # Stop any velocity commands if MAVLink service available
         if self._mavlink_service:
@@ -821,7 +878,9 @@ class StateMachine:
                         )
                     )
 
-                logger.info(f"Restored state: {self._current_state.value} from database")
+                logger.info(
+                    f"Restored state: {self._current_state.value} from database"
+                )
             else:
                 logger.info("No previous state found in database")
         except StateTransitionError as e:
@@ -935,7 +994,11 @@ class StateMachine:
         """
         valid_transitions = {
             SystemState.IDLE: [SystemState.SEARCHING, SystemState.EMERGENCY],
-            SystemState.SEARCHING: [SystemState.IDLE, SystemState.DETECTING, SystemState.EMERGENCY],
+            SystemState.SEARCHING: [
+                SystemState.IDLE,
+                SystemState.DETECTING,
+                SystemState.EMERGENCY,
+            ],
             SystemState.DETECTING: [
                 SystemState.SEARCHING,
                 SystemState.HOMING,
@@ -954,7 +1017,9 @@ class StateMachine:
                 SystemState.IDLE,
                 SystemState.EMERGENCY,
             ],
-            SystemState.EMERGENCY: [SystemState.IDLE],  # Can only return to IDLE from EMERGENCY
+            SystemState.EMERGENCY: [
+                SystemState.IDLE
+            ],  # Can only return to IDLE from EMERGENCY
         }
 
         return valid_transitions.get(self._current_state, [])
@@ -995,18 +1060,6 @@ class StateMachine:
 
         logger.info(f"State restored to {self._current_state.value}")
 
-    async def _on_homing_entry(self) -> None:
-        """Entry action for HOMING state."""
-        logger.info("Entering HOMING state")
-        # Enable homing mode
-        self._homing_enabled = True
-
-    async def _on_homing_exit(self) -> None:
-        """Exit action for HOMING state."""
-        logger.info("Exiting HOMING state")
-        # Disable homing mode
-        self._homing_enabled = False
-
     def get_state_history(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent state change history.
 
@@ -1043,7 +1096,9 @@ class StateMachine:
             "detection_count": self._detection_count,
             "last_detection_time": self._last_detection_time,
             "time_since_detection": (
-                time.time() - self._last_detection_time if self._last_detection_time > 0 else None
+                time.time() - self._last_detection_time
+                if self._last_detection_time > 0
+                else None
             ),
             "state_changes": len(self._state_history),
             "state_duration_seconds": self.get_state_duration(),
@@ -1091,7 +1146,9 @@ class StateMachine:
         self._active_pattern = pattern
         self._current_waypoint_index = 0
         self._search_substate = SearchSubstate.IDLE
-        logger.info(f"Search pattern {pattern.id} loaded with {pattern.total_waypoints} waypoints")
+        logger.info(
+            f"Search pattern {pattern.id} loaded with {pattern.total_waypoints} waypoints"
+        )
 
     def get_search_pattern(self) -> Optional["SearchPattern"]:
         """Get the active search pattern."""
@@ -1112,7 +1169,9 @@ class StateMachine:
             return False
 
         if self._current_state != SystemState.SEARCHING:
-            success = await self.transition_to(SystemState.SEARCHING, "Starting search pattern")
+            success = await self.transition_to(
+                SystemState.SEARCHING, "Starting search pattern"
+            )
             if not success:
                 return False
 
@@ -1258,7 +1317,11 @@ class StateMachine:
         self._is_running = False
 
         # Cancel timeout task if running
-        if hasattr(self, "_timeout_task") and self._timeout_task and not self._timeout_task.done():
+        if (
+            hasattr(self, "_timeout_task")
+            and self._timeout_task
+            and not self._timeout_task.done()
+        ):
             self._timeout_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._timeout_task
@@ -1337,7 +1400,11 @@ class StateMachine:
         # Extract detection details
         rssi = detection_event.rssi if hasattr(detection_event, "rssi") else -100.0
         snr = detection_event.snr if hasattr(detection_event, "snr") else 0.0
-        confidence = detection_event.confidence if hasattr(detection_event, "confidence") else 0.0
+        confidence = (
+            detection_event.confidence
+            if hasattr(detection_event, "confidence")
+            else 0.0
+        )
 
         # Update detection tracking
         self._last_detection_time = time.time()
@@ -1355,18 +1422,24 @@ class StateMachine:
                 f"Signal detected at {rssi:.1f}dBm with {confidence:.1f}% confidence",
             )
 
-        elif self._current_state == SystemState.DETECTING:
-            # Already detecting, check if we should transition to HOMING
-            if self._homing_enabled and confidence > 80.0:
-                await self.transition_to(
-                    SystemState.HOMING, f"High confidence detection ({confidence:.1f}%)"
-                )
+        elif (
+            self._current_state == SystemState.DETECTING
+            and self._homing_enabled
+            and confidence > 80.0
+        ):
+            # Already detecting, transition to HOMING with high confidence
+            await self.transition_to(
+                SystemState.HOMING, f"High confidence detection ({confidence:.1f}%)"
+            )
 
         # Send telemetry update if MAVLink connected
         if self._mavlink_service:
             try:
                 await self._mavlink_service.send_detection_telemetry(
-                    rssi=rssi, snr=snr, confidence=confidence, state=self._current_state.value
+                    rssi=rssi,
+                    snr=snr,
+                    confidence=confidence,
+                    state=self._current_state.value,
                 )
             except Exception as e:
                 logger.error(f"Failed to send detection telemetry: {e}")
@@ -1500,7 +1573,10 @@ class StateMachine:
             Dictionary with pattern status
         """
         if not self._active_pattern:
-            return {"has_pattern": False, "search_substate": self._search_substate.value}
+            return {
+                "has_pattern": False,
+                "search_substate": self._search_substate.value,
+            }
 
         return {
             "has_pattern": True,
@@ -1526,7 +1602,7 @@ class StateMachine:
 
         try:
             mode_info = await self._mavlink_service.get_flight_mode()
-            return mode_info.get("mode", "UNKNOWN")
+            return str(mode_info.get("mode", "UNKNOWN"))
         except Exception as e:
             logger.warning(f"Failed to get flight mode: {e}")
             return "UNKNOWN"
@@ -1562,3 +1638,238 @@ class StateMachine:
             True if in emergency state and transitions are blocked
         """
         return self._current_state == SystemState.EMERGENCY
+
+    # TASK-2.2.7 [32a,32b,32d,32f] - FR7 Debounce Configuration Management
+    async def _load_debounce_config_from_file(self) -> None:
+        """Load debounce configuration from system configuration."""
+        try:
+            # [32e] Load from actual configuration system
+            from src.backend.core.config import get_config
+
+            app_config = get_config()
+            config = {
+                "trigger_threshold_db": getattr(
+                    app_config, "STATE_MACHINE_TRIGGER_THRESHOLD_DB", 12.0
+                ),
+                "drop_threshold_db": getattr(
+                    app_config, "STATE_MACHINE_DROP_THRESHOLD_DB", 6.0
+                ),
+                "debounce_detection_period_ms": getattr(
+                    app_config, "STATE_MACHINE_DEBOUNCE_DETECTION_PERIOD_MS", 300
+                ),
+                "debounce_loss_period_ms": getattr(
+                    app_config, "STATE_MACHINE_DEBOUNCE_LOSS_PERIOD_MS", 300
+                ),
+            }
+            await self._load_debounce_config(config)
+            self._config_loaded = True
+            logger.info(
+                f"Loaded debounce config: trigger={self._trigger_threshold_db}dB, drop={self._drop_threshold_db}dB"
+            )
+        except Exception as e:
+            logger.error(f"Failed to load debounce config, using defaults: {e}")
+            # Fall back to FR7 defaults
+            config = {
+                "trigger_threshold_db": 12.0,  # FR7 default
+                "drop_threshold_db": 6.0,  # FR7 default
+            }
+            await self._load_debounce_config(config)
+            self._config_loaded = True
+
+    async def _load_debounce_config(self, config: dict[str, Any]) -> None:
+        """Load and validate debounce configuration.
+
+        Args:
+            config: Configuration dictionary with threshold parameters
+
+        Raises:
+            StateTransitionError: If configuration is invalid
+        """
+        trigger_db = config.get("trigger_threshold_db", 12.0)
+        drop_db = config.get("drop_threshold_db", 6.0)
+
+        # [32d] Threshold validation for safety
+        if trigger_db <= drop_db:
+            raise StateTransitionError(
+                f"Invalid threshold config: trigger threshold ({trigger_db}dB) must be greater than drop threshold ({drop_db}dB)"
+            )
+
+        # [32f] Minimum separation validation
+        separation = trigger_db - drop_db
+        if separation < 3.0:
+            raise StateTransitionError(
+                f"Invalid threshold config: minimum 3dB separation required, got {separation:.1f}dB"
+            )
+
+        # Apply validated configuration
+        self._trigger_threshold_db = float(trigger_db)
+        self._drop_threshold_db = float(drop_db)
+
+        # [33a,33b] Load time-based debouncing periods
+        self._debounce_detection_period_ms = float(
+            config.get("debounce_detection_period_ms", 300.0)
+        )
+        self._debounce_loss_period_ms = float(
+            config.get("debounce_loss_period_ms", 300.0)
+        )
+
+    async def _evaluate_signal_for_transition(
+        self, rssi: float, noise_floor: float
+    ) -> bool:
+        """Evaluate signal for state transitions using debounced detection.
+
+        Args:
+            rssi: Received signal strength in dBm
+            noise_floor: Noise floor in dBm
+
+        Returns:
+            True if signal should trigger state transition
+        """
+        if not self._signal_processor:
+            logger.warning("Signal processor not available for transition evaluation")
+            return False
+
+        # [32c] Integrate with existing SignalProcessor hysteresis logic
+        return bool(
+            self._signal_processor.process_detection_with_debounce(
+                rssi=rssi,
+                noise_floor=noise_floor,
+                threshold=self._trigger_threshold_db,
+                drop_threshold=self._drop_threshold_db,
+            )
+        )
+
+    # TASK-2.2.7 [33c,33d,33e,33f] - Debounced State Transition System
+    async def _process_sustained_detection(
+        self, rssi: float, noise_floor: float
+    ) -> bool:
+        """Process sustained signal detection with time-based debouncing.
+
+        Args:
+            rssi: Received signal strength in dBm
+            noise_floor: Noise floor in dBm
+
+        Returns:
+            True if sustained detection confirmed and state should transition
+        """
+        current_time = time.time()
+
+        # Check if signal meets detection threshold using existing processor
+        signal_detected = await self._evaluate_signal_for_transition(rssi, noise_floor)
+
+        if signal_detected:
+            # Start or continue detection debounce period
+            if self._detection_debounce_start is None:
+                self._detection_debounce_start = current_time
+                self._current_debounce_state = "detecting"
+                # [33f] Comprehensive logging with debounce details
+                logger.info(
+                    f"Started detection debounce: trigger={self._trigger_threshold_db}dB, period={self._debounce_detection_period_ms}ms"
+                )
+                return False  # Not sustained yet
+
+            # Check if detection has been sustained for required period
+            debounce_elapsed_ms = (current_time - self._detection_debounce_start) * 1000
+
+            if debounce_elapsed_ms >= self._debounce_detection_period_ms:
+                # Reset debounce state
+                self._detection_debounce_start = None
+                self._current_debounce_state = "none"
+
+                # [33f] Log successful sustained detection
+                logger.info(
+                    f"Sustained detection confirmed after {debounce_elapsed_ms:.1f}ms (threshold={self._trigger_threshold_db}dB)"
+                )
+                return True  # Sustained detection confirmed
+            else:
+                # Still within debounce period
+                remaining_ms = self._debounce_detection_period_ms - debounce_elapsed_ms
+                logger.debug(
+                    f"Detection debounce in progress: {remaining_ms:.1f}ms remaining"
+                )
+                return False
+        else:
+            # [33d] Signal lost during detection debounce - cancel transition
+            if self._detection_debounce_start is not None:
+                logger.info(
+                    f"Detection debounce cancelled - signal lost during {self._debounce_detection_period_ms}ms period"
+                )
+                self._detection_debounce_start = None
+                self._current_debounce_state = "none"
+            return False
+
+    async def _process_signal_loss(self, rssi: float, noise_floor: float) -> bool:
+        """Process signal loss with time-based debouncing.
+
+        Args:
+            rssi: Received signal strength in dBm
+            noise_floor: Noise floor in dBm
+
+        Returns:
+            True if sustained loss confirmed and state should transition
+        """
+        current_time = time.time()
+
+        # Check if signal is below drop threshold
+        signal_detected = await self._evaluate_signal_for_transition(rssi, noise_floor)
+
+        if not signal_detected:
+            # Start or continue loss debounce period
+            if self._loss_debounce_start is None:
+                self._loss_debounce_start = current_time
+                self._current_debounce_state = "losing"
+                # [33f] Comprehensive logging with debounce details
+                logger.info(
+                    f"Started signal loss debounce: drop={self._drop_threshold_db}dB, period={self._debounce_loss_period_ms}ms"
+                )
+                return False  # Not lost yet
+
+            # Check if loss has been sustained for required period
+            debounce_elapsed_ms = (current_time - self._loss_debounce_start) * 1000
+
+            if debounce_elapsed_ms >= self._debounce_loss_period_ms:
+                # Reset debounce state
+                self._loss_debounce_start = None
+                self._current_debounce_state = "none"
+
+                # [33f] Log sustained signal loss
+                logger.info(
+                    f"Sustained signal loss confirmed after {debounce_elapsed_ms:.1f}ms (threshold={self._drop_threshold_db}dB)"
+                )
+                return True  # Sustained loss confirmed
+            else:
+                # Still within debounce period
+                remaining_ms = self._debounce_loss_period_ms - debounce_elapsed_ms
+                logger.debug(
+                    f"Signal loss debounce in progress: {remaining_ms:.1f}ms remaining"
+                )
+                return False
+        else:
+            # Signal recovered during loss debounce - handled by _process_signal_recovery
+            return False
+
+    async def _process_signal_recovery(self, rssi: float, noise_floor: float) -> bool:
+        """Process signal recovery during loss debounce period.
+
+        Args:
+            rssi: Received signal strength in dBm
+            noise_floor: Noise floor in dBm
+
+        Returns:
+            True if recovery confirmed and loss transition cancelled
+        """
+        # Check if signal has recovered above drop threshold
+        signal_detected = await self._evaluate_signal_for_transition(rssi, noise_floor)
+
+        if signal_detected and self._loss_debounce_start is not None:
+            # [33d] Cancel loss transition - signal recovered
+            elapsed_ms = (time.time() - self._loss_debounce_start) * 1000
+            logger.info(
+                f"Signal recovery detected after {elapsed_ms:.1f}ms - loss transition cancelled"
+            )
+
+            self._loss_debounce_start = None
+            self._current_debounce_state = "none"
+            return True  # Recovery confirmed, loss cancelled
+
+        return False
